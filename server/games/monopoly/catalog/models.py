@@ -1,7 +1,6 @@
 """Dataclass models used by the Monopoly catalog pipeline."""
 
 from dataclasses import dataclass, field
-from datetime import datetime, UTC
 
 
 @dataclass
@@ -43,15 +42,12 @@ class CanonicalEdition:
     @classmethod
     def from_raw(cls, raw: RawInstructionRecord) -> "CanonicalEdition":
         """Create a canonical edition shell from a raw extracted record."""
-        now = datetime.now(UTC).isoformat(timespec="seconds")
         return cls(
             edition_id=f"monopoly-{raw.sku.lower()}",
             sku=raw.sku,
             canonical_slug=raw.slug,
             display_name=raw.name,
             brand=raw.brand,
-            first_seen_at=now,
-            last_seen_at=now,
         )
 
 
@@ -61,4 +57,3 @@ class CanonicalCatalog:
 
     editions: list[CanonicalEdition] = field(default_factory=list)
     manual_variants: list[dict] = field(default_factory=list)
-
