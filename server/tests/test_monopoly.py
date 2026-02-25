@@ -295,6 +295,36 @@ def test_monopoly_bankrupt_when_liquidation_cannot_cover_rent(monkeypatch):
     assert host.cash == STARTING_CASH + 30
 
 
+def test_monopoly_bankruptcy_transfers_assets_to_creditor(monkeypatch):
+    game = _start_two_player_game()
+    host = game.players[0]
+    guest = game.players[1]
+
+    host.owned_space_ids.append("boardwalk")
+    game.property_owners["boardwalk"] = host.id
+    guest.owned_space_ids.append("mediterranean_avenue")
+    game.property_owners["mediterranean_avenue"] = guest.id
+    guest.cash = 10
+    guest.get_out_of_jail_cards = 1
+    guest.position = 36
+    game.current_player = guest
+    game.turn_has_rolled = False
+    game.turn_pending_purchase_space_id = ""
+
+    rolls = iter([1, 2])  # total = 3 -> Boardwalk (rent 50)
+    monkeypatch.setattr("server.games.monopoly.game.random.randint", lambda a, b: next(rolls))
+
+    game.execute_action(guest, "roll_dice")
+
+    assert guest.bankrupt is True
+    assert game.property_owners["mediterranean_avenue"] == host.id
+    assert "mediterranean_avenue" in host.owned_space_ids
+    assert guest.get_out_of_jail_cards == 0
+    assert host.get_out_of_jail_cards == 1
+    assert "mediterranean_avenue" in game.mortgaged_space_ids
+    assert host.cash == STARTING_CASH + 40
+
+
 def test_monopoly_doubles_grant_extra_roll(monkeypatch):
     game = _start_two_player_game()
     host = game.current_player

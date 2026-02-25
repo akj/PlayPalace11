@@ -1307,20 +1307,45 @@ class MonopolyGame(ActionGuardMixin, Game):
             team.round_score = 0
 
     def _declare_bankrupt(
-        self, player: MonopolyPlayer, *, creditor_name: str | None = None
+        self,
+        player: MonopolyPlayer,
+        *,
+        creditor_name: str | None = None,
+        creditor_id: str | None = None,
     ) -> None:
         """Mark a player bankrupt, release their holdings, and check winner."""
         if player.bankrupt:
             return
 
         player.bankrupt = True
+        creditor: MonopolyPlayer | None = None
+        if creditor_id:
+            maybe_creditor = self.get_player_by_id(creditor_id)
+            if (
+                maybe_creditor
+                and isinstance(maybe_creditor, MonopolyPlayer)
+                and not maybe_creditor.bankrupt
+                and maybe_creditor.id != player.id
+            ):
+                creditor = maybe_creditor
+
         for space_id in list(player.owned_space_ids):
             if self.property_owners.get(space_id) == player.id:
-                del self.property_owners[space_id]
-            if space_id in self.mortgaged_space_ids:
+                if creditor:
+                    self.property_owners[space_id] = creditor.id
+                    if space_id not in creditor.owned_space_ids:
+                        creditor.owned_space_ids.append(space_id)
+                else:
+                    del self.property_owners[space_id]
+            if not creditor and space_id in self.mortgaged_space_ids:
                 self.mortgaged_space_ids.remove(space_id)
+            # Buildings are liquidated during bankruptcy transfer/release.
             if space_id in self.building_levels:
                 self.building_levels[space_id] = 0
+        if creditor and player.get_out_of_jail_cards > 0:
+            creditor.get_out_of_jail_cards += player.get_out_of_jail_cards
+        player.get_out_of_jail_cards = 0
+        player.cash = 0
         player.owned_space_ids.clear()
         player.in_jail = False
         player.jail_turns = 0
@@ -1333,7 +1358,7 @@ class MonopolyGame(ActionGuardMixin, Game):
         self.broadcast_l(
             "monopoly-player-bankrupt",
             player=player.name,
-            creditor=creditor_name or "Bank",
+            creditor=creditor_name or (creditor.name if creditor else "Bank"),
         )
 
         ordered_before = self.turn_players
@@ -1530,7 +1555,12 @@ class MonopolyGame(ActionGuardMixin, Game):
             )
             if paid < rent_due:
                 creditor_name = owner.name if owner else "Bank"
-                self._declare_bankrupt(player, creditor_name=creditor_name)
+                creditor_id = owner.id if owner and isinstance(owner, MonopolyPlayer) else None
+                self._declare_bankrupt(
+                    player,
+                    creditor_name=creditor_name,
+                    creditor_id=creditor_id,
+                )
                 return "bankrupt"
             return "resolved"
 
