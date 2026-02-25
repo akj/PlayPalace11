@@ -328,6 +328,8 @@ PASS_GO_CASH = 200
 TAX_AMOUNTS = {"income_tax": 200, "luxury_tax": 100}
 BAIL_AMOUNT = 50
 MIN_AUCTION_INCREMENT = 10
+TOTAL_HOUSES = 32
+TOTAL_HOTELS = 12
 
 CHANCE_CARD_IDS = [
     "advance_to_go",
@@ -723,6 +725,101 @@ class MonopolyGame(ActionGuardMixin, Game):
         """Return True if any property in the group has buildings."""
         return any(self._building_level(space_id) > 0 for space_id in self._group_space_ids(color_group))
 
+    def _building_supply_in_use(self) -> tuple[int, int]:
+        """Return (houses_in_use, hotels_in_use) from board state."""
+        houses = 0
+        hotels = 0
+        for level in self.building_levels.values():
+            if level >= 5:
+                hotels += 1
+            else:
+                houses += max(0, level)
+        return houses, hotels
+
+    def _available_houses(self) -> int:
+        """Return houses currently available in bank supply."""
+        houses_in_use, _ = self._building_supply_in_use()
+        return max(0, TOTAL_HOUSES - houses_in_use)
+
+    def _available_hotels(self) -> int:
+        """Return hotels currently available in bank supply."""
+        _, hotels_in_use = self._building_supply_in_use()
+        return max(0, TOTAL_HOTELS - hotels_in_use)
+
+    def _can_raise_building_level(self, space_id: str) -> bool:
+        """Check supply constraints for +1 building level."""
+        level = self._building_level(space_id)
+        if level < 0 or level >= 5:
+            return False
+        if level <= 3:
+            return self._available_houses() >= 1
+        return self._available_hotels() >= 1
+
+    def _can_lower_building_level(self, space_id: str) -> bool:
+        """Check supply constraints for -1 building level."""
+        level = self._building_level(space_id)
+        if level <= 0:
+            return False
+        if level <= 4:
+            return True
+        return self._available_houses() >= 4
+
+    def _pick_best_building_sale(self, space_ids: list[str]) -> str | None:
+        """Pick the sale that usually raises cash fastest."""
+        if not space_ids:
+            return None
+        ranked = sorted(
+            space_ids,
+            key=lambda space_id: (
+                SPACE_BY_ID[space_id].house_cost,
+                self._building_level(space_id),
+                self._space_label(space_id),
+            ),
+            reverse=True,
+        )
+        return ranked[0]
+
+    def _pick_best_mortgage(self, space_ids: list[str]) -> str | None:
+        """Pick the mortgage that usually raises cash fastest."""
+        if not space_ids:
+            return None
+        ranked = sorted(
+            space_ids,
+            key=lambda space_id: (
+                self._mortgage_value(SPACE_BY_ID[space_id]),
+                SPACE_BY_ID[space_id].price,
+                self._space_label(space_id),
+            ),
+            reverse=True,
+        )
+        return ranked[0]
+
+    def _liquidate_assets_for_debt(self, player: MonopolyPlayer, amount_due: int) -> None:
+        """Auto-liquidate: sell buildings first, then mortgage, until debt is covered."""
+        if amount_due <= 0 or player.cash >= amount_due:
+            return
+
+        attempts = 0
+        max_attempts = max(8, len(player.owned_space_ids) * 8)
+        while player.cash < amount_due and attempts < max_attempts:
+            attempts += 1
+
+            sell_choice = self._pick_best_building_sale(self._options_for_sell_house(player))
+            if sell_choice:
+                cash_before = player.cash
+                self._action_sell_house(player, sell_choice, "sell_house")
+                if player.cash > cash_before:
+                    continue
+
+            mortgage_choice = self._pick_best_mortgage(self._options_for_mortgage_property(player))
+            if mortgage_choice:
+                cash_before = player.cash
+                self._action_mortgage_property(player, mortgage_choice, "mortgage_property")
+                if player.cash > cash_before:
+                    continue
+
+            break
+
     def _count_owned_kind(self, owner_id: str, kind: str) -> int:
         """Count how many properties of a kind the owner controls."""
         total = 0
@@ -860,6 +957,9 @@ class MonopolyGame(ActionGuardMixin, Game):
         card_reason_key: str | None = None,
     ) -> bool:
         """Charge player money to bank; return False if player bankrupt."""
+        if player.cash < amount:
+            self._liquidate_assets_for_debt(player, amount)
+
         paid = min(player.cash, amount)
         player.cash -= paid
 
@@ -1098,6 +1198,8 @@ class MonopolyGame(ActionGuardMixin, Game):
 
             owner = self.get_player_by_id(owner_id)
             rent_due = self._calculate_rent_due(landed_space, owner_id, dice_total)
+            if player.cash < rent_due:
+                self._liquidate_assets_for_debt(player, rent_due)
             paid = min(player.cash, rent_due)
             player.cash -= paid
             if owner and isinstance(owner, MonopolyPlayer):
@@ -1303,6 +1405,8 @@ class MonopolyGame(ActionGuardMixin, Game):
             level = self._building_level(space_id)
             if level >= 5:
                 continue
+            if not self._can_raise_building_level(space_id):
+                continue
             levels = self._group_levels(space.color_group)
             if not levels or level != min(levels):
                 continue
@@ -1323,6 +1427,8 @@ class MonopolyGame(ActionGuardMixin, Game):
                 continue
             level = self._building_level(space_id)
             if level <= 0:
+                continue
+            if not self._can_lower_building_level(space_id):
                 continue
             levels = self._group_levels(space.color_group)
             if not levels or level != max(levels):
@@ -1522,6 +1628,8 @@ class MonopolyGame(ActionGuardMixin, Game):
                 )
                 if mono_player.jail_turns >= 3:
                     if mono_player.cash < BAIL_AMOUNT:
+                        self._liquidate_assets_for_debt(mono_player, BAIL_AMOUNT)
+                    if mono_player.cash < BAIL_AMOUNT:
                         self._declare_bankrupt(mono_player)
                         self._sync_cash_scores()
                         self.rebuild_all_menus()
@@ -1695,6 +1803,8 @@ class MonopolyGame(ActionGuardMixin, Game):
         if mono_player.cash < cost:
             return
 
+        if not self._can_raise_building_level(space_id):
+            return
         mono_player.cash -= cost
         new_level = self._building_level(space_id) + 1
         self._set_building_level(space_id, new_level)
@@ -1721,6 +1831,8 @@ class MonopolyGame(ActionGuardMixin, Game):
 
         current_level = self._building_level(space_id)
         if current_level <= 0:
+            return
+        if not self._can_lower_building_level(space_id):
             return
 
         value = max(0, space.house_cost // 2)

@@ -234,7 +234,7 @@ def test_monopoly_go_to_jail_space_moves_player_to_jail(monkeypatch):
     assert game.turn_pending_purchase_space_id == ""
 
 
-def test_monopoly_partial_rent_payment_causes_bankruptcy_and_ends_game(monkeypatch):
+def test_monopoly_rent_shortfall_triggers_auto_liquidation_before_payment(monkeypatch):
     game = _start_two_player_game()
     host = game.players[0]
     guest = game.players[1]
@@ -244,12 +244,37 @@ def test_monopoly_partial_rent_payment_causes_bankruptcy_and_ends_game(monkeypat
     guest.owned_space_ids.append("baltic_avenue")
     game.property_owners["baltic_avenue"] = guest.id
     guest.cash = 30
-    guest.position = 37
+    guest.position = 36
     game.current_player = guest
     game.turn_has_rolled = False
     game.turn_pending_purchase_space_id = ""
 
-    rolls = iter([1, 1])  # total = 2 -> Boardwalk (rent 50)
+    rolls = iter([1, 2])  # total = 3 -> Boardwalk (rent 50)
+    monkeypatch.setattr("server.games.monopoly.game.random.randint", lambda a, b: next(rolls))
+
+    game.execute_action(guest, "roll_dice")
+
+    assert guest.bankrupt is False
+    assert host.cash == STARTING_CASH + 50
+    assert guest.cash == 10
+    assert "baltic_avenue" in guest.owned_space_ids
+    assert "baltic_avenue" in game.mortgaged_space_ids
+
+
+def test_monopoly_bankrupt_when_liquidation_cannot_cover_rent(monkeypatch):
+    game = _start_two_player_game()
+    host = game.players[0]
+    guest = game.players[1]
+
+    host.owned_space_ids.append("boardwalk")
+    game.property_owners["boardwalk"] = host.id
+    guest.cash = 30
+    guest.position = 36
+    game.current_player = guest
+    game.turn_has_rolled = False
+    game.turn_pending_purchase_space_id = ""
+
+    rolls = iter([1, 2])  # total = 3 -> Boardwalk (rent 50)
     monkeypatch.setattr("server.games.monopoly.game.random.randint", lambda a, b: next(rolls))
 
     game.execute_action(guest, "roll_dice")
@@ -260,7 +285,6 @@ def test_monopoly_partial_rent_payment_causes_bankruptcy_and_ends_game(monkeypat
     assert game.current_player is not None
     assert game.current_player.name == "Host"
     assert host.cash == STARTING_CASH + 30
-    assert "baltic_avenue" not in game.property_owners
 
 
 def test_monopoly_doubles_grant_extra_roll(monkeypatch):
@@ -460,6 +484,82 @@ def test_monopoly_sell_house_obeys_even_selling_rules():
     assert game._building_level("mediterranean_avenue") == 1
     assert game._building_level("baltic_avenue") == 1
     assert host.cash == starting_cash + sell_value
+
+
+def test_monopoly_house_supply_limit_blocks_new_house_builds():
+    game = _start_two_player_game()
+    host = game.current_player
+    assert host is not None
+
+    for space_id in ("mediterranean_avenue", "baltic_avenue"):
+        host.owned_space_ids.append(space_id)
+        game.property_owners[space_id] = host.id
+
+    crowded_ids = [
+        space_id
+        for space_id in sorted(game.building_levels)
+        if space_id not in {"mediterranean_avenue", "baltic_avenue"}
+    ][:16]
+    for space_id in crowded_ids:
+        game._set_building_level(space_id, 2)
+
+    assert game._available_houses() == 0
+    assert game._options_for_build_house(host) == []
+
+    game.execute_action(host, "build_house", input_value="mediterranean_avenue")
+    assert game._building_level("mediterranean_avenue") == 0
+    assert host.cash == STARTING_CASH
+
+
+def test_monopoly_hotel_supply_limit_blocks_hotel_upgrade():
+    game = _start_two_player_game()
+    host = game.current_player
+    assert host is not None
+
+    for space_id in ("mediterranean_avenue", "baltic_avenue"):
+        host.owned_space_ids.append(space_id)
+        game.property_owners[space_id] = host.id
+        game._set_building_level(space_id, 4)
+
+    hotel_locked_ids = [
+        space_id
+        for space_id in sorted(game.building_levels)
+        if space_id not in {"mediterranean_avenue", "baltic_avenue"}
+    ][:12]
+    for space_id in hotel_locked_ids:
+        game._set_building_level(space_id, 5)
+
+    assert game._available_hotels() == 0
+    assert game._options_for_build_house(host) == []
+
+    game.execute_action(host, "build_house", input_value="mediterranean_avenue")
+    assert game._building_level("mediterranean_avenue") == 4
+    assert host.cash == STARTING_CASH
+
+
+def test_monopoly_liquidation_sells_buildings_before_mortgage_for_bank_debt(monkeypatch):
+    game = _start_two_player_game()
+    guest = game.players[1]
+
+    for space_id in ("mediterranean_avenue", "baltic_avenue"):
+        guest.owned_space_ids.append(space_id)
+        game.property_owners[space_id] = guest.id
+    game._set_building_level("mediterranean_avenue", 1)
+
+    guest.cash = 30
+    guest.position = 35
+    game.current_player = guest
+    game.turn_has_rolled = False
+    game.turn_pending_purchase_space_id = ""
+
+    rolls = iter([1, 2])  # total = 3 -> Luxury Tax (100)
+    monkeypatch.setattr("server.games.monopoly.game.random.randint", lambda a, b: next(rolls))
+    game.execute_action(guest, "roll_dice")
+
+    assert guest.bankrupt is False
+    assert game._building_level("mediterranean_avenue") == 0
+    assert set(game.mortgaged_space_ids) == {"mediterranean_avenue", "baltic_avenue"}
+    assert guest.cash == 15
 
 
 def test_monopoly_cannot_mortgage_color_group_with_buildings():
