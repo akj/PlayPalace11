@@ -56,7 +56,14 @@ def test_board_rules_mode_uses_loaded_manual_rule_set(monkeypatch):
     assert game.active_manual_rule_set.board_id == "mario_kart"
 
 
-def test_board_rules_mode_falls_back_when_manual_rule_file_missing():
+def test_board_rules_mode_falls_back_when_manual_rule_file_missing(monkeypatch):
+    def _raise_missing(board_id: str):
+        raise FileNotFoundError(board_id)
+
+    monkeypatch.setattr(
+        "server.games.monopoly.game.load_manual_rule_set",
+        _raise_missing,
+    )
     game = _start_game("star_wars_40th")
 
     assert game.active_board_effective_mode == "board_rules"

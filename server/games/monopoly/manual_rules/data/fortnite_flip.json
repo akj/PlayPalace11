@@ -1,0 +1,52 @@
+{
+  "board_id": "fortnite_flip",
+  "anchor_edition_id": "monopoly-f7774",
+  "board": {
+    "spaces": []
+  },
+  "economy": {
+    "properties": {}
+  },
+  "cards": {
+    "chance": [],
+    "community_chest": []
+  },
+  "mechanics": {
+    "mode": "manual_core_candidate"
+  },
+  "win_condition": {
+    "type": "bankruptcy"
+  },
+  "citations": [
+    {
+      "rule_path": "board.spaces",
+      "edition_id": "monopoly-f7774",
+      "page_ref": "p.2",
+      "confidence": "high"
+    },
+    {
+      "rule_path": "economy.properties",
+      "edition_id": "monopoly-f7774",
+      "page_ref": "p.4",
+      "confidence": "high"
+    },
+    {
+      "rule_path": "cards.chance",
+      "edition_id": "monopoly-f7774",
+      "page_ref": "p.7",
+      "confidence": "high"
+    },
+    {
+      "rule_path": "cards.community_chest",
+      "edition_id": "monopoly-f7774",
+      "page_ref": "p.8",
+      "confidence": "high"
+    },
+    {
+      "rule_path": "win_condition",
+      "edition_id": "monopoly-f7774",
+      "page_ref": "p.11",
+      "confidence": "high"
+    }
+  ]
+}
