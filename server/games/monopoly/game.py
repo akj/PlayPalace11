@@ -29,6 +29,10 @@ from .junior_rules import (
     get_junior_ruleset,
     is_junior_ruleset_preset,
 )
+from .voice_banking_profile import (
+    VoiceBankingProfile,
+    resolve_voice_banking_profile,
+)
 from .presets import (
     DEFAULT_PRESET_ID,
     MonopolyPreset,
@@ -503,8 +507,11 @@ class MonopolyGame(ActionGuardMixin, Game):
     active_edition_ids: list[str] = field(default_factory=list)
     active_anchor_edition_id: str = ""
     junior_ruleset: JuniorRuleset | None = None
+    voice_banking_profile: VoiceBankingProfile | None = None
     banking_profile: ElectronicBankingProfile | None = None
     banking_state: BankingState | None = None
+    voice_last_response_by_player_id: dict[str, str] = field(default_factory=dict)
+    voice_pending_transfer_by_player_id: dict[str, tuple[str, int]] = field(default_factory=dict)
     rule_profile: MonopolyRuleProfile = field(
         default_factory=lambda: RULE_PROFILES[DEFAULT_PRESET_ID]
     )
@@ -886,7 +893,7 @@ class MonopolyGame(ActionGuardMixin, Game):
 
     def _is_electronic_banking_preset(self) -> bool:
         """Return True when active preset uses simulator-backed banking."""
-        return self.active_preset_id == "electronic_banking"
+        return self.active_preset_id in {"electronic_banking", "voice_banking"}
 
     def _sync_player_cash_from_banking(self, player: MonopolyPlayer) -> int:
         """Mirror simulator balance into player.cash for compatibility checks."""
@@ -3873,12 +3880,29 @@ class MonopolyGame(ActionGuardMixin, Game):
             if is_junior_ruleset_preset(self.active_preset_id)
             else None
         )
-        self.banking_profile = (
-            resolve_electronic_banking_profile(self.active_preset_id)
-            if self.active_preset_id == "electronic_banking"
+        self.voice_banking_profile = (
+            resolve_voice_banking_profile(self.active_preset_id)
+            if self.active_preset_id == "voice_banking"
             else None
         )
+        if self.active_preset_id == "electronic_banking":
+            self.banking_profile = resolve_electronic_banking_profile(self.active_preset_id)
+        elif self.voice_banking_profile is not None:
+            self.banking_profile = ElectronicBankingProfile(
+                preset_id=self.voice_banking_profile.preset_id,
+                anchor_edition_id=self.voice_banking_profile.anchor_edition_id,
+                source_policy=self.voice_banking_profile.source_policy,
+                starting_balance=self.voice_banking_profile.starting_balance,
+                pass_go_credit=self.voice_banking_profile.pass_go_credit,
+                allow_manual_transfers=True,
+                overdraft_policy="no_overdraft",
+                provenance_notes=self.voice_banking_profile.provenance_notes,
+            )
+        else:
+            self.banking_profile = None
         self.banking_state = None
+        self.voice_last_response_by_player_id.clear()
+        self.voice_pending_transfer_by_player_id.clear()
         self.rule_profile = self._resolve_rule_profile(self.active_preset_id)
         self.property_owners.clear()
         self.mortgaged_space_ids.clear()
