@@ -1,6 +1,11 @@
 """Tests for Wave 1 Monopoly Mario board rule-pack modules."""
 
-from server.games.monopoly.board_rules import mario_collectors, mario_kart, mario_movie
+from server.games.monopoly.board_rules import (
+    mario_celebration,
+    mario_collectors,
+    mario_kart,
+    mario_movie,
+)
 
 
 def test_mario_pack_exposes_anchor_edition_id():
@@ -27,3 +32,11 @@ def test_mario_collectors_exports_card_id_remap_mapping():
 
 def test_mario_collectors_exports_card_cash_override_mapping():
     assert mario_collectors.CARD_CASH_OVERRIDES["bank_error_collect_200"] == 250
+
+
+def test_mario_celebration_exports_card_id_remap_mapping():
+    assert mario_celebration.CARD_ID_REMAPS[("chance", "poor_tax_15")] == "bank_dividend_50"
+
+
+def test_mario_celebration_exports_card_cash_override_mapping():
+    assert mario_celebration.CARD_CASH_OVERRIDES["income_tax_refund_20"] == 60
