@@ -25,3 +25,19 @@ def test_city_on_start_initializes_profile_and_engine():
     assert game.city_profile is not None
     assert game.city_engine is not None
     assert game.city_profile.anchor_edition_id == "monopoly-1790"
+
+
+def test_city_pass_go_updates_progress_and_cash(monkeypatch):
+    game = _start_two_player_city_game()
+    host = game.current_player
+    assert host is not None
+    assert game.city_engine is not None
+
+    host.position = 39
+    rolls = iter([1, 1])
+    monkeypatch.setattr("server.games.monopoly.game.random.randint", lambda a, b: next(rolls))
+
+    game.execute_action(host, "roll_dice")
+
+    assert host.cash == 1700
+    assert game.city_engine.progress_for(host.id) >= 200

@@ -2130,6 +2130,8 @@ class MonopolyGame(ActionGuardMixin, Game):
             if self._is_electronic_banking_preset() and self.banking_profile:
                 pass_go_cash = max(0, self.banking_profile.pass_go_credit)
             credited = self._credit_player(player, pass_go_cash, "pass_go")
+            if self.city_engine is not None and credited > 0:
+                self.city_engine.record_progress(player.id, credited)
             self.broadcast_l(
                 "monopoly-pass-go",
                 player=player.name,
