@@ -237,7 +237,7 @@
     "rule_pack_id": "mario_celebration",
     "anchor_edition_id": "monopoly-e9517",
     "canonical_manual_edition_id": "monopoly-e9517",
-    "fidelity_status": "partial_plus",
+    "fidelity_status": "manual_core",
     "deck_mode": "board_specific",
     "hardware_capability_ids": []
   },
@@ -247,7 +247,7 @@
     "rule_pack_id": "mario_collectors",
     "anchor_edition_id": "monopoly-c4382",
     "canonical_manual_edition_id": "monopoly-c4382",
-    "fidelity_status": "partial_plus",
+    "fidelity_status": "manual_core",
     "deck_mode": "board_specific",
     "hardware_capability_ids": []
   },
@@ -257,7 +257,7 @@
     "rule_pack_id": "mario_kart",
     "anchor_edition_id": "monopoly-e1870",
     "canonical_manual_edition_id": "monopoly-e1870",
-    "fidelity_status": "partial_plus",
+    "fidelity_status": "manual_core",
     "deck_mode": "board_specific",
     "hardware_capability_ids": []
   },
@@ -267,7 +267,7 @@
     "rule_pack_id": "mario_movie",
     "anchor_edition_id": "monopoly-f6818",
     "canonical_manual_edition_id": "monopoly-f6818",
-    "fidelity_status": "partial_plus",
+    "fidelity_status": "manual_core",
     "deck_mode": "board_specific",
     "hardware_capability_ids": []
   },

@@ -29,10 +29,10 @@ Source: `server/games/monopoly/catalog/special_board_anchor_index.json` (generat
 | `jurassic_park` | `jurassic` | `monopoly-f1662` | `partial_plus` | `board_specific` | 0 |
 | `lord_of_the_rings` | `lord` | `monopoly-f1663` | `partial_plus` | `board_specific` | 0 |
 | `lord_of_the_rings_trilogy` | `lord` | `monopoly-41603` | `partial_plus` | `board_specific` | 0 |
-| `mario_celebration` | `mario` | `monopoly-e9517` | `partial_plus` | `board_specific` | 0 |
-| `mario_collectors` | `mario` | `monopoly-c4382` | `partial_plus` | `board_specific` | 0 |
-| `mario_kart` | `mario` | `monopoly-e1870` | `partial_plus` | `board_specific` | 0 |
-| `mario_movie` | `mario` | `monopoly-f6818` | `partial_plus` | `board_specific` | 0 |
+| `mario_celebration` | `mario` | `monopoly-e9517` | `manual_core` | `board_specific` | 0 |
+| `mario_collectors` | `mario` | `monopoly-c4382` | `manual_core` | `board_specific` | 0 |
+| `mario_kart` | `mario` | `monopoly-e1870` | `manual_core` | `board_specific` | 0 |
+| `mario_movie` | `mario` | `monopoly-f6818` | `manual_core` | `board_specific` | 0 |
 | `marvel_80_years` | `marvel` | `monopoly-e7866` | `partial_plus` | `board_specific` | 0 |
 | `marvel_avengers` | `marvel` | `monopoly-e6504` | `partial_plus` | `board_specific` | 0 |
 | `marvel_avengers_legacy` | `marvel` | `monopoly-b0323` | `partial_plus` | `board_specific` | 0 |

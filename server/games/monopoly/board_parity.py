@@ -25,10 +25,10 @@ class BoardParityProfile:
 
 
 _FIDELITY_OVERRIDES: dict[str, str] = {
-    "mario_kart": "partial_plus",
-    "mario_movie": "partial_plus",
-    "mario_collectors": "partial_plus",
-    "mario_celebration": "partial_plus",
+    "mario_kart": "manual_core",
+    "mario_movie": "manual_core",
+    "mario_collectors": "manual_core",
+    "mario_celebration": "manual_core",
     "junior_super_mario": "manual_core",
     "disney_star_wars_dark_side": "partial_plus",
     "star_wars_40th": "partial_plus",
