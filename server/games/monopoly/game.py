@@ -53,6 +53,7 @@ from .voice_banking_profile import (
     VoiceBankingProfile,
     resolve_voice_banking_profile,
 )
+from .deck_provider import resolve_deck_provider
 from .presets import (
     DEFAULT_PRESET_ID,
     MonopolyPreset,
@@ -4676,6 +4677,10 @@ class MonopolyGame(ActionGuardMixin, Game):
             self.active_board_deck_mode = "classic"
             self.active_board_parity_fidelity_status = "none"
             self.active_board_hardware_capability_ids = ()
+        self.active_board_deck_mode = resolve_deck_provider(
+            self.active_board_id,
+            self.active_board_deck_mode,
+        ).mode
         self.junior_ruleset = (
             get_junior_ruleset(self.active_preset_id)
             if is_junior_ruleset_preset(self.active_preset_id)
