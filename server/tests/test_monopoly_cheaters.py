@@ -91,3 +91,18 @@ def test_cheaters_payment_violation_triggers_penalty(monkeypatch):
     assert observed_required
     assert observed_result
     assert guest.cash == 1396
+
+
+def test_cheaters_claim_reward_action_credits_cash_once_per_turn():
+    game = _start_two_player_game(MonopolyOptions(preset_id="cheaters"))
+    host = game.current_player
+    assert host is not None
+
+    starting = host.cash
+    game.execute_action(host, "claim_cheat_reward")
+    after_first = host.cash
+    game.execute_action(host, "claim_cheat_reward")
+
+    assert game.current_player is host
+    assert after_first == starting + 100
+    assert host.cash == after_first

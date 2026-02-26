@@ -27,3 +27,15 @@ def test_engine_escalates_penalty_after_threshold():
     second = engine.on_turn_end_attempt("p1", context={"turn_has_rolled": False})
     assert second.cash_delta <= first.cash_delta
     assert second.reason_code == "escalated_repeat_violation"
+
+
+def test_engine_reward_claim_limited_to_once_per_turn():
+    engine = CheatersEngine(DEFAULT_CHEATERS_PROFILE)
+    engine.on_turn_start("p1", turn_index=0)
+
+    first = engine.on_action_attempt("p1", "claim_cheat_reward", context={})
+    second = engine.on_action_attempt("p1", "claim_cheat_reward", context={})
+
+    assert first.status == "reward"
+    assert first.cash_delta > 0
+    assert second.status != "reward"

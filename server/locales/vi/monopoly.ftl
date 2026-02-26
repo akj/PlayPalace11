@@ -37,6 +37,7 @@ monopoly-banking-balance = Check bank balance
 monopoly-banking-transfer = Transfer funds
 monopoly-banking-ledger = Review bank ledger
 monopoly-voice-command = Voice command
+monopoly-cheaters-claim-reward = Claim cheat reward
 monopoly-end-turn = End turn
 
 # Turn validation
@@ -114,6 +115,8 @@ monopoly-jail-card-used = { $player } used a get-out-of-jail card ({ $cards } re
 monopoly-sore-loser-rebate = { $player } received a sore loser rebate of { $amount } (cash: { $cash }).
 monopoly-cheaters-early-end-turn-blocked = { $player } tried to end the turn early and paid a cheating penalty of { $amount } (cash: { $cash }).
 monopoly-cheaters-payment-avoidance-blocked = { $player } triggered a cheaters payment penalty of { $amount } (cash: { $cash }).
+monopoly-cheaters-reward-granted = { $player } claimed a cheaters reward of { $amount } (cash: { $cash }).
+monopoly-cheaters-reward-unavailable = { $player } already claimed the cheaters reward this turn.
 
 # Auctions and mortgages
 monopoly-auction-no-bids = No bids for { $property }. It remains unsold.

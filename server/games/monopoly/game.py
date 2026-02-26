@@ -776,6 +776,15 @@ class MonopolyGame(ActionGuardMixin, Game):
         )
         action_set.add(
             Action(
+                id="claim_cheat_reward",
+                label=Localization.get(locale, "monopoly-cheaters-claim-reward"),
+                handler="_action_claim_cheat_reward",
+                is_enabled="_is_claim_cheat_reward_enabled",
+                is_hidden="_is_claim_cheat_reward_hidden",
+            )
+        )
+        action_set.add(
+            Action(
                 id="end_turn",
                 label=Localization.get(locale, "monopoly-end-turn"),
                 handler="_action_end_turn",
@@ -3310,6 +3319,25 @@ class MonopolyGame(ActionGuardMixin, Game):
             extra_condition=self.active_preset_id == "voice_banking",
         )
 
+    def _is_claim_cheat_reward_enabled(self, player: Player) -> str | None:
+        """Enable reward claim action only during cheaters preset turns."""
+        error = self.guard_turn_action_enabled(player)
+        if error:
+            return error
+        mono_player: MonopolyPlayer = player  # type: ignore
+        if mono_player.bankrupt:
+            return "monopoly-bankrupt-player"
+        if self.active_preset_id != "cheaters" or self.cheaters_engine is None:
+            return "monopoly-action-disabled-for-preset"
+        return None
+
+    def _is_claim_cheat_reward_hidden(self, player: Player) -> Visibility:
+        """Show reward claim only while the cheaters engine is active."""
+        return self.turn_action_visibility(
+            player,
+            extra_condition=self.active_preset_id == "cheaters" and self.cheaters_engine is not None,
+        )
+
     def _is_end_turn_enabled(self, player: Player) -> str | None:
         """Enable end-turn after rolling."""
         error = self.guard_turn_action_enabled(player)
@@ -4046,6 +4074,23 @@ class MonopolyGame(ActionGuardMixin, Game):
         self.voice_last_response_by_player_id[mono_player.id] = parsed.intent
         if user:
             user.speak_l("monopoly-voice-command-accepted", intent=parsed.intent)
+
+    def _action_claim_cheat_reward(self, player: Player, action_id: str) -> None:
+        """Apply cheaters reward claim outcome for the active player."""
+        mono_player: MonopolyPlayer = player  # type: ignore
+        if self.cheaters_engine is None or mono_player.bankrupt:
+            return
+        outcome = self.cheaters_engine.on_action_attempt(
+            mono_player.id,
+            "claim_cheat_reward",
+            context={"turn_has_rolled": self.turn_has_rolled},
+        )
+        self._apply_cheaters_outcome(
+            mono_player,
+            outcome,
+            reason="reward_claim",
+        )
+        self.rebuild_all_menus()
 
     def _action_end_turn(self, player: Player, action_id: str) -> None:
         """End current player's turn and advance."""

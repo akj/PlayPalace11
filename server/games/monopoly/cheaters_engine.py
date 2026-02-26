@@ -23,6 +23,7 @@ class _PlayerTurnState:
 
     turn_index: int = -1
     strike_count: int = 0
+    reward_claimed: bool = False
 
 
 @dataclass
@@ -34,7 +35,11 @@ class CheatersEngine:
 
     def on_turn_start(self, player_id: str, turn_index: int) -> None:
         """Reset per-turn detector state for player."""
-        self._state_by_player_id[player_id] = _PlayerTurnState(turn_index=turn_index, strike_count=0)
+        self._state_by_player_id[player_id] = _PlayerTurnState(
+            turn_index=turn_index,
+            strike_count=0,
+            reward_claimed=False,
+        )
 
     def _state_for(self, player_id: str) -> _PlayerTurnState:
         if player_id not in self._state_by_player_id:
@@ -43,9 +48,18 @@ class CheatersEngine:
 
     def on_action_attempt(self, player_id: str, action_id: str, context: dict | None = None) -> CheaterOutcome:
         """Evaluate generic action attempt for optional rule paths."""
+        _ = context
         if action_id == "claim_cheat_reward" and "reward_claim" in self.profile.enabled_rules:
+            state = self._state_for(player_id)
+            if state.reward_claimed:
+                return CheaterOutcome(
+                    status="block",
+                    message_key="monopoly-cheaters-reward-unavailable",
+                    reason_code="reward_already_claimed",
+                )
             reward = max(0, self.profile.reward_amounts.get("reward_claim", 0))
             if reward > 0:
+                state.reward_claimed = True
                 return CheaterOutcome(
                     status="reward",
                     cash_delta=reward,
