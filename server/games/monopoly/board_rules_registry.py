@@ -86,6 +86,7 @@ RULE_PACKS: dict[str, BoardRulePack] = {
         capability_ids=(
             "pass_go_credit_override",
             "startup_board_announcement",
+            "card_id_remap",
         ),
     ),
     "mario_celebration": BoardRulePack(
@@ -102,6 +103,7 @@ RULE_PACKS: dict[str, BoardRulePack] = {
         capability_ids=(
             "pass_go_credit_override",
             "startup_board_announcement",
+            "card_cash_override",
         ),
     ),
     "junior_super_mario": BoardRulePack(
@@ -591,4 +593,32 @@ def get_pass_go_credit_override(rule_pack_id: str) -> int | None:
     value = getattr(module, "PASS_GO_CREDIT_OVERRIDE", None)
     if isinstance(value, int):
         return value
+    return None
+
+
+def get_card_id_remap(rule_pack_id: str, deck_type: str, card_id: str) -> str:
+    """Return remapped card id for a board pack when declared."""
+    module = RULE_PACK_MODULES.get(rule_pack_id)
+    if module is None:
+        return card_id
+    remaps = getattr(module, "CARD_ID_REMAPS", None)
+    if not isinstance(remaps, dict):
+        return card_id
+    value = remaps.get((deck_type, card_id))
+    if isinstance(value, str) and value:
+        return value
+    return card_id
+
+
+def get_card_cash_override(rule_pack_id: str, card_id: str) -> int | None:
+    """Return card cash override for a board pack when declared."""
+    module = RULE_PACK_MODULES.get(rule_pack_id)
+    if module is None:
+        return None
+    overrides = getattr(module, "CARD_CASH_OVERRIDES", None)
+    if not isinstance(overrides, dict):
+        return None
+    value = overrides.get(card_id)
+    if isinstance(value, int):
+        return max(0, value)
     return None
