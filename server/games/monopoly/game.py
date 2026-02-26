@@ -32,7 +32,12 @@ from .board_profile import (
     get_available_board_rules_modes as _board_rules_modes,
     resolve_board_plan,
 )
-from .board_rules_registry import get_pass_go_credit_override, supports_capability
+from .board_rules_registry import (
+    get_card_cash_override,
+    get_card_id_remap,
+    get_pass_go_credit_override,
+    supports_capability,
+)
 from .city_engine import CityEngine
 from .city_profile import CityProfile, resolve_city_profile
 from .cheaters_engine import CheaterOutcome, CheatersEngine
@@ -2184,6 +2189,17 @@ class MonopolyGame(ActionGuardMixin, Game):
             return max(0, base_credit)
         return max(0, override)
 
+    def _resolve_board_card_id(self, deck_type: str, card_id: str) -> str:
+        """Resolve board-specific remap for one drawn card id."""
+        if self.active_board_effective_mode != "board_rules":
+            return card_id
+        rule_pack_id = self.active_board_rule_pack_id
+        if not rule_pack_id:
+            return card_id
+        if not supports_capability(rule_pack_id, "card_id_remap"):
+            return card_id
+        return get_card_id_remap(rule_pack_id, deck_type, card_id)
+
     def _move_player(
         self, player: MonopolyPlayer, steps: int, *, collect_pass_go: bool
     ) -> MonopolySpace:
@@ -2566,6 +2582,7 @@ class MonopolyGame(ActionGuardMixin, Game):
         dice_total: int | None,
     ) -> str:
         """Apply one Chance/Community Chest card and return resolution state."""
+        card_id = self._resolve_board_card_id(deck_type, card_id)
         deck_label = "Chance" if deck_type == "chance" else "Community Chest"
         card_text_key = CARD_DESCRIPTION_KEYS.get(card_id, card_id)
         card_text = Localization.get("en", card_text_key)
