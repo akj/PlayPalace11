@@ -132,6 +132,7 @@ Head: `98c6150` (plus working-tree updates)
    - rule schema models, loader, validator,
    - runtime board-rule resolution,
    - board-space/deck/effect execution from manual JSON payloads,
+   - manual card draw text now supports literal `cards.*[].text` (with safe fallback to localized classic keys),
    - citation-backed promotion gate.
 5. Special-board data payload completion was finished:
    - all `55` boards now have executable board/economy/card payloads with citations,

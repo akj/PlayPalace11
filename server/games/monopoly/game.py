@@ -3001,6 +3001,29 @@ class MonopolyGame(ActionGuardMixin, Game):
         if current and current.is_bot:
             BotHelper.jolt_bot(current, ticks=random.randint(8, 14))
 
+    def _resolve_card_draw_text(
+        self,
+        manual_card: dict[str, object] | None,
+        card_id: str,
+    ) -> str:
+        """Resolve display text for one drawn card."""
+        if isinstance(manual_card, dict):
+            literal_text = manual_card.get("text")
+            if isinstance(literal_text, str):
+                normalized = literal_text.strip()
+                if normalized:
+                    return normalized
+
+            manual_text_key = manual_card.get("text_key")
+            if isinstance(manual_text_key, str):
+                resolved_manual = Localization.get("en", manual_text_key)
+                # When a manual-specific key is missing, fall back to classic card text.
+                if resolved_manual and resolved_manual != manual_text_key:
+                    return resolved_manual
+
+        default_text_key = CARD_DESCRIPTION_KEYS.get(card_id, card_id)
+        return Localization.get("en", default_text_key)
+
     def _resolve_card_effect(
         self,
         player: MonopolyPlayer,
@@ -3014,11 +3037,7 @@ class MonopolyGame(ActionGuardMixin, Game):
         card_id = self._resolve_board_card_id(deck_type, card_id)
         manual_card = self._manual_card_definition(deck_type, card_id)
         deck_label = "Chance" if deck_type == "chance" else "Community Chest"
-        if manual_card is not None and isinstance(manual_card.get("text_key"), str):
-            card_text_key = manual_card["text_key"]
-        else:
-            card_text_key = CARD_DESCRIPTION_KEYS.get(card_id, card_id)
-        card_text = Localization.get("en", card_text_key)
+        card_text = self._resolve_card_draw_text(manual_card, card_id)
         self.broadcast_l(
             "monopoly-card-drawn",
             player=player.name,
