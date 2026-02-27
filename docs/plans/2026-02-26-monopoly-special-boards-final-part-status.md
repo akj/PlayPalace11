@@ -2,7 +2,7 @@
 
 Date: 2026-02-27  
 Branch: `monopoly`  
-Head: `6e671a8`
+Head: tracked via git history on `monopoly`
 
 ## Current Snapshot
 
