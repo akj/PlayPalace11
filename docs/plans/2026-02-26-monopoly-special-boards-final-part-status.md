@@ -43,6 +43,10 @@ Head: `98c6150` (plus working-tree updates)
   - `./.venv/bin/python server/scripts/monopoly/extract_manual_text.py --family ...` (all families from anchor index)
   - OCR-assisted rerun (optional): add `--ocr-when-text-below <chars>` and/or `--ocr-board-id <id>`.
   - Candidate-line extraction: `./.venv/bin/python server/scripts/monopoly/extract_manual_card_candidates.py --board-id <id>`
+- Candidate coverage snapshot (all 55 boards):
+  - zero candidates: `disney_the_edition`, `fortnite`, `marvel_flip`
+  - low candidates (<=10): `disney_princesses` (5)
+  - strongest candidate density examples: `disney_star_wars_dark_side` (73), `lord_of_the_rings` (69), `transformers_beast_wars` (60)
 
 ## New Progress: Payload Seeding from Extracted Manuals
 
