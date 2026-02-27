@@ -24,6 +24,7 @@ Head: `98c6150` (plus working-tree updates)
 ## New Progress: Manual Source Extraction (All Special Boards)
 
 - Added extractor: `server/scripts/monopoly/extract_manual_text.py`
+- Added card-candidate miner: `server/scripts/monopoly/extract_manual_card_candidates.py`
 - Added extracted artifacts:
   - `server/games/monopoly/manual_rules/extracted/manifest.json`
   - `server/games/monopoly/manual_rules/extracted/*.txt`
@@ -41,6 +42,7 @@ Head: `98c6150` (plus working-tree updates)
 - Rerun command:
   - `./.venv/bin/python server/scripts/monopoly/extract_manual_text.py --family ...` (all families from anchor index)
   - OCR-assisted rerun (optional): add `--ocr-when-text-below <chars>` and/or `--ocr-board-id <id>`.
+  - Candidate-line extraction: `./.venv/bin/python server/scripts/monopoly/extract_manual_card_candidates.py --board-id <id>`
 
 ## New Progress: Payload Seeding from Extracted Manuals
 

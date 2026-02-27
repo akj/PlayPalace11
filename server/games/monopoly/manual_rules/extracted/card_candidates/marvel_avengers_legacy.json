@@ -1,0 +1,75 @@
+{
+  "board_id": "marvel_avengers_legacy",
+  "candidate_lines": [
+    {
+      "line": "Return used cards to the bottom of the deck.",
+      "tags": [
+        "mentions_card"
+      ]
+    },
+    {
+      "line": "Hero die Your back-up Hero will not move, but o L.",
+      "tags": [
+        "movement"
+      ]
+    },
+    {
+      "line": "eost ¢ pay the power cost shown in the top-left on the space car?d uint have the power to overcome the .",
+      "tags": [
+        "pay"
+      ]
+    },
+    {
+      "line": "Take the top card from the deck and do what it power-up, give what you can.",
+      "tags": [
+        "mentions_card"
+      ]
+    },
+    {
+      "line": "g How do I get out of Jail?",
+      "tags": [
+        "jail"
+      ]
+    },
+    {
+      "line": "$ Pay 50 Power at the start of your next turn to break out!",
+      "tags": [
+        "pay"
+      ]
+    },
+    {
+      "line": "Theén roll and move as normal.",
+      "tags": [
+        "movement"
+      ]
+    },
+    {
+      "line": "A e \" « h‘i\"; b 7 S o : Collect power by passing GO and from Chance and Community Chest cards.",
+      "tags": [
+        "mentions_card",
+        "collect"
+      ]
+    },
+    {
+      "line": "Use your power to Land on a space, take a card, do what it : ) ’ : villains are defeated!",
+      "tags": [
+        "mentions_card"
+      ]
+    },
+    {
+      "line": "= e Move your token clockwise that number of spaces around",
+      "tags": [
+        "movement"
+      ]
+    },
+    {
+      "line": "Collect power-ups from other Avengers } that match your O W ” } ) o That's it!",
+      "tags": [
+        "collect"
+      ]
+    }
+  ],
+  "generated_at_utc": "2026-02-27T00:58:06.259458+00:00",
+  "preferred_text_source": "ocr_sidecar",
+  "source_text_path": "server/games/monopoly/manual_rules/extracted/marvel_avengers_legacy.ocr.txt"
+}
