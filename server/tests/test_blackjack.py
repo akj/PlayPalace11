@@ -163,7 +163,7 @@ def test_blackjack_settle_single_player_continues_when_player_has_chips() -> Non
     game._settle_hand()
 
     assert game.status == "playing"
-    assert game.next_hand_wait_ticks == 200
+    assert game.next_hand_wait_ticks == 100
     assert host_player.chips == 110
 
 
@@ -414,7 +414,7 @@ def test_blackjack_b_keybind_between_hands_opens_set_next_bet_input() -> None:
     game.status = "playing"
     game.game_active = True
     game.phase = "settle"
-    game.next_hand_wait_ticks = 200
+    game.next_hand_wait_ticks = 100
 
     game._handle_keybind_event(host_player, {"key": "b"})
 
