@@ -2175,7 +2175,7 @@ class BlackjackGame(Game):
             self._end_game(remaining[0] if remaining else None)
             return
 
-        self.next_hand_wait_ticks = 100
+        self.next_hand_wait_ticks = 200
         self.rebuild_all_menus()
 
     def _broadcast_settle_result(
