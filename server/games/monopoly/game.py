@@ -2580,9 +2580,83 @@ class MonopolyGame(ActionGuardMixin, Game):
             return None
         if self.active_board_id.startswith("star_wars"):
             return "star_wars_theme"
-        if self.active_board_id == "mario_celebration" and deck_type == "chance":
-            return "mario_question_block_sound"
         return None
+
+    def _resolve_jurassic_park_gate_outcome(self) -> tuple[str, int] | None:
+        """Resolve Jurassic Park Electronic Gate outcome on pass-GO.
+
+        Returns None when the gate mechanic is not active.
+        Otherwise returns (event_id, cash) — 50/50 theme ($200) vs roar ($100).
+        """
+        if self.active_board_id != "jurassic_park":
+            return None
+        if not self.active_board_rule_pack_id:
+            return None
+        if not supports_capability(self.active_board_rule_pack_id, "electronic_gate_sound_unit"):
+            return None
+        if random.random() < 0.5:
+            return ("jurassic_park_gate_theme", 200)
+        return ("jurassic_park_gate_roar", 100)
+
+    def _resolve_question_block_outcome(self) -> tuple[str, str, int] | None:
+        """Resolve Mario Celebration Question Block outcome.
+
+        Returns None when the Question Block mechanic is not active.
+        Otherwise returns (event_id, outcome_type, amount).
+        """
+        if self.active_board_id != "mario_celebration":
+            return None
+        if self.active_board_effective_mode != "board_rules":
+            return None
+        if not self.active_board_rule_pack_id:
+            return None
+        if not supports_capability(self.active_board_rule_pack_id, "question_block_sound_unit"):
+            return None
+        roll = random.randint(1, 6)
+        if roll <= 2:
+            return ("mario_question_block_coin_ping", "coin_ping", random.randint(1, 4) * 100)
+        if roll <= 4:
+            return ("mario_question_block_bowser", "bowser", 500)
+        if roll == 5:
+            return ("mario_question_block_power_up", "power_up", 0)
+        return ("mario_question_block_game_over", "game_over", 1000)
+
+    def _apply_question_block_outcome(
+        self,
+        player: MonopolyPlayer,
+        outcome: tuple[str, str, int],
+        *,
+        depth: int,
+        dice_total: int | None,
+    ) -> str:
+        """Apply a resolved Question Block outcome in place of a Chance card draw."""
+        event_id, outcome_type, amount = outcome
+        self._emit_board_hardware_event(event_id, payload={"outcome": outcome_type, "amount": amount})
+
+        if outcome_type == "coin_ping":
+            self._credit_player(player, amount, "question_block_coin_ping")
+            self.broadcast_l("monopoly-card-collect", player=player.name, amount=amount, cash=player.cash)
+            return "resolved"
+
+        if outcome_type in ("bowser", "game_over"):
+            if not self._apply_bank_payment(player, amount, card_reason_key="monopoly-card-pay"):
+                return "bankrupt"
+            return "resolved"
+
+        if outcome_type == "power_up":
+            extra_steps = random.randint(1, 6)
+            landed_space = self._move_player(player, extra_steps, collect_pass_go=True)
+            self.broadcast_l(
+                "monopoly-roll-result",
+                player=player.name,
+                die1=extra_steps,
+                die2=0,
+                total=extra_steps,
+                space=landed_space.name,
+            )
+            return self._resolve_space(player, landed_space, depth=depth + 1, dice_total=extra_steps)
+
+        return "resolved"
 
     def _resolve_junior_super_mario_powerup_sound_outcome(self, power_up_die: int) -> str | None:
         """Resolve sound-specific power-up outcome when future sound mode is enabled."""
@@ -2683,6 +2757,13 @@ class MonopolyGame(ActionGuardMixin, Game):
             if self._is_electronic_banking_preset() and self.banking_profile:
                 pass_go_cash = max(0, self.banking_profile.pass_go_credit)
             pass_go_cash = self._resolve_board_pass_go_credit(pass_go_cash)
+            gate_outcome = self._resolve_jurassic_park_gate_outcome()
+            if gate_outcome is not None:
+                gate_event_id, pass_go_cash = gate_outcome
+                self._emit_board_hardware_event(
+                    gate_event_id,
+                    payload={"pass_go_cash": pass_go_cash},
+                )
             credited = self._credit_player(player, pass_go_cash, "pass_go")
             if self.city_engine is not None and credited > 0:
                 self.city_engine.record_progress(player.id, credited)
@@ -3398,6 +3479,11 @@ class MonopolyGame(ActionGuardMixin, Game):
             return "forced_end"
 
         if landed_space.kind == "chance":
+            qb_outcome = self._resolve_question_block_outcome()
+            if qb_outcome is not None:
+                return self._apply_question_block_outcome(
+                    player, qb_outcome, depth=depth, dice_total=dice_total
+                )
             card = self._draw_card("chance")
             return self._resolve_card_effect(
                 player,

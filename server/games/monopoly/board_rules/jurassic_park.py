@@ -8,6 +8,7 @@ CAPABILITY_IDS = (
     "pass_go_credit_override",
     "startup_board_announcement",
     "card_id_remap",
+    "electronic_gate_sound_unit",
 )
 CARD_ID_REMAPS = {
     ("chance", "bank_dividend_50"): "go_back_three",

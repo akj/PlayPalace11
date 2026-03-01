@@ -22,6 +22,30 @@ HARDWARE_EVENT_SOUND_PROFILES: dict[str, dict[str, str]] = {
         "placeholder_asset": "game_monopoly_hardware/mario_question_block_sound_placeholder.ogg",
         "original_asset": "game_monopoly_hardware/original/mario_question_block_sound.ogg",
     },
+    "jurassic_park_gate_theme": {
+        "placeholder_asset": "game_monopoly_hardware/jurassic_park_gate_theme_placeholder.ogg",
+        "original_asset": "game_monopoly_hardware/original/jurassic_park_gate_theme.ogg",
+    },
+    "jurassic_park_gate_roar": {
+        "placeholder_asset": "game_monopoly_hardware/jurassic_park_gate_roar_placeholder.ogg",
+        "original_asset": "game_monopoly_hardware/original/jurassic_park_gate_roar.ogg",
+    },
+    "mario_question_block_coin_ping": {
+        "placeholder_asset": "game_monopoly_hardware/mario_question_block_coin_ping_placeholder.ogg",
+        "original_asset": "game_monopoly_hardware/original/mario_question_block_coin_ping.ogg",
+    },
+    "mario_question_block_power_up": {
+        "placeholder_asset": "game_monopoly_hardware/mario_question_block_power_up_placeholder.ogg",
+        "original_asset": "game_monopoly_hardware/original/mario_question_block_power_up.ogg",
+    },
+    "mario_question_block_bowser": {
+        "placeholder_asset": "game_monopoly_hardware/mario_question_block_bowser_placeholder.ogg",
+        "original_asset": "game_monopoly_hardware/original/mario_question_block_bowser.ogg",
+    },
+    "mario_question_block_game_over": {
+        "placeholder_asset": "game_monopoly_hardware/mario_question_block_game_over_placeholder.ogg",
+        "original_asset": "game_monopoly_hardware/original/mario_question_block_game_over.ogg",
+    },
 }
 SUPPORTED_EVENT_IDS = set(HARDWARE_EVENT_SOUND_PROFILES)
 

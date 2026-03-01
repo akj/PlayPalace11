@@ -267,18 +267,11 @@ def test_mario_celebration_board_rules_remaps_poor_tax_to_dividend(monkeypatch):
             board_rules_mode="auto",
         )
     )
-    host = game.current_player
-    assert host is not None
+    # Question Block mechanic now replaces chance card draws entirely,
+    # so test the card-id remap directly instead of via a full roll.
+    remapped = game._resolve_board_card_id("chance", "poor_tax_15")
 
-    host.position = 5
-    monkeypatch.setattr(game, "_draw_card", lambda deck_type: "poor_tax_15")
-    rolls = iter([1, 1])
-    monkeypatch.setattr("server.games.monopoly.game.random.randint", lambda a, b: next(rolls))
-
-    game.execute_action(host, "roll_dice")
-
-    assert host.position == 7
-    assert host.cash == 1550
+    assert remapped == "bank_dividend_50"
 
 
 def test_mario_celebration_skin_only_keeps_poor_tax(monkeypatch):

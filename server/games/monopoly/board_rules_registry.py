@@ -328,6 +328,7 @@ RULE_PACKS: dict[str, BoardRulePack] = {
             "pass_go_credit_override",
             "startup_board_announcement",
             "card_id_remap",
+            "electronic_gate_sound_unit",
         ),
     ),
     "lord_of_the_rings": BoardRulePack(

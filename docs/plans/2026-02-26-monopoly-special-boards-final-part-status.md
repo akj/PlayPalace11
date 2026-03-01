@@ -11,7 +11,7 @@ Head: tracked via git history on `monopoly`
 - Fidelity statuses:
   - `manual_core`: `55`
   - `near_full`: `0`
-- Boards with hardware capability flags: `junior_super_mario`, `mario_celebration`, `star_wars_mandalorian`
+- Boards with hardware capability flags: `junior_super_mario`, `mario_celebration`, `star_wars_mandalorian`, `jurassic_park`
 - Pac-Man game-unit behavior remains intentionally out of scope.
 
 ## Verification Evidence (2026-02-27)
@@ -51,6 +51,65 @@ Head: tracked via git history on `monopoly`
 - Added verification coverage:
   - `server/tests/test_monopoly_wave_special_audio_junior.py`
   - Expanded `server/tests/test_monopoly_hardware_emulation.py` with Junior event emulation assertions.
+
+## Verification Evidence (2026-02-28, Jurassic Park gate)
+
+- `cd server && nix shell nixpkgs#uv -c uv run --extra dev pytest tests/test_monopoly_hardware_emulation.py tests/test_monopoly_wave_special_audio_star_wars.py tests/test_monopoly_wave_special_audio_junior.py tests/test_monopoly_wave_special_audio_mario_celebration.py tests/test_monopoly_wave_special_audio_jurassic_park.py -q`
+  - Result: `24 passed`
+- `cd server && nix shell nixpkgs#uv -c uv run --extra dev pytest -k monopoly -q`
+  - Result: `1303 passed, 598 deselected`
+
+## Verification Evidence (2026-02-28, Mario Celebration Question Block deeper mechanic)
+
+- `cd server && nix shell nixpkgs#uv -c uv run --extra dev pytest tests/test_monopoly_hardware_emulation.py tests/test_monopoly_wave_special_audio_star_wars.py tests/test_monopoly_wave_special_audio_junior.py tests/test_monopoly_wave_special_audio_mario_celebration.py tests/test_monopoly_wave_special_audio_jurassic_park.py -q`
+  - Result: `32 passed`
+- `cd server && nix shell nixpkgs#uv -c uv run --extra dev pytest -k monopoly -q`
+  - Result: `1311 passed, 598 deselected`
+
+## New Progress: Mario Celebration Question Block Deeper Mechanic Modeling
+
+- Replaced decorative `mario_question_block_sound` event with gameplay-affecting Question Block mechanic:
+  - When a player lands on a Chance (Question Block) space on mario_celebration, the Chance card draw is entirely bypassed.
+  - Instead, the Question Block Sound Unit resolves one of 4 outcomes using `random.randint(1, 6)`:
+    - Roll 1-2 (33%): Coin Ping — collect 1-4 coins ($100-$400), event `mario_question_block_coin_ping`
+    - Roll 3-4 (33%): Bowser's Laugh — pay Bank $500, event `mario_question_block_bowser`
+    - Roll 5 (17%): Power-Up Ring — roll die and move again, resolve landed space, event `mario_question_block_power_up`
+    - Roll 6 (17%): Game Over — pay Bank $1000, event `mario_question_block_game_over`
+  - Outcome distribution matches the no-sound fallback die table from the manual (lines 86-93).
+  - Mechanic is gated on `active_board_effective_mode == "board_rules"` and `question_block_sound_unit` capability.
+  - Sound mode only controls audio playback; gameplay effects apply regardless.
+- Manual evidence source: `server/games/monopoly/manual_rules/extracted/mario_celebration.txt` (lines 86-93, 342-356).
+- New methods in `game.py`:
+  - `_resolve_question_block_outcome()` — returns `(event_id, outcome_type, amount)` or `None`.
+  - `_apply_question_block_outcome()` — emits hardware event and applies gameplay effect.
+- Integration point: `_resolve_space()` chance handler — Question Block check before `_draw_card()`.
+- Cleaned up `_resolve_card_hardware_event_id()` — removed mario_celebration branch (no longer needed).
+- Old `mario_question_block_sound` event retained in sound profile registry for backward compatibility but no longer emitted at runtime.
+- Added 4 new hardware events with sourced stand-in assets:
+  - `mario_question_block_coin_ping.ogg` (8-Bit Sound Library, `Collect_Point_01.mp3`, CC-BY 3.0)
+  - `mario_question_block_power_up.ogg` (8-Bit Sound Library, `Pickup_00.mp3`, CC-BY 3.0)
+  - `mario_question_block_bowser.ogg` (8-Bit Sound Library, `Hit_00.mp3`, CC-BY 3.0)
+  - `mario_question_block_game_over.ogg` (8-Bit Sound Library, `Hero_Death_00.mp3`, CC-BY 3.0)
+- Added verification coverage:
+  - `server/tests/test_monopoly_wave_special_audio_mario_celebration.py` rewritten with 7 tests (coin_ping credit, bowser debit, game_over debit, power_up movement, none-mode gameplay, non-QB board draws normally, deck index unchanged).
+  - Expanded `server/tests/test_monopoly_hardware_emulation.py` with 4 new framework-level tests for Question Block event IDs.
+
+## New Progress: Jurassic Park Electronic Gate Hardware Mapping
+
+- Added Jurassic Park Electronic Gate mechanic — the gate outcome directly determines GO payout:
+  - Every time a player passes or lands on GO, the gate randomly selects theme song ($200) or dinosaur roar ($100) with 50/50 odds.
+  - New capability: `electronic_gate_sound_unit` added to jurassic_park board rules.
+  - New hardware events: `jurassic_park_gate_theme`, `jurassic_park_gate_roar`.
+  - Gate resolver: `_resolve_jurassic_park_gate_outcome()` in `game.py` returns `None` when not active, or `(event_id, cash)` tuple.
+  - Integration point: `_move_player()` pass-GO block — after `_resolve_board_pass_go_credit`, gate overrides `pass_go_cash` and emits hardware event.
+  - Key design: credit randomization happens regardless of sound mode; sound mode only controls audio playback.
+- Manual evidence source: `server/games/monopoly/manual_rules/extracted/jurassic_park.txt` (lines 307-314, 346-352).
+- Added sourced stand-in assets:
+  - `jurassic_park_gate_theme.ogg` (OpenGameArt `sci-fi-sound-effects-library`, `Jingle_Achievement_00.mp3` transcoded to OGG, author Little Robot Sound Factory, CC-BY 3.0)
+  - `jurassic_park_gate_roar.ogg` (OpenGameArt `sci-fi-sound-effects-library`, `Alarm_Loop_01.mp3` transcoded to OGG, author Little Robot Sound Factory, CC-BY 3.0)
+- Added verification coverage:
+  - `server/tests/test_monopoly_wave_special_audio_jurassic_park.py` (gate emits theme/roar, credit matches outcome, ignored in none mode, non-gate boards unaffected)
+  - Expanded `server/tests/test_monopoly_hardware_emulation.py` with both gate event emulation assertions.
 
 ## New Progress: Sourced Stand-In Hardware Audio Assets
 
