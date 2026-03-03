@@ -2843,51 +2843,72 @@ class MonopolyGame(ActionGuardMixin, Game):
                 space=jail_space.name,
             )
 
-    def _apply_bank_payment(
+    def _payment_context(self, payment_type: str, **details: str | None) -> dict[str, str | None]:
+        """Build shared payment context payload for cheaters engine hooks."""
+        context: dict[str, str | None] = {"payment_type": payment_type}
+        context.update(details)
+        return context
+
+    def _apply_cheaters_payment_required(
         self,
         player: MonopolyPlayer,
+        reason: str,
         amount: int,
-        *,
-        tax_name: str | None = None,
-        card_reason_key: str | None = None,
+        context: dict[str, str | None],
     ) -> bool:
-        """Charge player money to bank; return False if player bankrupt."""
-        if amount <= 0:
+        """Apply cheaters pre-payment hook and return whether play should continue."""
+        if self.cheaters_engine is None:
             return True
+        required_outcome = self.cheaters_engine.on_payment_required(
+            player.id,
+            reason,
+            amount,
+            context=context,
+        )
+        return self._apply_cheaters_outcome(
+            player,
+            required_outcome,
+            reason="payment_required",
+        )
 
-        reason = "bank_payment"
+    def _apply_cheaters_payment_result(
+        self,
+        player: MonopolyPlayer,
+        paid: int,
+        required: int,
+        context: dict[str, str | None],
+    ) -> bool:
+        """Apply cheaters post-payment hook and return whether play should continue."""
+        if self.cheaters_engine is None or player.bankrupt:
+            return True
+        result_outcome = self.cheaters_engine.on_payment_result(
+            player.id,
+            paid,
+            required,
+            context=context,
+        )
+        return self._apply_cheaters_outcome(
+            player,
+            result_outcome,
+            reason="payment_result",
+        )
+
+    def _bank_payment_reason(self, tax_name: str | None, card_reason_key: str | None) -> str:
+        """Resolve bank-payment reason key for transaction hooks."""
         if tax_name:
-            reason = f"tax:{tax_name}"
-        elif card_reason_key:
-            reason = f"card:{card_reason_key}"
+            return f"tax:{tax_name}"
+        if card_reason_key:
+            return f"card:{card_reason_key}"
+        return "bank_payment"
 
-        manual_core = self._is_junior_super_mario_manual_core_active()
-
-        if self.cheaters_engine is not None:
-            required_outcome = self.cheaters_engine.on_payment_required(
-                player.id,
-                reason,
-                amount,
-                context={
-                    "payment_type": "bank",
-                    "tax_name": tax_name,
-                    "card_reason_key": card_reason_key,
-                },
-            )
-            if not self._apply_cheaters_outcome(
-                player,
-                required_outcome,
-                reason="payment_required",
-            ):
-                return False
-
-        if not manual_core and self._current_liquid_balance(player) < amount:
-            self._liquidate_assets_for_debt(player, amount)
-
-        paid = self._debit_player_to_bank(player, amount, reason, allow_partial=True)
-        if self._is_free_parking_jackpot_enabled():
-            self.free_parking_pool += paid
-
+    def _broadcast_bank_payment(
+        self,
+        player: MonopolyPlayer,
+        paid: int,
+        tax_name: str | None,
+        card_reason_key: str | None,
+    ) -> None:
+        """Broadcast canonical bank-payment messages for taxes/cards."""
         if tax_name:
             self.broadcast_l(
                 "monopoly-tax-paid",
@@ -2904,25 +2925,51 @@ class MonopolyGame(ActionGuardMixin, Game):
                 cash=player.cash,
             )
 
+    def _apply_bank_payment(
+        self,
+        player: MonopolyPlayer,
+        amount: int,
+        *,
+        tax_name: str | None = None,
+        card_reason_key: str | None = None,
+    ) -> bool:
+        """Charge player money to bank; return False if player bankrupt."""
+        if amount <= 0:
+            return True
+
+        reason = self._bank_payment_reason(tax_name, card_reason_key)
+        payment_context = self._payment_context(
+            "bank",
+            tax_name=tax_name,
+            card_reason_key=card_reason_key,
+        )
+        manual_core = self._is_junior_super_mario_manual_core_active()
+
+        if not self._apply_cheaters_payment_required(
+            player,
+            reason,
+            amount,
+            payment_context,
+        ):
+            return False
+
+        if not manual_core and self._current_liquid_balance(player) < amount:
+            self._liquidate_assets_for_debt(player, amount)
+
+        paid = self._debit_player_to_bank(player, amount, reason, allow_partial=True)
+        if self._is_free_parking_jackpot_enabled():
+            self.free_parking_pool += paid
+
+        self._broadcast_bank_payment(player, paid, tax_name, card_reason_key)
         self._apply_sore_loser_rebate(player, paid)
 
-        if self.cheaters_engine is not None and not player.bankrupt:
-            result_outcome = self.cheaters_engine.on_payment_result(
-                player.id,
-                paid,
-                amount,
-                context={
-                    "payment_type": "bank",
-                    "tax_name": tax_name,
-                    "card_reason_key": card_reason_key,
-                },
-            )
-            if not self._apply_cheaters_outcome(
-                player,
-                result_outcome,
-                reason="payment_result",
-            ):
-                return False
+        if not self._apply_cheaters_payment_result(
+            player,
+            paid,
+            amount,
+            payment_context,
+        ):
+            return False
 
         if player.bankrupt:
             return False
@@ -3441,24 +3488,20 @@ class MonopolyGame(ActionGuardMixin, Game):
 
         owner = self.get_player_by_id(owner_id)
         rent_due = self._calculate_rent_due(landed_space, owner_id, dice_total)
+        rent_reason = f"rent:{landed_space.space_id}"
+        payment_context = self._payment_context(
+            "rent",
+            space_id=landed_space.space_id,
+            owner_id=owner_id,
+        )
         manual_core = self._is_junior_super_mario_manual_core_active()
-        if self.cheaters_engine is not None:
-            required_outcome = self.cheaters_engine.on_payment_required(
-                player.id,
-                f"rent:{landed_space.space_id}",
-                rent_due,
-                context={
-                    "payment_type": "rent",
-                    "space_id": landed_space.space_id,
-                    "owner_id": owner_id,
-                },
-            )
-            if not self._apply_cheaters_outcome(
-                player,
-                required_outcome,
-                reason="payment_required",
-            ):
-                return "bankrupt" if player.bankrupt else "resolved"
+        if not self._apply_cheaters_payment_required(
+            player,
+            rent_reason,
+            rent_due,
+            payment_context,
+        ):
+            return "bankrupt" if player.bankrupt else "resolved"
         if not manual_core and self._current_liquid_balance(player) < rent_due:
             self._liquidate_assets_for_debt(player, rent_due)
         paid = 0
@@ -3467,14 +3510,14 @@ class MonopolyGame(ActionGuardMixin, Game):
                 player,
                 owner,
                 rent_due,
-                f"rent:{landed_space.space_id}",
+                rent_reason,
                 allow_partial=True,
             )
         else:
             paid = self._debit_player_to_bank(
                 player,
                 rent_due,
-                f"rent:{landed_space.space_id}",
+                rent_reason,
                 allow_partial=True,
             )
 
@@ -3486,23 +3529,13 @@ class MonopolyGame(ActionGuardMixin, Game):
             property=landed_space.name,
         )
         self._apply_sore_loser_rebate(player, paid)
-        if self.cheaters_engine is not None and not player.bankrupt:
-            result_outcome = self.cheaters_engine.on_payment_result(
-                player.id,
-                paid,
-                rent_due,
-                context={
-                    "payment_type": "rent",
-                    "space_id": landed_space.space_id,
-                    "owner_id": owner_id,
-                },
-            )
-            if not self._apply_cheaters_outcome(
-                player,
-                result_outcome,
-                reason="payment_result",
-            ):
-                return "bankrupt" if player.bankrupt else "resolved"
+        if not self._apply_cheaters_payment_result(
+            player,
+            paid,
+            rent_due,
+            payment_context,
+        ):
+            return "bankrupt" if player.bankrupt else "resolved"
         if player.bankrupt:
             return "bankrupt"
         if paid < rent_due:
