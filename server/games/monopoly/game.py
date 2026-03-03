@@ -3183,6 +3183,124 @@ class MonopolyGame(ActionGuardMixin, Game):
             return default_label
         return normalized
 
+    def _resolve_card_collect_effect(
+        self,
+        player: MonopolyPlayer,
+        amount: int,
+        reason: str,
+    ) -> str:
+        credited = self._credit_player(player, amount, reason)
+        self.broadcast_l(
+            "monopoly-card-collect",
+            player=player.name,
+            amount=credited,
+            cash=player.cash,
+        )
+        return "resolved"
+
+    def _resolve_card_pay_effect(self, player: MonopolyPlayer, amount: int) -> str:
+        if not self._apply_bank_payment(
+            player,
+            amount,
+            card_reason_key="monopoly-card-pay",
+        ):
+            return "bankrupt"
+        return "resolved"
+
+    def _resolve_card_advance_to_go_effect(self, player: MonopolyPlayer) -> str:
+        player.position = 0
+        pass_go_cash = max(0, self.rule_profile.pass_go_cash)
+        if self._is_electronic_banking_preset() and self.banking_profile:
+            pass_go_cash = max(0, self.banking_profile.pass_go_credit)
+        credited = self._credit_player(player, pass_go_cash, "chance_advance_to_go")
+        self.broadcast_l(
+            "monopoly-pass-go",
+            player=player.name,
+            amount=credited,
+            cash=player.cash,
+        )
+        return "resolved"
+
+    def _resolve_card_go_back_three_effect(
+        self,
+        player: MonopolyPlayer,
+        *,
+        depth: int,
+        dice_total: int | None,
+    ) -> str:
+        player.position = (player.position - 3) % self.active_board_size
+        landed_space = self._space_at(player.position)
+        self.broadcast_l(
+            "monopoly-card-move",
+            player=player.name,
+            space=landed_space.name,
+        )
+        return self._resolve_space(
+            player,
+            landed_space,
+            depth=depth + 1,
+            dice_total=dice_total,
+        )
+
+    def _resolve_card_known_effect(
+        self,
+        player: MonopolyPlayer,
+        card_id: str,
+        *,
+        depth: int,
+        dice_total: int | None,
+    ) -> str | None:
+        if card_id == "advance_to_go":
+            return self._resolve_card_advance_to_go_effect(player)
+
+        if card_id == "bank_dividend_50":
+            amount = self._resolve_board_card_cash(card_id, 50)
+            return self._resolve_card_collect_effect(
+                player,
+                amount,
+                "chance_bank_dividend_50",
+            )
+
+        if card_id == "go_back_three":
+            return self._resolve_card_go_back_three_effect(
+                player,
+                depth=depth,
+                dice_total=dice_total,
+            )
+
+        if card_id == "go_to_jail":
+            self._send_to_jail(player)
+            return "forced_end"
+
+        if card_id == "poor_tax_15":
+            amount = self._resolve_board_card_cash(card_id, 15)
+            return self._resolve_card_pay_effect(player, amount)
+
+        if card_id == "bank_error_collect_200":
+            amount = self._resolve_board_card_cash(card_id, 200)
+            return self._resolve_card_collect_effect(
+                player,
+                amount,
+                "community_chest_bank_error_collect_200",
+            )
+
+        if card_id == "doctor_fee_pay_50":
+            amount = self._resolve_board_card_cash(card_id, 50)
+            return self._resolve_card_pay_effect(player, amount)
+
+        if card_id == "income_tax_refund_20":
+            amount = self._resolve_board_card_cash(card_id, 20)
+            return self._resolve_card_collect_effect(
+                player,
+                amount,
+                "community_chest_income_tax_refund_20",
+            )
+
+        if card_id == "get_out_of_jail_free":
+            return self._grant_get_out_of_jail_card(player)
+
+        return None
+
     def _resolve_card_effect(
         self,
         player: MonopolyPlayer,
@@ -3222,91 +3340,14 @@ class MonopolyGame(ActionGuardMixin, Game):
                 if manual_result is not None:
                     return manual_result
 
-        if card_id == "advance_to_go":
-            player.position = 0
-            pass_go_cash = max(0, self.rule_profile.pass_go_cash)
-            if self._is_electronic_banking_preset() and self.banking_profile:
-                pass_go_cash = max(0, self.banking_profile.pass_go_credit)
-            credited = self._credit_player(player, pass_go_cash, "chance_advance_to_go")
-            self.broadcast_l(
-                "monopoly-pass-go",
-                player=player.name,
-                amount=credited,
-                cash=player.cash,
-            )
-            return "resolved"
-
-        if card_id == "bank_dividend_50":
-            amount = self._resolve_board_card_cash(card_id, 50)
-            credited = self._credit_player(player, amount, "chance_bank_dividend_50")
-            self.broadcast_l(
-                "monopoly-card-collect",
-                player=player.name,
-                amount=credited,
-                cash=player.cash,
-            )
-            return "resolved"
-
-        if card_id == "go_back_three":
-            player.position = (player.position - 3) % self.active_board_size
-            landed_space = self._space_at(player.position)
-            self.broadcast_l(
-                "monopoly-card-move",
-                player=player.name,
-                space=landed_space.name,
-            )
-            return self._resolve_space(
-                player, landed_space, depth=depth + 1, dice_total=dice_total
-            )
-
-        if card_id == "go_to_jail":
-            self._send_to_jail(player)
-            return "forced_end"
-
-        if card_id == "poor_tax_15":
-            amount = self._resolve_board_card_cash(card_id, 15)
-            if not self._apply_bank_payment(
-                player,
-                amount,
-                card_reason_key="monopoly-card-pay",
-            ):
-                return "bankrupt"
-            return "resolved"
-
-        if card_id == "bank_error_collect_200":
-            amount = self._resolve_board_card_cash(card_id, 200)
-            credited = self._credit_player(player, amount, "community_chest_bank_error_collect_200")
-            self.broadcast_l(
-                "monopoly-card-collect",
-                player=player.name,
-                amount=credited,
-                cash=player.cash,
-            )
-            return "resolved"
-
-        if card_id == "doctor_fee_pay_50":
-            amount = self._resolve_board_card_cash(card_id, 50)
-            if not self._apply_bank_payment(
-                player,
-                amount,
-                card_reason_key="monopoly-card-pay",
-            ):
-                return "bankrupt"
-            return "resolved"
-
-        if card_id == "income_tax_refund_20":
-            amount = self._resolve_board_card_cash(card_id, 20)
-            credited = self._credit_player(player, amount, "community_chest_income_tax_refund_20")
-            self.broadcast_l(
-                "monopoly-card-collect",
-                player=player.name,
-                amount=credited,
-                cash=player.cash,
-            )
-            return "resolved"
-
-        if card_id == "get_out_of_jail_free":
-            return self._grant_get_out_of_jail_card(player)
+        known_result = self._resolve_card_known_effect(
+            player,
+            card_id,
+            depth=depth,
+            dice_total=dice_total,
+        )
+        if known_result is not None:
+            return known_result
 
         return "resolved"
 
