@@ -1,5 +1,6 @@
 """Integration tests for Monopoly voice banking preset behavior."""
 
+from server.game_utils.actions import Visibility
 from server.games.monopoly.game import MonopolyGame, MonopolyOptions
 from server.core.users.test_user import MockUser
 
@@ -97,3 +98,17 @@ def test_voice_preset_keeps_normal_board_actions_available(monkeypatch):
     game.execute_action(host, "roll_dice")
 
     assert game.turn_pending_purchase_space_id == "baltic_avenue"
+
+
+def test_voice_and_banking_action_visibility_contracts():
+    voice = _start_two_player_game(MonopolyOptions(preset_id="voice_banking"))
+    classic = _start_two_player_game(MonopolyOptions(preset_id="classic_standard"))
+    voice_host = voice.current_player
+    classic_host = classic.current_player
+    assert voice_host is not None
+    assert classic_host is not None
+
+    assert voice._is_voice_command_hidden(voice_host) != Visibility.HIDDEN
+    assert voice._is_banking_balance_hidden(voice_host) != Visibility.HIDDEN
+    assert classic._is_voice_command_hidden(classic_host) == Visibility.HIDDEN
+    assert classic._is_banking_balance_hidden(classic_host) == Visibility.HIDDEN

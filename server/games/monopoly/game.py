@@ -65,7 +65,9 @@ from .presets import (
     get_default_preset_id as _catalog_default_preset_id,
     get_preset as _catalog_get_preset,
 )
-from .voice_commands import parse_voice_command
+from .actions import guards as action_guards
+from .actions import handlers as action_handlers
+from .actions import options as action_options
 
 
 PRESET_LABEL_KEYS = {
@@ -4042,131 +4044,47 @@ class MonopolyGame(ActionGuardMixin, Game):
 
     def _is_banking_balance_enabled(self, player: Player) -> str | None:
         """Enable bank balance checks only for electronic banking preset."""
-        error = self.guard_turn_action_enabled(player)
-        if error:
-            return error
-        mono_player: MonopolyPlayer = player  # type: ignore
-        if mono_player.bankrupt:
-            return "monopoly-bankrupt-player"
-        if not self._is_electronic_banking_preset() or self.banking_state is None:
-            return "monopoly-action-disabled-for-preset"
-        return None
+        return action_guards.is_banking_balance_enabled(self, player)
 
     def _is_banking_balance_hidden(self, player: Player) -> Visibility:
         """Show bank balance action only in electronic banking mode."""
-        return self.turn_action_visibility(
-            player,
-            extra_condition=self._is_electronic_banking_preset(),
-        )
+        return action_guards.is_banking_balance_hidden(self, player)
 
     def _encode_banking_transfer_option(self, target: MonopolyPlayer, amount: int) -> str:
         """Encode one banking transfer option for menu selection."""
-        return f"Transfer {amount} to {target.name} ## target={target.id};amount={amount}"
+        return action_options.encode_banking_transfer_option(self, target, amount)
 
     def _parse_banking_transfer_option(self, option: str) -> tuple[str, int] | None:
         """Parse one banking transfer option from menu input."""
-        if "##" not in option:
-            return None
-        _, raw_meta = option.split("##", 1)
-        meta: dict[str, str] = {}
-        for part in raw_meta.strip().split(";"):
-            if "=" not in part:
-                continue
-            key, value = part.split("=", 1)
-            meta[key.strip()] = value.strip()
-
-        target_id = meta.get("target", "")
-        if not target_id:
-            return None
-        try:
-            amount = int(meta.get("amount", "0"))
-        except ValueError:
-            return None
-        if amount <= 0:
-            return None
-        return target_id, amount
+        return action_options.parse_banking_transfer_option(self, option)
 
     def _options_for_banking_transfer(self, player: Player) -> list[str]:
         """Menu options for player-to-player transfers in electronic mode."""
-        mono_player: MonopolyPlayer = player  # type: ignore
-        if (
-            not self._is_electronic_banking_preset()
-            or self.banking_state is None
-            or self.banking_profile is None
-            or not self.banking_profile.allow_manual_transfers
-        ):
-            return []
-
-        balance = self._current_liquid_balance(mono_player)
-        if balance <= 0:
-            return []
-
-        base_amounts = [10, 20, 50, 100, 200, 500]
-        options: list[str] = []
-        for target in self.turn_players:
-            if (
-                not isinstance(target, MonopolyPlayer)
-                or target.id == mono_player.id
-                or target.bankrupt
-            ):
-                continue
-            target_amounts = sorted(
-                {
-                    amount
-                    for amount in [*base_amounts, balance]
-                    if amount > 0 and amount <= balance
-                }
-            )
-            for amount in target_amounts:
-                options.append(self._encode_banking_transfer_option(target, amount))
-        return options
+        return action_options.options_for_banking_transfer(self, player)
 
     def _is_banking_transfer_enabled(self, player: Player) -> str | None:
         """Enable manual transfer only when options are available."""
-        error = self._is_banking_balance_enabled(player)
-        if error:
-            return error
-        if not self._options_for_banking_transfer(player):
-            return "monopoly-not-enough-cash"
-        return None
+        return action_guards.is_banking_transfer_enabled(self, player)
 
     def _is_banking_transfer_hidden(self, player: Player) -> Visibility:
         """Show transfer action only when electronic transfer options exist."""
-        return self.turn_action_visibility(
-            player,
-            extra_condition=self._is_electronic_banking_preset()
-            and bool(self._options_for_banking_transfer(player)),
-        )
+        return action_guards.is_banking_transfer_hidden(self, player)
 
     def _is_banking_ledger_enabled(self, player: Player) -> str | None:
         """Enable ledger announcements in electronic banking mode."""
-        return self._is_banking_balance_enabled(player)
+        return action_guards.is_banking_ledger_enabled(self, player)
 
     def _is_banking_ledger_hidden(self, player: Player) -> Visibility:
         """Show ledger action only in electronic banking mode."""
-        return self.turn_action_visibility(
-            player,
-            extra_condition=self._is_electronic_banking_preset(),
-        )
+        return action_guards.is_banking_ledger_hidden(self, player)
 
     def _is_voice_command_enabled(self, player: Player) -> str | None:
         """Enable voice command entry only for voice banking preset."""
-        error = self.guard_turn_action_enabled(player)
-        if error:
-            return error
-        mono_player: MonopolyPlayer = player  # type: ignore
-        if mono_player.bankrupt:
-            return "monopoly-bankrupt-player"
-        if self.active_preset_id != "voice_banking":
-            return "monopoly-action-disabled-for-preset"
-        return None
+        return action_guards.is_voice_command_enabled(self, player)
 
     def _is_voice_command_hidden(self, player: Player) -> Visibility:
         """Show voice command entry only during voice banking games."""
-        return self.turn_action_visibility(
-            player,
-            extra_condition=self.active_preset_id == "voice_banking",
-        )
+        return action_guards.is_voice_command_hidden(self, player)
 
     def _is_claim_cheat_reward_enabled(self, player: Player) -> str | None:
         """Enable reward claim action only during cheaters preset turns."""
@@ -4785,187 +4703,19 @@ class MonopolyGame(ActionGuardMixin, Game):
 
     def _action_banking_balance(self, player: Player, action_id: str) -> None:
         """Announce current electronic bank balance to the requesting player."""
-        if not self._is_electronic_banking_preset():
-            return
-        mono_player: MonopolyPlayer = player  # type: ignore
-        user = self.get_user(player)
-        if user:
-            user.speak_l(
-                "monopoly-banking-balance-report",
-                player=mono_player.name,
-                cash=self._bank_balance(mono_player),
-            )
+        action_handlers.action_banking_balance(self, player, action_id)
 
     def _action_banking_transfer(self, player: Player, option: str, action_id: str) -> None:
         """Execute one manual bank transfer between players."""
-        if not self._is_electronic_banking_preset() or self.banking_state is None:
-            return
-        mono_player: MonopolyPlayer = player  # type: ignore
-        if option not in self._options_for_banking_transfer(player):
-            return
-        parsed = self._parse_banking_transfer_option(option)
-        if not parsed:
-            return
-
-        target_id, amount = parsed
-        target = self.get_player_by_id(target_id)
-        if not target or not isinstance(target, MonopolyPlayer) or target.bankrupt:
-            return
-
-        transferred = self._transfer_between_players(
-            mono_player,
-            target,
-            amount,
-            "manual_transfer",
-        )
-        if transferred == amount:
-            self.broadcast_l(
-                "monopoly-banking-transfer-success",
-                from_player=mono_player.name,
-                to_player=target.name,
-                amount=transferred,
-            )
-        else:
-            self.broadcast_l(
-                "monopoly-banking-transfer-failed",
-                player=mono_player.name,
-                reason="insufficient_funds",
-            )
-
-        self._sync_cash_scores()
-        self.rebuild_all_menus()
+        action_handlers.action_banking_transfer(self, player, option, action_id)
 
     def _action_banking_ledger(self, player: Player, action_id: str) -> None:
         """Announce recent banking ledger events to the requesting player."""
-        user = self.get_user(player)
-        if not user:
-            return
-        if not self._is_electronic_banking_preset() or self.banking_state is None:
-            return
-
-        entries: list[str] = []
-        for tx in self.banking_state.ledger[-5:]:
-            if tx.status == "success":
-                entries.append(
-                    f"{tx.tx_id} {tx.kind} {tx.from_id}->{tx.to_id} {tx.amount} ({tx.reason})"
-                )
-            else:
-                entries.append(
-                    f"{tx.tx_id} {tx.kind} failed ({tx.failure_reason or 'unknown'})"
-                )
-
-        if not entries:
-            user.speak_l("monopoly-banking-ledger-empty")
-            return
-        user.speak_l("monopoly-banking-ledger-report", entries=" | ".join(entries))
+        action_handlers.action_banking_ledger(self, player, action_id)
 
     def _action_voice_command(self, player: Player, text: str, action_id: str) -> None:
         """Parse and execute one voice-style command in voice banking preset."""
-        if self.active_preset_id != "voice_banking":
-            return
-        mono_player: MonopolyPlayer = player  # type: ignore
-        parsed = parse_voice_command(text)
-
-        user = self.get_user(player)
-        if parsed.error:
-            self.voice_last_response_by_player_id[mono_player.id] = parsed.error
-            if user:
-                user.speak_l("monopoly-voice-command-error", reason=parsed.error)
-            return
-
-        if parsed.intent == "check_balance":
-            self.voice_last_response_by_player_id[mono_player.id] = parsed.intent
-            if user:
-                user.speak_l(
-                    "monopoly-banking-balance-report",
-                    player=mono_player.name,
-                    cash=self._bank_balance(mono_player),
-                )
-            return
-
-        if parsed.intent == "show_recent_ledger":
-            self.voice_last_response_by_player_id[mono_player.id] = parsed.intent
-            self._action_banking_ledger(player, action_id)
-            return
-
-        if parsed.intent == "repeat_last_bank_result":
-            previous = self.voice_last_response_by_player_id.get(mono_player.id, "none")
-            self.voice_last_response_by_player_id[mono_player.id] = parsed.intent
-            if user:
-                user.speak_l("monopoly-voice-command-repeat", response=previous)
-            return
-
-        if parsed.intent == "transfer_amount_to_player":
-            target: MonopolyPlayer | None = None
-            wanted_name = parsed.target_name.strip().lower()
-            for turn_player in self.turn_players:
-                if not isinstance(turn_player, MonopolyPlayer):
-                    continue
-                if turn_player.id == mono_player.id or turn_player.bankrupt:
-                    continue
-                if turn_player.name.lower() == wanted_name:
-                    target = turn_player
-                    break
-
-            if target is None:
-                self.voice_last_response_by_player_id[mono_player.id] = "invalid_target"
-                if user:
-                    user.speak_l("monopoly-voice-command-error", reason="invalid_target")
-                return
-
-            self.voice_pending_transfer_by_player_id[mono_player.id] = (target.id, parsed.amount)
-            self.voice_last_response_by_player_id[mono_player.id] = "transfer_pending_confirm"
-            if user:
-                user.speak_l(
-                    "monopoly-voice-transfer-staged",
-                    amount=parsed.amount,
-                    target=target.name,
-                )
-            return
-
-        if parsed.intent == "confirm_transfer":
-            pending = self.voice_pending_transfer_by_player_id.get(mono_player.id)
-            if not pending:
-                self.voice_last_response_by_player_id[mono_player.id] = "no_pending_transfer"
-                if user:
-                    user.speak_l("monopoly-voice-command-error", reason="no_pending_transfer")
-                return
-
-            target_id, amount = pending
-            target = self.get_player_by_id(target_id)
-            if not target or not isinstance(target, MonopolyPlayer) or target.bankrupt:
-                self.voice_pending_transfer_by_player_id.pop(mono_player.id, None)
-                self.voice_last_response_by_player_id[mono_player.id] = "invalid_target"
-                if user:
-                    user.speak_l("monopoly-voice-command-error", reason="invalid_target")
-                return
-
-            transferred = self._transfer_between_players(
-                mono_player,
-                target,
-                amount,
-                "voice_transfer",
-            )
-            self.voice_pending_transfer_by_player_id.pop(mono_player.id, None)
-            if transferred == amount:
-                self.voice_last_response_by_player_id[mono_player.id] = "transfer_confirmed"
-                self.broadcast_l(
-                    "monopoly-banking-transfer-success",
-                    from_player=mono_player.name,
-                    to_player=target.name,
-                    amount=transferred,
-                )
-                self._sync_cash_scores()
-                self.rebuild_all_menus()
-            else:
-                self.voice_last_response_by_player_id[mono_player.id] = "insufficient_funds"
-                if user:
-                    user.speak_l("monopoly-voice-command-error", reason="insufficient_funds")
-            return
-
-        self.voice_last_response_by_player_id[mono_player.id] = parsed.intent
-        if user:
-            user.speak_l("monopoly-voice-command-accepted", intent=parsed.intent)
+        action_handlers.action_voice_command(self, player, text, action_id)
 
     def _action_claim_cheat_reward(self, player: Player, action_id: str) -> None:
         """Apply cheaters reward claim outcome for the active player."""
