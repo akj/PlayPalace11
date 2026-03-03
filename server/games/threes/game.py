@@ -11,6 +11,7 @@ import random
 
 from ..base import Game, Player
 from ..registry import register_game
+from ...game_utils.action_guard_mixin import ActionGuardMixin
 from ...game_utils.actions import Action, ActionSet, Visibility
 from ...game_utils.bot_helper import BotHelper
 from ...game_utils.dice import DiceSet
@@ -49,7 +50,7 @@ class ThreesOptions(GameOptions):
 
 @dataclass
 @register_game
-class ThreesGame(Game, DiceGameMixin):
+class ThreesGame(ActionGuardMixin, Game, DiceGameMixin):
     """
     Threes dice game.
 
@@ -101,10 +102,9 @@ class ThreesGame(Game, DiceGameMixin):
 
     def _is_roll_enabled(self, player: Player) -> str | None:
         """Check if roll action is enabled."""
-        if self.status != "playing":
-            return "action-not-playing"
-        if self.current_player != player:
-            return "action-not-your-turn"
+        error = self.guard_turn_action_enabled(player)
+        if error:
+            return error
         threes_player: ThreesPlayer = player  # type: ignore
         if not threes_player.dice.has_rolled:
             # First roll is always allowed
@@ -121,21 +121,17 @@ class ThreesGame(Game, DiceGameMixin):
 
     def _is_roll_hidden(self, player: Player) -> Visibility:
         """Roll is visible during play for current player."""
-        if self.status != "playing":
-            return Visibility.HIDDEN
-        if self.current_player != player:
-            return Visibility.HIDDEN
         threes_player: ThreesPlayer = player  # type: ignore
-        if threes_player.dice.has_rolled and threes_player.dice.all_decided:
-            return Visibility.HIDDEN
-        return Visibility.VISIBLE
+        return self.turn_action_visibility(
+            player,
+            extra_condition=not (threes_player.dice.has_rolled and threes_player.dice.all_decided),
+        )
 
     def _is_bank_enabled(self, player: Player) -> str | None:
         """Check if bank action is enabled."""
-        if self.status != "playing":
-            return "action-not-playing"
-        if self.current_player != player:
-            return "action-not-your-turn"
+        error = self.guard_turn_action_enabled(player)
+        if error:
+            return error
         threes_player: ThreesPlayer = player  # type: ignore
         if not threes_player.dice.has_rolled:
             return "threes-roll-first"
@@ -145,19 +141,17 @@ class ThreesGame(Game, DiceGameMixin):
 
     def _is_bank_hidden(self, player: Player) -> Visibility:
         """Bank is hidden until dice are rolled."""
-        if self.status != "playing":
-            return Visibility.HIDDEN
-        if self.current_player != player:
-            return Visibility.HIDDEN
         threes_player: ThreesPlayer = player  # type: ignore
-        if not threes_player.dice.has_rolled:
-            return Visibility.HIDDEN
-        return Visibility.VISIBLE
+        return self.turn_action_visibility(
+            player,
+            extra_condition=threes_player.dice.has_rolled,
+        )
 
     def _is_check_hand_enabled(self, player: Player) -> str | None:
         """Check if check_hand action is enabled."""
-        if self.status != "playing":
-            return "action-not-playing"
+        error = self.guard_game_active()
+        if error:
+            return error
         threes_player: ThreesPlayer = player  # type: ignore
         if not threes_player.dice.has_rolled:
             return "threes-no-dice-yet"
@@ -170,10 +164,9 @@ class ThreesGame(Game, DiceGameMixin):
     # Override dice toggle methods from DiceGameMixin for Threes-specific logic
     def _is_dice_toggle_enabled(self, player: Player, die_index: int) -> str | None:
         """Check if toggling die at index is enabled in Threes."""
-        if self.status != "playing":
-            return "action-not-playing"
-        if self.current_player != player:
-            return "action-not-your-turn"
+        error = self.guard_turn_action_enabled(player)
+        if error:
+            return error
         threes_player: ThreesPlayer = player  # type: ignore
         if not threes_player.dice.has_rolled:
             return "dice-not-rolled"
@@ -186,14 +179,11 @@ class ThreesGame(Game, DiceGameMixin):
 
     def _is_dice_toggle_hidden(self, player: Player, die_index: int) -> Visibility:
         """Check if die toggle action is hidden."""
-        if self.status != "playing":
-            return Visibility.HIDDEN
-        if self.current_player != player:
-            return Visibility.HIDDEN
         threes_player: ThreesPlayer = player  # type: ignore
-        if not threes_player.dice.has_rolled:
-            return Visibility.HIDDEN
-        return Visibility.VISIBLE
+        return self.turn_action_visibility(
+            player,
+            extra_condition=threes_player.dice.has_rolled,
+        )
 
     # ==========================================================================
     # Action set creation
