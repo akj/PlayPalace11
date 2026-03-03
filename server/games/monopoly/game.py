@@ -3883,87 +3883,134 @@ class MonopolyGame(ActionGuardMixin, Game):
     def on_tick(self) -> None:
         """Run per-tick updates (bot actions)."""
         super().on_tick()
-        if self._is_auction_active():
-            bidder = self._current_auction_bidder()
-            if bidder and bidder.is_bot:
-                if bidder.bot_think_ticks > 0:
-                    bidder.bot_think_ticks -= 1
-                    return
-                action_id = self.bot_think(bidder)
-                if action_id:
-                    self.execute_action(bidder, action_id)
+        if self._run_auction_bot_tick():
             return
         BotHelper.on_tick(self)
+
+    def _run_auction_bot_tick(self) -> bool:
+        """Handle the dedicated per-tick bot path while an interactive auction is active."""
+        if not self._is_auction_active():
+            return False
+
+        bidder = self._current_auction_bidder()
+        if bidder and bidder.is_bot:
+            if bidder.bot_think_ticks > 0:
+                bidder.bot_think_ticks -= 1
+                return True
+            action_id = self.bot_think(bidder)
+            if action_id:
+                self.execute_action(bidder, action_id)
+        return True
+
+    def _bot_think_active_auction(self, player: MonopolyPlayer) -> str | None:
+        if not self._is_auction_active():
+            return None
+        current_bidder = self._current_auction_bidder()
+        if current_bidder and current_bidder.id == player.id:
+            bid_options = self._options_for_auction_bid(player)
+            if not bid_options:
+                return "auction_pass"
+            space = self._pending_auction_space()
+            min_bid = int(bid_options[0])
+            cap = (
+                min(space.price, int(self._current_liquid_balance(player) * 0.85))
+                if space
+                else min_bid
+            )
+            if cap >= min_bid:
+                return "auction_bid"
+            return "auction_pass"
+        return None
+
+    def _bot_think_pending_purchase(
+        self,
+        player: MonopolyPlayer,
+        *,
+        reserve: int,
+    ) -> str | None:
+        pending_space = self._pending_purchase_space()
+        if not pending_space:
+            return None
+        if self._can_buy_pending_space(player) and (
+            self._current_liquid_balance(player) - pending_space.price >= reserve
+        ):
+            return "buy_property"
+        return "auction_property"
+
+    def _bot_think_junior_preset(self, player: MonopolyPlayer, bail_amount: int) -> str:
+        if player.in_jail and not self.turn_has_rolled:
+            if self._current_liquid_balance(player) >= bail_amount and player.jail_turns >= 1:
+                return "pay_bail"
+        if not self.turn_has_rolled:
+            return "roll_dice"
+        pending_action = self._bot_think_pending_purchase(
+            player,
+            reserve=max(2, self.rule_profile.starting_cash // 6),
+        )
+        if pending_action is not None:
+            return pending_action
+        if self.turn_can_roll_again:
+            return "roll_dice"
+        return "end_turn"
+
+    def _bot_think_pending_trade(self, player: MonopolyPlayer) -> str | None:
+        pending_offer = self._pending_trade_for_target(player)
+        if not pending_offer:
+            return None
+        proposer = self.get_player_by_id(pending_offer.proposer_id)
+        if proposer and isinstance(proposer, MonopolyPlayer):
+            if self._bot_accepts_trade_offer(proposer, player, pending_offer):
+                return "accept_trade"
+        return "decline_trade"
+
+    def _bot_think_jail_pre_roll(self, player: MonopolyPlayer, bail_amount: int) -> str | None:
+        if not (player.in_jail and not self.turn_has_rolled):
+            return None
+        if player.get_out_of_jail_cards > 0:
+            return "use_jail_card"
+        if self._current_liquid_balance(player) >= bail_amount and player.jail_turns >= 2:
+            return "pay_bail"
+        return None
+
+    def _bot_think_pre_roll_economy(self, player: MonopolyPlayer) -> str | None:
+        if self.turn_has_rolled or self.turn_pending_purchase_space_id:
+            return None
+        liquid_balance = self._current_liquid_balance(player)
+        if liquid_balance < 100 and self._options_for_mortgage_property(player):
+            return "mortgage_property"
+        if liquid_balance >= 800 and self._options_for_unmortgage_property(player):
+            return "unmortgage_property"
+        if liquid_balance >= 450 and self._options_for_build_house(player):
+            return "build_house"
+        return None
 
     def bot_think(self, player: MonopolyPlayer) -> str | None:
         """Simple scaffold bot logic."""
         bail_amount = self._bail_amount()
-        if self._is_auction_active():
-            current_bidder = self._current_auction_bidder()
-            if current_bidder and current_bidder.id == player.id:
-                bid_options = self._options_for_auction_bid(player)
-                if not bid_options:
-                    return "auction_pass"
-                space = self._pending_auction_space()
-                min_bid = int(bid_options[0])
-                cap = (
-                    min(space.price, int(self._current_liquid_balance(player) * 0.85))
-                    if space
-                    else min_bid
-                )
-                if cap >= min_bid:
-                    return "auction_bid"
-                return "auction_pass"
-            return None
+        auction_action = self._bot_think_active_auction(player)
+        if auction_action is not None:
+            return auction_action
 
         if self._is_junior_preset():
-            if player.in_jail and not self.turn_has_rolled:
-                if self._current_liquid_balance(player) >= bail_amount and player.jail_turns >= 1:
-                    return "pay_bail"
-            if not self.turn_has_rolled:
-                return "roll_dice"
-            pending_space = self._pending_purchase_space()
-            if pending_space:
-                reserve = max(2, self.rule_profile.starting_cash // 6)
-                if self._can_buy_pending_space(player) and (
-                    self._current_liquid_balance(player) - pending_space.price >= reserve
-                ):
-                    return "buy_property"
-                return "auction_property"
-            if self.turn_can_roll_again:
-                return "roll_dice"
-            return "end_turn"
+            return self._bot_think_junior_preset(player, bail_amount)
 
-        pending_offer = self._pending_trade_for_target(player)
-        if pending_offer:
-            proposer = self.get_player_by_id(pending_offer.proposer_id)
-            if proposer and isinstance(proposer, MonopolyPlayer):
-                if self._bot_accepts_trade_offer(proposer, player, pending_offer):
-                    return "accept_trade"
-            return "decline_trade"
+        pending_trade_action = self._bot_think_pending_trade(player)
+        if pending_trade_action is not None:
+            return pending_trade_action
 
-        if player.in_jail and not self.turn_has_rolled:
-            if player.get_out_of_jail_cards > 0:
-                return "use_jail_card"
-            if self._current_liquid_balance(player) >= bail_amount and player.jail_turns >= 2:
-                return "pay_bail"
+        jail_action = self._bot_think_jail_pre_roll(player, bail_amount)
+        if jail_action is not None:
+            return jail_action
 
-        if not self.turn_has_rolled and not self.turn_pending_purchase_space_id:
-            if self._current_liquid_balance(player) < 100 and self._options_for_mortgage_property(player):
-                return "mortgage_property"
-            if self._current_liquid_balance(player) >= 800 and self._options_for_unmortgage_property(player):
-                return "unmortgage_property"
-            if self._current_liquid_balance(player) >= 450 and self._options_for_build_house(player):
-                return "build_house"
+        pre_roll_economy_action = self._bot_think_pre_roll_economy(player)
+        if pre_roll_economy_action is not None:
+            return pre_roll_economy_action
+
         if not self.turn_has_rolled:
             return "roll_dice"
-        pending_space = self._pending_purchase_space()
-        if pending_space:
-            if self._can_buy_pending_space(player) and (
-                self._current_liquid_balance(player) - pending_space.price >= 200
-            ):
-                return "buy_property"
-            return "auction_property"
+        pending_action = self._bot_think_pending_purchase(player, reserve=200)
+        if pending_action is not None:
+            return pending_action
         if self.turn_can_roll_again:
             return "roll_dice"
         if self._current_liquid_balance(player) >= 450 and self._options_for_build_house(player):
