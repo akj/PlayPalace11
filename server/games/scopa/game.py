@@ -306,8 +306,7 @@ class ScopaGame(Game):
             "d",
             "View captured cards",
             ["view_captured"],
-            state=KeybindState.ACTIVE,
-            include_spectators=True,
+            state=KeybindState.ACTIVE
         )
 
         # Number keys to view specific table cards (1-10 in order)
