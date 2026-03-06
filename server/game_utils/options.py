@@ -824,6 +824,11 @@ class GameOptions(DataClassJSONMixin):
                 continue
             current_value = getattr(self, name)
             action = meta.create_action(name, game, player, current_value, locale)
+            # Mark enforced options as disabled-but-visible
+            if self._is_value_enforced(name):
+                action.is_enabled = "_is_always_disabled"
+                action.keep_visible_when_disabled = True
+                action.disabled_message = "option-locked"
             action_set.add(action)
 
         # Add back action if inside a group
@@ -904,24 +909,6 @@ class OptionsHandlerMixin:
             return self.options.create_options_action_set(self, player)
         # Fallback for non-declarative options
         return ActionSet(name="options")
-
-    def _is_option_enabled(
-        self, player: "Player", *, action_id: str = ""
-    ) -> str | None:
-        """Check if an option action is enabled, including enforce checks."""
-        # Delegate to the base enabled check (host-only, waiting state)
-        result = super()._is_option_enabled(player)
-        if result is not None:
-            return result
-        # Check if the option is enforced (locked by value_when)
-        if action_id:
-            for prefix in ("set_", "toggle_"):
-                if action_id.startswith(prefix):
-                    option_name = action_id.removeprefix(prefix)
-                    if self.options._is_value_enforced(option_name):
-                        return "action-not-available"
-                    break
-        return None
 
     def _handle_option_change(self, option_name: str, value: str) -> None:
         """Handle a declarative option change (int/menu options)."""
