@@ -252,6 +252,7 @@ async def test_authorize_handoffs_existing_session(monkeypatch, server):
         trust_level=TrustLevel.USER,
         approved=True,
         preferences_json="{}",
+        fluent_languages=[],
     )
     auth = DummyAuth(user_record=record)
     server._auth = auth
@@ -293,6 +294,7 @@ async def test_authorize_rejoin_replays_transcript(monkeypatch, server):
         trust_level=TrustLevel.USER,
         approved=True,
         preferences_json="{}",
+        fluent_languages=[],
     )
     auth = DummyAuth(user_record=record)
     server._auth = auth
@@ -430,6 +432,7 @@ async def test_refresh_session_success(server):
         trust_level=TrustLevel.USER,
         approved=True,
         preferences_json="{}",
+        fluent_languages=[],
     )
 
     class RefreshAuth(DummyAuth):

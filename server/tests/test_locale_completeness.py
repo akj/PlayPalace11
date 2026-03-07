@@ -143,7 +143,7 @@ def test_all_expected_languages_present():
     expected_languages = {
         "ar", "cs", "de", "en", "es", "fa", "fr", "hi", "hr", "hu",
         "id", "it", "ja", "ko", "mn", "nl", "pl", "pt", "ro", "ru",
-        "sk", "sl", "sv", "th", "tr", "uk", "vi", "zh", "zu",
+        "sk", "sl", "sr", "sv", "th", "tr", "uk", "vi", "zh", "zu",
     }
 
     missing_languages = expected_languages - all_locales

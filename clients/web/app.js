@@ -19,6 +19,8 @@ const AUDIO_MUTED_KEY = "playpalace.web.audio_muted";
 const DEFAULT_MUSIC_VOLUME = 20;
 const DEFAULT_AMBIENCE_VOLUME = 100;
 const SESSION_REFRESH_LEEWAY_SECONDS = 60;
+const RECONNECT_WINDOW_MS = 60_000;
+const RECONNECT_RETRY_DELAY_MS = 3_000;
 const DEFAULT_APP_VERSION = "2026.02.17.1";
 const DEFAULT_WEB_CLIENT_CONFIG = {
   serverUrl: "",
@@ -280,6 +282,15 @@ let pendingActionsMenuRequest = false;
 let activeActionsMenu = null;
 let pendingAuthMethod = null;
 let refreshTimerId = null;
+let reconnectTimerId = null;
+
+const reconnectState = {
+  active: false,
+  deadlineMs: 0,
+  attempts: 0,
+  intentionalDisconnect: false,
+  suppressNextDisconnectStatus: false,
+};
 
 const authState = {
   username: loadStoredString(AUTH_USERNAME_KEY),
@@ -378,6 +389,35 @@ function clearRefreshTimer() {
   }
 }
 
+function clearReconnectTimer() {
+  if (reconnectTimerId !== null) {
+    window.clearTimeout(reconnectTimerId);
+    reconnectTimerId = null;
+  }
+}
+
+function clearReconnectState({ preserveIntentionalDisconnect = false } = {}) {
+  clearReconnectTimer();
+  reconnectState.active = false;
+  reconnectState.deadlineMs = 0;
+  reconnectState.attempts = 0;
+  if (!preserveIntentionalDisconnect) {
+    reconnectState.intentionalDisconnect = false;
+  }
+}
+
+function suppressNextDisconnectStatus() {
+  reconnectState.suppressNextDisconnectStatus = true;
+}
+
+function consumeSuppressedDisconnectStatus() {
+  if (!reconnectState.suppressNextDisconnectStatus) {
+    return false;
+  }
+  reconnectState.suppressNextDisconnectStatus = false;
+  return true;
+}
+
 function persistAuthState() {
   saveStoredString(AUTH_USERNAME_KEY, authState.username);
   saveStoredString(SESSION_TOKEN_KEY, authState.sessionToken);
@@ -393,6 +433,7 @@ function clearAuthState() {
   authState.refreshToken = "";
   authState.refreshExpiresAt = 0;
   clearRefreshTimer();
+  clearReconnectState();
   removeStoredKey(AUTH_USERNAME_KEY);
   removeStoredKey(SESSION_TOKEN_KEY);
   removeStoredKey(SESSION_EXPIRES_AT_KEY);
@@ -456,6 +497,10 @@ function nowSeconds() {
   return Math.floor(Date.now() / 1000);
 }
 
+function reconnectWindowRemainingMs() {
+  return reconnectState.deadlineMs - Date.now();
+}
+
 function canUseSessionToken() {
   return (
     Boolean(authState.username && authState.sessionToken)
@@ -468,6 +513,32 @@ function canUseRefreshToken() {
     Boolean(authState.username && authState.refreshToken)
     && authState.refreshExpiresAt > (nowSeconds() + 5)
   );
+}
+
+function buildStoredAuthAttempt() {
+  if (canUseSessionToken()) {
+    return {
+      authPacket: buildAuthorizePacketFromSession(authState.username, authState.sessionToken),
+      method: "session_token",
+    };
+  }
+  if (canUseRefreshToken()) {
+    return {
+      authPacket: buildRefreshPacket(authState.refreshToken, authState.username),
+      method: "refresh_token",
+    };
+  }
+  return null;
+}
+
+function authMethodLabel(method) {
+  if (method === "session_token") {
+    return "saved session";
+  }
+  if (method === "refresh_token") {
+    return "saved refresh token";
+  }
+  return "saved credentials";
 }
 
 function sendRefreshSession({ assertiveOnFailure = false } = {}) {
@@ -491,6 +562,172 @@ function scheduleSessionRefresh() {
   refreshTimerId = window.setTimeout(() => {
     sendRefreshSession();
   }, delayMs);
+}
+
+function resetDisconnectedUi() {
+  audio.stopAll();
+  closeInlineInput({ returnFocus: false });
+  closeActionsDialog();
+  setConnectedUi(false);
+}
+
+function showLoginRequiredState({
+  statusText,
+  loginMessage,
+  historyMessage = "",
+  isError = true,
+  clearAuth = false,
+} = {}) {
+  pendingAuthMethod = null;
+  if (clearAuth) {
+    clearAuthState();
+  } else {
+    clearRefreshTimer();
+    clearReconnectState();
+  }
+  store.setConnection({ authenticated: false, status: "disconnected" });
+  setStatus(statusText || "Disconnected", isError);
+  resetDisconnectedUi();
+  if (historyMessage) {
+    historyView.addEntry(historyMessage, {
+      buffer: "activity",
+      announce: true,
+      assertive: isError,
+    });
+  }
+  clearLoginError();
+  openLoginDialog();
+  if (loginMessage) {
+    setLoginError(loginMessage, { announce: true });
+  }
+}
+
+function expireReconnectWindow(message) {
+  showLoginRequiredState({
+    statusText: "Reconnect expired",
+    loginMessage: message,
+    historyMessage: message,
+    isError: true,
+    clearAuth: false,
+  });
+}
+
+function queueReconnectAttempt(delayMs = RECONNECT_RETRY_DELAY_MS) {
+  clearReconnectTimer();
+  if (!reconnectState.active) {
+    return;
+  }
+  if (reconnectWindowRemainingMs() <= 0) {
+    expireReconnectWindow("Could not reconnect within 60 seconds. Please log in again.");
+    return;
+  }
+
+  const boundedDelayMs = Math.max(0, Math.min(delayMs, reconnectWindowRemainingMs()));
+  const nextAttempt = reconnectState.attempts + 1;
+  const statusText = boundedDelayMs > 0
+    ? `Reconnecting in ${Math.ceil(boundedDelayMs / 1000)} seconds...`
+    : `Reconnecting... attempt ${nextAttempt}`;
+  setStatus(statusText, true);
+  reconnectTimerId = window.setTimeout(() => {
+    reconnectTimerId = null;
+    attemptReconnect();
+  }, boundedDelayMs);
+}
+
+function attemptReconnect() {
+  if (!reconnectState.active || reconnectState.intentionalDisconnect) {
+    return;
+  }
+
+  const authAttempt = buildStoredAuthAttempt();
+  if (!authAttempt) {
+    showLoginRequiredState({
+      statusText: "Login required",
+      loginMessage: "Saved session is no longer valid. Please log in again.",
+      historyMessage: "Saved session is no longer valid. Please log in again.",
+      isError: true,
+      clearAuth: true,
+    });
+    return;
+  }
+  if (reconnectWindowRemainingMs() <= 0) {
+    expireReconnectWindow("Could not reconnect within 60 seconds. Please log in again.");
+    return;
+  }
+
+  reconnectState.attempts += 1;
+  pendingAuthMethod = authAttempt.method;
+  const serverUrl = getDefaultServerUrl();
+  store.setConnection({
+    serverUrl,
+    username: normalizeUsername(authState.username),
+    status: "connecting",
+    authenticated: false,
+  });
+  setStatus(`Reconnecting... attempt ${reconnectState.attempts}`, true);
+  historyView.addEntry(
+    `Reconnect attempt ${reconnectState.attempts} using ${authMethodLabel(authAttempt.method)}.`,
+    { buffer: "activity" }
+  );
+  network.connect({ serverUrl, authPacket: authAttempt.authPacket });
+}
+
+function beginReconnectFlow({
+  initialDelayMs = 0,
+  historyMessage = "Connection lost. Trying to reconnect for up to 60 seconds.",
+} = {}) {
+  if (reconnectState.intentionalDisconnect) {
+    return false;
+  }
+  if (!buildStoredAuthAttempt()) {
+    return false;
+  }
+
+  clearLoginError();
+  closeLoginDialog();
+  clearRefreshTimer();
+  resetDisconnectedUi();
+
+  if (!reconnectState.active) {
+    reconnectState.active = true;
+    reconnectState.deadlineMs = Date.now() + RECONNECT_WINDOW_MS;
+    reconnectState.attempts = 0;
+    historyView.addEntry(historyMessage, {
+      buffer: "activity",
+      announce: true,
+      assertive: true,
+    });
+  }
+
+  queueReconnectAttempt(initialDelayMs);
+  return true;
+}
+
+function finishReconnectSuccess() {
+  if (!reconnectState.active) {
+    return;
+  }
+  const attempts = reconnectState.attempts;
+  clearReconnectState();
+  if (attempts > 0) {
+    historyView.addEntry(
+      `Reconnected after ${attempts} attempt${attempts === 1 ? "" : "s"}.`,
+      { buffer: "activity", announce: true }
+    );
+  }
+}
+
+function shouldAutoReconnectAfterTransportLoss() {
+  if (reconnectState.intentionalDisconnect) {
+    return false;
+  }
+  if (pendingAuthMethod === "password") {
+    return false;
+  }
+  return Boolean(
+    buildStoredAuthAttempt()
+    && (store.state.connection.authenticated || pendingAuthMethod === "session_token" || pendingAuthMethod === "refresh_token")
+  );
 }
 
 function loadRememberedUsername() {
@@ -915,6 +1152,7 @@ function requestActionsDialog() {
 }
 
 function handleAuthorizeSuccess(packet, { refreshed = false } = {}) {
+  finishReconnectSuccess();
   store.setConnection({
     authenticated: true,
     status: "authenticated",
@@ -955,10 +1193,14 @@ function handlePacket(packet) {
       break;
     }
     case "refresh_session_failure": {
-      clearAuthState();
       const message = packet.message || "Session refresh failed. Please log in again.";
-      setLoginError(message, { announce: true });
-      historyView.addEntry(message, { buffer: "activity", announce: true, assertive: true });
+      showLoginRequiredState({
+        statusText: "Login required",
+        loginMessage: message,
+        historyMessage: message,
+        isError: true,
+        clearAuth: true,
+      });
       break;
     }
     case "menu": {
@@ -1083,19 +1325,25 @@ function handlePacket(packet) {
       break;
     }
     case "disconnect": {
-      if (packet.return_to_login && packet.reconnect === false) {
-        clearAuthState();
+      suppressNextDisconnectStatus();
+      const message = packet.message || "Disconnected by server.";
+      if (packet.reconnect) {
+        const retryDelayMs = Math.max(1, Number(packet.retry_after || 3)) * 1000;
+        if (beginReconnectFlow({
+          initialDelayMs: retryDelayMs,
+          historyMessage: `${message} Trying to reconnect for up to 60 seconds.`,
+        })) {
+          setStatus(`Reconnecting in ${Math.ceil(retryDelayMs / 1000)} seconds...`, true);
+          store.setConnection({ authenticated: false, status: "disconnected" });
+          break;
+        }
       }
-      store.setConnection({ authenticated: false, status: "disconnected" });
-      setStatus("Disconnected", true);
-      audio.stopAll();
-      closeInlineInput({ returnFocus: false });
-      closeActionsDialog();
-      setConnectedUi(false);
-      openLoginDialog();
-      historyView.addEntry("Disconnected by server.", {
-        buffer: "activity",
-        assertive: true,
+      showLoginRequiredState({
+        statusText: packet.return_to_login ? "Login required" : "Disconnected",
+        loginMessage: packet.show_message || packet.return_to_login ? message : "",
+        historyMessage: message,
+        isError: packet.show_message || packet.return_to_login,
+        clearAuth: packet.return_to_login && packet.reconnect === false,
       });
       break;
     }
@@ -1145,35 +1393,68 @@ async function bootstrap() {
     validator,
     onStatus: (status) => {
       if (status === "connecting") {
-        setStatus("Connecting...");
+        if (reconnectState.active) {
+          const attemptLabel = reconnectState.attempts > 0 ? ` attempt ${reconnectState.attempts}` : "";
+          setStatus(`Reconnecting${attemptLabel}...`, true);
+        } else {
+          setStatus("Connecting...");
+        }
         setConnectedUi(false);
       } else if (status === "connected") {
-        setStatus("Connected. Authorizing...");
+        if (reconnectState.active) {
+          setStatus("Reconnected. Authorizing...");
+        } else if (pendingAuthMethod === "session_token") {
+          setStatus("Connected. Restoring session...");
+        } else if (pendingAuthMethod === "refresh_token") {
+          setStatus("Connected. Refreshing session...");
+        } else {
+          setStatus("Connected. Authorizing...");
+        }
       } else if (status === "disconnected") {
+        if (consumeSuppressedDisconnectStatus()) {
+          reconnectState.intentionalDisconnect = false;
+          return;
+        }
         pendingAuthMethod = null;
         clearRefreshTimer();
-        setStatus("Disconnected");
-        audio.stopAll();
-        closeInlineInput({ returnFocus: false });
-        closeActionsDialog();
-        setConnectedUi(false);
-        openLoginDialog();
+        if (reconnectState.active) {
+          queueReconnectAttempt(RECONNECT_RETRY_DELAY_MS);
+          return;
+        }
+        if (shouldAutoReconnectAfterTransportLoss() && beginReconnectFlow()) {
+          return;
+        }
+        reconnectState.intentionalDisconnect = false;
+        showLoginRequiredState({
+          statusText: "Disconnected",
+          loginMessage: "",
+          historyMessage: "Disconnected.",
+          isError: true,
+          clearAuth: false,
+        });
       } else if (status === "error") {
-        pendingAuthMethod = null;
-        clearRefreshTimer();
+        if (reconnectState.active) {
+          setStatus("Connection error. Retrying...", true);
+          return;
+        }
+        if (shouldAutoReconnectAfterTransportLoss() && beginReconnectFlow({
+          historyMessage: "Connection error. Trying to reconnect for up to 60 seconds.",
+        })) {
+          return;
+        }
+        store.setConnection({ status: "disconnected", authenticated: false });
         setStatus("Connection error", true);
         setLoginError("Connection error.", { announce: true });
-        audio.stopAll();
-        closeInlineInput({ returnFocus: false });
-        closeActionsDialog();
-        setConnectedUi(false);
+        resetDisconnectedUi();
         openLoginDialog();
       }
     },
     onPacket: handlePacket,
     onError: (message) => {
       historyView.addEntry(message, { buffer: "activity", announce: true, assertive: true });
-      setStatus(message, true);
+      if (!reconnectState.active) {
+        setStatus(message, true);
+      }
       if (!store.state.connection.authenticated && elements.loginDialog.open) {
         setLoginError(message, { announce: false });
       }
@@ -1252,15 +1533,17 @@ async function bootstrap() {
   });
 
   elements.disconnectBtn.addEventListener("click", () => {
+    reconnectState.intentionalDisconnect = true;
+    suppressNextDisconnectStatus();
+    clearReconnectState({ preserveIntentionalDisconnect: true });
     clearRefreshTimer();
     network.disconnect();
+    reconnectState.intentionalDisconnect = false;
     store.setConnection({ status: "disconnected", authenticated: false });
     setStatus("Disconnected");
-    audio.stopAll();
-    closeInlineInput({ returnFocus: false });
-    closeActionsDialog();
-    setConnectedUi(false);
+    resetDisconnectedUi();
     openLoginDialog();
+    historyView.addEntry("Disconnected.", { buffer: "activity", announce: true });
   });
 
   elements.openLoginBtn.addEventListener("click", () => {
@@ -1355,22 +1638,16 @@ async function bootstrap() {
   installActionsDialogTabTrap(elements.actionsDialog);
   setConnectedUi(false);
   const serverUrl = getDefaultServerUrl();
-  const sessionAuthPacket = canUseSessionToken()
-    ? buildAuthorizePacketFromSession(authState.username, authState.sessionToken)
-    : null;
-  const refreshAuthPacket = (!sessionAuthPacket && canUseRefreshToken())
-    ? buildRefreshPacket(authState.refreshToken, authState.username)
-    : null;
-  const bootstrapAuthPacket = sessionAuthPacket || refreshAuthPacket;
-  if (bootstrapAuthPacket) {
-    pendingAuthMethod = sessionAuthPacket ? "session_token" : "refresh_token";
+  const bootstrapAuthAttempt = buildStoredAuthAttempt();
+  if (bootstrapAuthAttempt) {
+    pendingAuthMethod = bootstrapAuthAttempt.method;
     store.setConnection({
       serverUrl,
       username: normalizeUsername(authState.username),
       status: "connecting",
       authenticated: false,
     });
-    network.connect({ serverUrl, authPacket: bootstrapAuthPacket });
+    network.connect({ serverUrl, authPacket: bootstrapAuthAttempt.authPacket });
   } else {
     openLoginDialog();
   }

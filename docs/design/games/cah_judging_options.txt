@@ -1,0 +1,109 @@
+I have a plan for cards against humanity for expanding the judging options.
+
+Cardzar settings (child group)
+
+number of judges (int): 1 to max players
+The number of people who are allowed to judge each turn.
+default 1
+
+Timer limit for judging (int):
+Determines how much time (in seconds) a judge has for picking submissions before submissions are randomly selected.
+Default is 0 seconds. (disabled)
+
+Judging method (string):
+Determines how winning submissions are chosen by judges.
+Use independent if number of judges = 1.
+Default independent
+
+Independent = each judge chooses their own winning submissions, allowing for a wider range of point distribution.
+Jury = all judges must agree on the winning submissions, making the game more fair and intense.
+Random = each turn any judging method can be chosen, allowing for chaotic scoring.
+
+Allow judges to submit cards (bool):
+Determines if judges are allowed to submit their own cards for a chance at winning the round.
+Use true if judges = max players.
+default false
+
+Allow judges to pick their own submissions (bool):
+Determine if judges must only select submissions from other players or if they are allowed to select their's as well.
+Use false if allow judges to submit cards =false.
+default false
+
+number of required minimum picked submissions (int): 1 to (max submissions -1)
+The fewest number of submissions each judge must pick.
+default 1
+
+number of allowed maximum picked submissions (int): 1 to (max submissions -1)
+The greatest number of submissions each judge must pick.
+default 1
+
+Next Cardzar selection settings (child group):
+Ignored if judges = max players
+
+Prioritize popularity (string):
+Use the popularity of submissions to determine the first judge seats of the next round.
+Ignore = Do not take popularity into account.
+Biggest winners only = Only the people with the highest votes / winning submissions will have a seat.
+Biggest losers only = Only the people with the lowest votes / losing submissions will have a seat.
+Descending popularity = From highest to lowest votes  judges will fill seats. This will only work with a voting system, otherwise only the biggest winners will be chosen.
+Ascending popularity = From lowest to highest votes  judges will fill seats. This will only work with a voting system, otherwise only the biggest losers will be chosen.
+
+Prioritize multiple submissions  (string):
+For players that entered multiple submissions they will be punished by filling any available seats after popularity is taken into account. All options go in descending order, meaning highest number is punished the most.
+Ignore = Do not take multiple submissions into account.
+Last turn = From highest number of submissions down to 2, all relevant players who entered multiple submissions in the last turn will be selected.
+Total count = From highest number of submissions down to 1, all relevant players who entered multiple submissions during the entire game will be selected.
+Last turn and total count = Take both into account, with last turn being evaluated first since it is a more immediate action.
+
+Last turn and total count example: this would be the order of priority.
+Total count uses include the last turn. So when someone enters multiple submissions for a turn, their total count increases by (submissions -1).
+*Person a with 3 submissions last turn and 2 multiple submissions in total.
+*Person b with 2 submissions last turn and 4 multiple submissions in total.
+*Person c with 2 submissions last turn and 2 multiple submissions in total.
+*Person d with 1 submissions last turn and 6 multiple submissions in total.
+
+Prioritize submission bypass actions (string):
+For players that chose not to submit anything they will be punished by filling any available seats after multiple submissions is taken into account. All options go in descending order, meaning highest number is punished the most.
+Ignore = Do not take submission bypasses into account.
+Last turn = All relevant players who used submission bypass in the last turn will be selected.
+Total count = From highest number of submission bypass uses down to 1, all relevant players who used submission bypass during the entire game will be selected.
+Last turn and total count = Take both into account, with last turn being evaluated first since it is a more immediate action.
+
+Last turn and total count example: this would be the order of priority.
+Total count uses include the last turn. So when someone uses submission bypass for a turn, their total count increases by 1.
+*Person a with 0 submissions last turn and 3 submission bypasses in total.
+*Person b with 0 submissions last turn and 1 submission bypasses in total.
+*Person c with 1 submissions last turn and 6 submission bypasses in total.
+*Person d with 1 submissions last turn and 2 submission bypasses in total.
+
+Rotate judge seats in order (bool):
+Determines who will fill the remaining seats if any are available. This is used as a last resort. If checked, players will rotate according to the turn order; if not they will be randomized.
+
+Order Execution:
+Picking the next cardzars should work like a looping chain. If people have the same popularity status such as biggest loser, evaluate multiple submissions next on those losers. If some of them have the same stats based on the selected multiple submission criteria, then evaluate submission bypasses. If some players still have the same relevant bypass stats, use the last resort rotating / random to determine the choices.
+If there are more seats after all losers are chosen, evaluate all remaining players and work down the chain as before, starting with multiple submissions.
+If all players who have met the multiple submission criteria have been selected and there are more judge seats available, start again for remaining players with submission bypassses.
+If there are still available seats after filtering out submission bypass, the rest will be handled by rotating / random only.
+It is very unlikely that the table host will enable all criterias, so the chain should not get this deep. But in case it does, I want the execution to be clear.
+Be smart about when to chain to avoid extra work. For exaple if there are 5 judge seats and only 4 losers, automatically select all 4 losers without chaining since all losers will need to be selected. Then fill the last remaining seat with the remaining criterias.
+
+cardzar presets:
+
+minimal:
+judges = 1
+judging method = independent
+min picks = 1
+max picks = 1
+
+democratic:
+judges = maximum players
+judging method = independent
+min picks = 1
+max picks = 1
+
+Collective:
+judges = maximum players
+judging method = jury
+min picks = 1
+max picks = 1
+

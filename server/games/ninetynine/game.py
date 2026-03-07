@@ -87,6 +87,7 @@ class NinetyNineOptions(GameOptions):
             label="ninetynine-set-tokens",
             prompt="ninetynine-enter-tokens",
             change_msg="ninetynine-option-changed-tokens",
+            description="ninetynine-desc-tokens",
         )
     )
     hand_size: int = option_field(
@@ -98,6 +99,7 @@ class NinetyNineOptions(GameOptions):
             label="ninetynine-set-hand-size",
             prompt="ninetynine-enter-hand-size",
             change_msg="ninetynine-option-changed-hand-size",
+            description="ninetynine-desc-hand-size",
         )
     )
     rules_variant: str = option_field(
@@ -112,6 +114,7 @@ class NinetyNineOptions(GameOptions):
             label="ninetynine-set-rules",
             prompt="ninetynine-select-rules",
             change_msg="ninetynine-option-changed-rules",
+            description="ninetynine-desc-rules",
         )
     )
     autodraw: bool = option_field(
@@ -120,6 +123,7 @@ class NinetyNineOptions(GameOptions):
             value_key="enabled",
             label="ninetynine-set-autodraw",
             change_msg="ninetynine-option-changed-autodraw",
+            description="ninetynine-desc-autodraw",
         )
     )
 

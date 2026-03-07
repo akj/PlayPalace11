@@ -112,12 +112,12 @@ class TestSnakesAndLaddersGameFlow:
         # But here we want to test the _handle_event logic mostly.
 
         # Let's inject a ladder event directly to test logic
-        self.game._handle_event("ladder", {"player_id": self.p1.id, "start": 1, "end": 38})
+        self.game.on_game_event("ladder", {"player_id": self.p1.id, "start": 1, "end": 38})
         assert self.p1.position == 38
 
     def test_snake_interaction(self):
         """Test hitting a snake."""
-        self.game._handle_event("snake", {"player_id": self.p1.id, "start": 98, "end": 78})
+        self.game.on_game_event("snake", {"player_id": self.p1.id, "start": 98, "end": 78})
         assert self.p1.position == 78
 
     def test_check_positions(self):

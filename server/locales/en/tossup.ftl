@@ -36,11 +36,15 @@ tossup-winner = { $player } wins with { $score } points!
 tossup-tie-tiebreaker = It's a tie between { $players }! Tiebreaker round!
 
 # Options
+tossup-desc-target-score = First player to reach this score wins
+
 tossup-set-rules-variant = Rules variant: { $variant }
+tossup-desc-rules = Choose between different rule sets for Toss Up
 tossup-select-rules-variant = Select rules variant:
 tossup-option-changed-rules = Rules variant changed to { $variant }
 
 tossup-set-starting-dice = Starting dice: { $count }
+tossup-desc-starting-dice = Number of dice each player starts with per turn
 tossup-enter-starting-dice = Enter the number of starting dice:
 tossup-option-changed-dice = Starting dice changed to { $count }
 

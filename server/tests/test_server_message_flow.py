@@ -22,6 +22,8 @@ class DummyClient:
         self.authenticated = False
         self.sent: list[dict] = []
         self.closed = False
+        self.client_type = ""
+        self.platform = ""
 
     async def send(self, payload):
         self.sent.append(payload)
@@ -49,6 +51,7 @@ class FakeAuth:
             trust_level=TrustLevel.USER,
             approved=False,
             preferences_json="{}",
+            fluent_languages=[],
         )
         return True
 
@@ -122,6 +125,7 @@ async def test_authorize_banned_user_disconnects(make_server):
         trust_level=TrustLevel.BANNED,
         approved=True,
         preferences_json="{}",
+        fluent_languages=[],
     )
     packet = {"type": "authorize", "username": "evil", "password": "secret"}
 
@@ -142,6 +146,7 @@ async def test_authorize_unapproved_routes_to_menu(make_server):
         trust_level=TrustLevel.USER,
         approved=False,
         preferences_json="{}",
+        fluent_languages=[],
     )
 
     def record_menu(user):

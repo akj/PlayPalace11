@@ -25,6 +25,9 @@ class DummyUser:
     def show_menu(self, menu_id: str, *_, **__):
         self.menus.append(menu_id)
 
+    def speak(self, text: str, buffer: str = "misc") -> None:
+        pass
+
     def speak_l(self, message_id: str, buffer: str = "misc", **kwargs):
         self.spoken.append((message_id, kwargs))
 

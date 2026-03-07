@@ -84,6 +84,7 @@ class PiratesOptions(GameOptions):
             label="pirates-set-gem-stealing",
             prompt="pirates-select-gem-stealing",
             change_msg="pirates-option-changed-stealing",
+            description="pirates-desc-gem-stealing",
         )
     )
 

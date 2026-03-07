@@ -1724,7 +1724,7 @@ def test_guided_host_creates_table(tmp_path, monkeypatch):
     assert transitioned is True
     assert state.table_id is not None
     assert bot.state == VirtualBotState.IN_GAME
-    assert server.table_broadcasts == [("Host1", "Dummy Game")]
+    assert server.table_broadcasts == [("Host1", "crazyeights")]
 
 
 def test_guided_mixer_does_not_create_table(tmp_path, monkeypatch):
@@ -2025,8 +2025,12 @@ def test_show_virtual_bots_clear_confirm_menu_outputs_prompt():
 
     menu_id, items = owner.menus[-1]
     assert menu_id == "virtual_bots_clear_confirm_menu"
-    assert [item.text for item in items] == ["Yes", "No"]
-    assert owner.messages[-1][0] == "virtual-bots-clear-confirm"
+    assert [item.text for item in items] == [
+        "Are you sure you want to clear all virtual bots? This will also destroy any tables they are in.",
+        "Yes",
+        "No",
+    ]
+    assert owner.messages[-1] == "Are you sure you want to clear all virtual bots? This will also destroy any tables they are in."
 
 
 @pytest.mark.asyncio
@@ -2531,7 +2535,7 @@ def test_try_create_game_builds_table(monkeypatch):
     assert bot.table_id == "new-table"
     assert dummy_table.game is not None
     assert server._user_states["Creator"]["menu"] == "in_game"
-    assert server.table_broadcasts[-1] == ("Creator", "Dummy Game")
+    assert server.table_broadcasts[-1] == ("Creator", "dummy")
 
 
 def test_clear_bots_removes_tables_and_calls_db(monkeypatch):

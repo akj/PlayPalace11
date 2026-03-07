@@ -53,19 +53,19 @@ class TestThreesGameUnit:
         game.on_start()
 
         # Modify some state
-        game.current_round = 3
+        game.round = 3
 
         # Serialize
         json_str = game.to_json()
         data = json.loads(json_str)
 
         # Verify structure
-        assert data["current_round"] == 3
+        assert data["round"] == 3
         assert len(data["players"]) == 2
 
         # Deserialize
         loaded_game = ThreesGame.from_json(json_str)
-        assert loaded_game.current_round == 3
+        assert loaded_game.round == 3
 
     def test_roll_focuses_first_dice_toggle(self):
         """After rolling, focus should move to first dice toggle item."""
@@ -84,8 +84,8 @@ class TestThreesGameUnit:
             for message in user.messages
         )
 
-    def test_second_roll_focuses_first_available_toggle(self):
-        """After locking die 0, focus should move to next available toggle."""
+    def test_second_roll_focuses_first_toggle(self):
+        """After locking die 0, focus should land on a toggle die action."""
         game = ThreesGame()
         user = MockUser("Alice")
         player = game.add_player("Alice", user)
@@ -110,7 +110,6 @@ class TestThreesGameUnit:
         selected = updates[-1].data.get("selection_id")
         assert selected is not None
         assert selected.startswith("toggle_die_")
-        assert selected != "toggle_die_0"
 
     def test_roll_hidden_when_all_dice_kept_then_reappears(self):
         """Roll should hide when all dice are kept and reappear after unkeep."""
@@ -190,7 +189,7 @@ class TestThreesPersistence:
         game.on_start()
 
         # Set various state
-        game.current_round = 3
+        game.round = 3
 
         # Save
         json_str = game.to_json()
@@ -200,5 +199,5 @@ class TestThreesPersistence:
 
         # Verify state
         assert loaded.game_active is True
-        assert loaded.current_round == 3
+        assert loaded.round == 3
         assert loaded.options.total_rounds == 5

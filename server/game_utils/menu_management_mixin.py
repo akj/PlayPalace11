@@ -8,6 +8,7 @@ if TYPE_CHECKING:
     from .actions import ResolvedAction
 
 from server.core.users.base import MenuItem, EscapeBehavior
+from ..messages.localization import Localization
 
 
 class MenuManagementMixin:
@@ -49,7 +50,11 @@ class MenuManagementMixin:
 
         items: list[MenuItem] = []
         for resolved in self.get_all_visible_actions(player):
-            items.append(MenuItem(text=resolved.label, id=resolved.action.id, sound=resolved.sound))
+            label = resolved.label
+            if not resolved.enabled:
+                unavailable = Localization.get(user.locale, "visibility-unavailable")
+                label = f"{label}; {unavailable}"
+            items.append(MenuItem(text=label, id=resolved.action.id, sound=resolved.sound))
 
         user.show_menu(
             "turn_menu",
@@ -82,7 +87,11 @@ class MenuManagementMixin:
 
         items: list[MenuItem] = []
         for resolved in self.get_all_visible_actions(player):
-            items.append(MenuItem(text=resolved.label, id=resolved.action.id, sound=resolved.sound))
+            label = resolved.label
+            if not resolved.enabled:
+                unavailable = Localization.get(user.locale, "visibility-unavailable")
+                label = f"{label}; {unavailable}"
+            items.append(MenuItem(text=label, id=resolved.action.id, sound=resolved.sound))
 
         user.update_menu("turn_menu", items, selection_id=selection_id)
 

@@ -27,9 +27,16 @@ class DummyUser:
         self.trust_level = TrustLevel.USER
         self.connection = DummyConn()
         self.spoken: list[tuple[str, dict]] = []
+        self.menus: list[str] = []
+
+    def speak(self, text: str, buffer: str = "misc") -> None:
+        pass
 
     def speak_l(self, message_id: str, buffer: str = "misc", **kwargs) -> None:
         self.spoken.append((message_id, kwargs))
+
+    def show_menu(self, menu_id: str, *args, **kwargs) -> None:
+        self.menus.append(menu_id)
 
 
 class FakeTables:
@@ -117,6 +124,12 @@ async def test_main_menu_logout_disconnects(server):
     client = SimpleNamespace(username="alice")
 
     await server._handle_main_menu_selection(user, "logout")
+
+    # Logout now shows a confirmation menu first
+    assert user.menus[-1] == "logout_confirm_menu"
+
+    # Confirming "yes" triggers goodbye + disconnect
+    await server._handle_logout_confirm_selection(user, "yes")
 
     assert ("goodbye", {}) in user.spoken
     assert any(pkt.get("type") == "disconnect" for pkt in user.connection.sent)

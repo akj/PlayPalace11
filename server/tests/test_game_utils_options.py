@@ -12,7 +12,7 @@ from server.game_utils.options import (
     OptionGroupMeta,
     get_option_meta,
     get_option_field_group,
-    get_visibility_condition,
+    get_visibility_conditions,
     multi_select_field,
     option_field,
     option_group,
@@ -304,15 +304,16 @@ def test_visible_when_updates_on_label_refresh(monkeypatch):
     assert action_set.get_action("set_reshuffle_penalty") is not None
 
 
-def test_get_visibility_condition_helper():
-    """get_visibility_condition returns the correct tuple or None."""
-    cond = get_visibility_condition(LinkedVisibilityOptions, "reshuffle_penalty")
-    assert cond is not None
-    assert cond[0] == "reshuffle_limit"
-    assert cond[1](5) is True
-    assert cond[1](0) is False
+def test_get_visibility_conditions_helper():
+    """get_visibility_conditions returns the correct list or None."""
+    conds = get_visibility_conditions(LinkedVisibilityOptions, "reshuffle_penalty")
+    assert conds is not None
+    assert len(conds) == 1
+    assert conds[0][0] == "reshuffle_limit"
+    assert conds[0][1](5) is True
+    assert conds[0][1](0) is False
 
-    assert get_visibility_condition(LinkedVisibilityOptions, "reshuffle_limit") is None
+    assert get_visibility_conditions(LinkedVisibilityOptions, "reshuffle_limit") is None
 
 
 # =========================================================================

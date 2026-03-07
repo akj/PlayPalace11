@@ -26,6 +26,7 @@ class NetworkUser(User):
         preferences: UserPreferences | None = None,
         trust_level: TrustLevel = TrustLevel.USER,
         approved: bool = False,
+        fluent_languages: list[str] | None = None,
     ):
         """Initialize a network-backed user session."""
         self._uuid = uuid or generate_uuid()
@@ -35,6 +36,7 @@ class NetworkUser(User):
         self._preferences = preferences or UserPreferences()
         self._trust_level = trust_level
         self._approved = approved
+        self._fluent_languages: list[str] = fluent_languages or []
         self._message_queue: list[dict[str, Any]] = []
         self._connected_at: float = time.time()
         self._client_type: str = ""
@@ -117,6 +119,15 @@ class NetworkUser(User):
     def set_platform(self, platform: str) -> None:
         """Set the client platform string."""
         self._platform = platform
+
+    @property
+    def fluent_languages(self) -> list[str]:
+        """Return the user's fluent languages."""
+        return self._fluent_languages
+
+    def set_fluent_languages(self, languages: list[str]) -> None:
+        """Set the user's fluent languages."""
+        self._fluent_languages = languages
 
     def format_time_online(self) -> str:
         """Format the time this user has been connected."""

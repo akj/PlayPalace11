@@ -10,6 +10,7 @@ from server.game_utils.event_handling_mixin import EventHandlingMixin
 @dataclass
 class DummyAction:
     id: str
+    disabled_message: str = ""
 
 
 @dataclass

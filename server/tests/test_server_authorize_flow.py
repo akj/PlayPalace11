@@ -14,7 +14,7 @@ from server.auth.auth import AuthResult
 
 class DummyClient(SimpleNamespace):
     def __init__(self, address="1.2.3.4:9999"):
-        super().__init__(address=address, username=None, authenticated=False, sent=[])
+        super().__init__(address=address, username=None, authenticated=False, sent=[], client_type="", platform="")
 
     async def send(self, payload):
         self.sent.append(payload)
@@ -22,7 +22,7 @@ class DummyClient(SimpleNamespace):
 
 class FakeAuth:
     def __init__(self):
-        self.users = {"alice": SimpleNamespace(uuid="uuid-a", locale="en", trust_level=TrustLevel.USER, approved=True, preferences_json="{}")}
+        self.users = {"alice": SimpleNamespace(uuid="uuid-a", locale="en", trust_level=TrustLevel.USER, approved=True, preferences_json="{}", fluent_languages=[])}
         self.sessions: dict[str, str] = {}
         self.authenticate_calls: list[tuple[str, str]] = []
 
@@ -35,7 +35,7 @@ class FakeAuth:
         return AuthResult.NOT_FOUND
 
     def register(self, username, password, locale="en"):
-        self.users[username] = SimpleNamespace(uuid="new", locale=locale, trust_level=TrustLevel.USER, approved=False, preferences_json="{}")
+        self.users[username] = SimpleNamespace(uuid="new", locale=locale, trust_level=TrustLevel.USER, approved=False, preferences_json="{}", fluent_languages=[])
         return True
 
     def get_user(self, username):

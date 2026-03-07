@@ -1569,6 +1569,7 @@ class BlackjackGame(Game):
         user = self.get_user(player)
         if not user:
             return
+        self._suppress_keybind_rebuild(player)
 
         if self._is_between_hands():
             waiting = [
@@ -1593,10 +1594,6 @@ class BlackjackGame(Game):
             user.speak_l("poker-timer-disabled")
         else:
             user.speak_l("poker-timer-remaining", seconds=remaining)
-
-    def _action_whose_turn(self, player: Player, action_id: str) -> None:
-        self._suppress_keybind_rebuild(player)
-        super()._action_whose_turn(player, action_id)
 
     def _action_whos_at_table(self, player: Player, action_id: str) -> None:
         self._suppress_keybind_rebuild(player)

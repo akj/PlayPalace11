@@ -34,6 +34,7 @@ threes-tie = { $players } tie with { $score } points!
 
 # Options
 threes-set-rounds = Rounds: { $rounds }
+threes-desc-rounds = How many rounds to play
 threes-enter-rounds = Enter number of rounds:
 threes-option-changed-rounds = Number of rounds set to { $rounds }.
 

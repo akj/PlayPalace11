@@ -135,6 +135,7 @@ pirates-enter-find-gem-xp-multiplier = experience for finding a gem
 
 # Gem stealing options
 pirates-set-gem-stealing = Gem stealing: { $mode }
+pirates-desc-gem-stealing = Cannonballs steal gems when they hit
 pirates-select-gem-stealing = Select gem stealing mode
 pirates-option-changed-stealing = Gem stealing set to { $mode }.
 

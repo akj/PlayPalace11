@@ -60,6 +60,7 @@ class ScopaOptions(GameOptions):
             label="game-set-target-score",
             prompt="scopa-enter-target-score",
             change_msg="game-option-changed-target",
+            description="scopa-desc-target-score",
         )
     )
     cards_per_deal: int = option_field(
@@ -71,6 +72,7 @@ class ScopaOptions(GameOptions):
             label="scopa-set-cards-per-deal",
             prompt="scopa-enter-cards-per-deal",
             change_msg="scopa-option-changed-cards",
+            description="scopa-desc-cards-per-deal",
         )
     )
     number_of_decks: int = option_field(
@@ -82,6 +84,7 @@ class ScopaOptions(GameOptions):
             label="scopa-set-decks",
             prompt="scopa-enter-decks",
             change_msg="scopa-option-changed-decks",
+            description="scopa-desc-decks",
         )
     )
     escoba: bool = option_field(
@@ -90,6 +93,7 @@ class ScopaOptions(GameOptions):
             value_key="enabled",
             label="scopa-toggle-escoba",
             change_msg="scopa-option-changed-escoba",
+            description="scopa-desc-escoba",
         )
     )
     show_capture_hints: bool = option_field(
@@ -98,6 +102,7 @@ class ScopaOptions(GameOptions):
             value_key="enabled",
             label="scopa-toggle-hints",
             change_msg="scopa-option-changed-hints",
+            description="scopa-desc-hints",
         )
     )
     scopa_mechanic: str = option_field(
@@ -113,6 +118,7 @@ class ScopaOptions(GameOptions):
             label="scopa-set-mechanic",
             prompt="scopa-select-mechanic",
             change_msg="scopa-option-changed-mechanic",
+            description="scopa-desc-mechanic",
         )
     )
     instant_win_scopas: bool = option_field(
@@ -121,6 +127,7 @@ class ScopaOptions(GameOptions):
             value_key="enabled",
             label="scopa-toggle-instant-win",
             change_msg="scopa-option-changed-instant",
+            description="scopa-desc-instant-win",
         )
     )
     team_mode: str = option_field(
@@ -139,6 +146,7 @@ class ScopaOptions(GameOptions):
             value_key="enabled",
             label="scopa-toggle-team-scoring",
             change_msg="scopa-option-changed-team-scoring",
+            description="scopa-desc-team-scoring",
         )
     )
     inverse_scopa: bool = option_field(
@@ -147,6 +155,7 @@ class ScopaOptions(GameOptions):
             value_key="enabled",
             label="scopa-toggle-inverse",
             change_msg="scopa-option-changed-inverse",
+            description="scopa-desc-inverse",
         )
     )
 
@@ -297,8 +306,7 @@ class ScopaGame(Game):
             "d",
             "View captured cards",
             ["view_captured"],
-            state=KeybindState.ACTIVE,
-            include_spectators=True,
+            state=KeybindState.ACTIVE
         )
 
         # Number keys to view specific table cards (1-10 in order)
@@ -355,8 +363,10 @@ class ScopaGame(Game):
         return None
 
     def _is_card_action_hidden(self, player: Player) -> Visibility:
-        """Card actions are visible during play (players can always see their hand)."""
+        """Card actions are visible during play for non-spectators."""
         if self.status != "playing":
+            return Visibility.HIDDEN
+        if player.is_spectator:
             return Visibility.HIDDEN
         return Visibility.VISIBLE
 

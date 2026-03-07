@@ -29,6 +29,8 @@ from .config_paths import get_default_config_path, get_example_config_path, ensu
 from .state import ModeSnapshot, ServerLifecycleState, ServerMode
 from .tick import TickScheduler, load_server_config
 from .administration import AdministrationMixin
+from .documents.browsing import DocumentBrowsingMixin, _DOCUMENTS_DIR
+from .documents.transcriber_role import TranscriberRoleMixin
 from .virtual_bots import VirtualBotManager
 from ..network.websocket_server import WebSocketServer, ClientConnection
 from ..persistence.database import Database
@@ -39,6 +41,8 @@ from .users.base import MenuItem, EscapeBehavior, TrustLevel
 from .users.preferences import UserPreferences, DiceKeepingStyle
 from ..games.registry import GameRegistry, get_game_class
 from ..messages.localization import Localization
+from .ui.common_flows import show_yes_no_menu
+from .documents.manager import DocumentManager
 from ..network.packet_models import CLIENT_TO_SERVER_PACKET_ADAPTER
 
 
@@ -101,7 +105,7 @@ def _ensure_var_server_dir() -> Path:
     return _VAR_SERVER_DIR
 
 
-class Server(AdministrationMixin):
+class Server(AdministrationMixin, DocumentBrowsingMixin, TranscriberRoleMixin):
     """
     Main PlayPalace v11 server.
 
@@ -154,6 +158,9 @@ class Server(AdministrationMixin):
         # User tracking
         self._users: dict[str, NetworkUser] = {}  # username -> NetworkUser
         self._user_states: dict[str, dict] = {}  # username -> UI state
+
+        # Document manager
+        self._documents = DocumentManager(_DOCUMENTS_DIR)
 
         # Virtual bot manager
         self._virtual_bots = VirtualBotManager(self)
@@ -237,6 +244,10 @@ class Server(AdministrationMixin):
 
         # Load existing tables
         self._load_tables()
+
+        # Load documents
+        doc_count = self._documents.load()
+        print(f"Loaded {doc_count} documents.")
 
         # Initialize virtual bots
         try:
@@ -576,6 +587,7 @@ class Server(AdministrationMixin):
             return
         if self._localization_warmup_task:
             return
+        Localization.set_warmup_active(True)
         loop = asyncio.get_running_loop()
         self._localization_warmup_task = loop.create_task(self._warm_locales_async())
         print(
@@ -585,8 +597,7 @@ class Server(AdministrationMixin):
 
     def _is_localization_warmup_active(self) -> bool:
         """Return whether non-blocking localization warmup is still running."""
-        task = self._localization_warmup_task
-        return task is not None and not task.done()
+        return Localization.is_warmup_active()
 
     @staticmethod
     def _notify_localization_in_progress(user: NetworkUser) -> None:
@@ -612,6 +623,8 @@ class Server(AdministrationMixin):
             logger.exception("Localization preload failed")
             self._lifecycle.enter_maintenance(message="Localization preload failed. Check server logs.")
             await self._disconnect_clients_for_status(self._lifecycle.snapshot())
+        finally:
+            Localization.set_warmup_active(False)
 
     async def _run_localization_warmup_in_daemon_thread(self) -> None:
         """Run localization warmup in a daemon thread so shutdown isn't blocked."""
@@ -1066,6 +1079,7 @@ class Server(AdministrationMixin):
             existing_user.set_approved(is_approved)
             existing_user.set_client_type(client.client_type)
             existing_user.set_platform(client.platform)
+            existing_user.set_fluent_languages(user_record.fluent_languages)
             return existing_user, False
 
         client.username = username
@@ -1078,6 +1092,7 @@ class Server(AdministrationMixin):
             preferences=preferences,
             trust_level=trust_level,
             approved=is_approved,
+            fluent_languages=user_record.fluent_languages,
         )
         user.set_client_type(client.client_type)
         user.set_platform(client.platform)
@@ -1427,6 +1442,7 @@ class Server(AdministrationMixin):
                     text=Localization.get(user.locale, "my-stats"), id="my_stats"
                 ),
                 MenuItem(text=Localization.get(user.locale, "options"), id="options"),
+                MenuItem(text=Localization.get(user.locale, "documents-menu-title"), id="documents"),
             ]
             # Add administration menu for admins
             if user.trust_level.value >= TrustLevel.ADMIN.value:
@@ -1440,6 +1456,9 @@ class Server(AdministrationMixin):
                     text=Localization.get(user.locale, "leaderboards"), id="leaderboards"
                 ),
                 MenuItem(text=Localization.get(user.locale, "options"), id="options"),
+                MenuItem(
+                    text=Localization.get(user.locale, "documents-menu-title"), id="documents"
+                ),
             ]
         items.append(MenuItem(text=Localization.get(user.locale, "logout"), id="logout"))
         user.show_menu(
@@ -1649,6 +1668,14 @@ class Server(AdministrationMixin):
             ),
             MenuItem(
                 text=Localization.get(
+                    user.locale,
+                    "fluent-languages-option",
+                    count=len(user.fluent_languages),
+                ),
+                id="fluent_languages",
+            ),
+            MenuItem(
+                text=Localization.get(
                     user.locale, "turn-sound-option", status=turn_sound_status
                 ),
                 id="turn_sound",
@@ -1681,42 +1708,23 @@ class Server(AdministrationMixin):
             user.play_music("settingsmus.ogg")
         self._user_states[user.username] = {"menu": "options_menu"}
 
-    def _show_language_menu(self, user: NetworkUser) -> None:
-        """Show language selection menu."""
+    async def _apply_locale_change(self, user: NetworkUser, lang_code: str) -> None:
+        """Apply a locale change from the language menu."""
         if self._is_localization_warmup_active():
             self._notify_localization_in_progress(user)
             self._show_options_menu(user)
             return
-
-        # Get languages in their native names and in user's locale for comparison
         languages = Localization.get_available_languages(fallback=user.locale)
-        localized_languages = Localization.get_available_languages(
-            user.locale, fallback=user.locale
-        )
+        if lang_code in languages:
+            user.set_locale(lang_code)
+            self._db.update_user_locale(user.username, lang_code)
+            user.speak_l("language-changed", language=languages[lang_code])
+        self._show_options_menu(user)
 
-        items = []
-        selected_position = 1
-        for index, (lang_code, lang_name) in enumerate(languages.items(), start=1):
-            prefix = "* " if lang_code == user.locale else ""
-            localized_name = localized_languages.get(lang_code, lang_name)
-            # Show localized name first, then native name in parentheses if different
-            if localized_name != lang_name:
-                display = f"{prefix}{localized_name} ({lang_name})"
-            else:
-                display = f"{prefix}{lang_name}"
-            items.append(MenuItem(text=display, id=f"lang_{lang_code}"))
-            if lang_code == user.locale:
-                selected_position = index
-        items.append(MenuItem(text=Localization.get(user.locale, "back"), id="back"))
-        user.show_menu(
-            "language_menu",
-            items,
-            multiletter=True,
-            escape_behavior=EscapeBehavior.SELECT_LAST,
-            position=selected_position,
-        )
-        user.play_music("settingsmus.ogg")
-        self._user_states[user.username] = {"menu": "language_menu"}
+    async def _handle_language_menu_dispatch(self, user: NetworkUser, selection_id: str) -> None:
+        """Thin wrapper that delegates to the common language menu handler."""
+        from server.core.ui.common_flows import handle_language_menu_selection
+        await handle_language_menu_selection(user, selection_id)
 
     def _show_saved_tables_menu(self, user: NetworkUser) -> None:
         """Show saved tables menu."""
@@ -1869,7 +1877,7 @@ class Server(AdministrationMixin):
             "active_tables_menu": (self._handle_active_tables_selection, (user, selection_id)),
             "join_menu": (self._handle_join_selection, (user, selection_id, state)),
             "options_menu": (self._handle_options_selection, (user, selection_id)),
-            "language_menu": (self._handle_language_selection, (user, selection_id)),
+            "language_menu": (self._handle_language_menu_dispatch, (user, selection_id)),
             "dice_keeping_style_menu": (self._handle_dice_keeping_style_selection, (user, selection_id)),
             "saved_tables_menu": (self._handle_saved_tables_selection, (user, selection_id, state)),
             "saved_table_actions_menu": (self._handle_saved_table_actions_selection, (user, selection_id, state)),
@@ -1878,6 +1886,7 @@ class Server(AdministrationMixin):
             "game_leaderboard": (self._handle_game_leaderboard_selection, (user, selection_id, state)),
             "my_stats_menu": (self._handle_my_stats_selection, (user, selection_id, state)),
             "my_game_stats": (self._handle_my_game_stats_selection, (user, selection_id, state)),
+            **self._get_document_menu_handlers(user, selection_id, state),
             "online_users": (self._restore_previous_menu, (user, state)),
             "admin_menu": (self._handle_admin_menu_selection, (user, selection_id)),
             "account_approval_menu": (self._handle_account_approval_selection, (user, selection_id)),
@@ -1952,6 +1961,8 @@ class Server(AdministrationMixin):
             if not self._ensure_user_approved(user):
                 return
             self._show_my_stats_menu(user)
+        elif selection_id == "documents":
+            self._show_documents_menu(user)
         elif selection_id == "options":
             self._show_options_menu(user)
         elif selection_id == "administration":
@@ -1962,17 +1973,8 @@ class Server(AdministrationMixin):
 
     def _show_logout_confirm_menu(self, user: NetworkUser) -> None:
         """Show confirmation menu for logging out."""
-        user.speak_l("confirm-logout", buffer="activity")
-        items = [
-            MenuItem(text=Localization.get(user.locale, "confirm-yes"), id="yes"),
-            MenuItem(text=Localization.get(user.locale, "confirm-no"), id="no"),
-        ]
-        user.show_menu(
-            "logout_confirm_menu",
-            items,
-            multiletter=True,
-            escape_behavior=EscapeBehavior.SELECT_LAST,
-        )
+        question = Localization.get(user.locale, "confirm-logout")
+        show_yes_no_menu(user, "logout_confirm_menu", question)
         self._user_states[user.username] = {"menu": "logout_confirm_menu"}
 
     async def _handle_logout_confirm_selection(
@@ -1995,11 +1997,17 @@ class Server(AdministrationMixin):
             selection_id: Selected menu item id.
         """
         if selection_id == "language":
-            if self._is_localization_warmup_active():
-                self._notify_localization_in_progress(user)
-                self._show_options_menu(user)
+            from server.core.ui.common_flows import show_language_menu
+            if show_language_menu(
+                user, include_native_names=True,
+                on_select=self._apply_locale_change,
+                on_back=lambda u: self._show_options_menu(u),
+            ):
+                self._user_states[user.username] = {"menu": "language_menu"}
             else:
-                self._show_language_menu(user)
+                self._show_options_menu(user)
+        elif selection_id == "fluent_languages":
+            self._show_fluent_languages_menu(user)
         elif selection_id == "turn_sound":
             # Toggle turn sound
             prefs = user.preferences
@@ -2022,6 +2030,38 @@ class Server(AdministrationMixin):
             self._show_dice_keeping_style_menu(user)
         elif selection_id == "back":
             self._show_main_menu(user)
+
+    def _show_fluent_languages_menu(self, user: NetworkUser) -> None:
+        """Show fluent languages toggle menu."""
+        if self._is_localization_warmup_active():
+            self._notify_localization_in_progress(user)
+            self._show_options_menu(user)
+            return
+
+        from server.core.ui.common_flows import show_language_menu
+
+        original = list(user.fluent_languages)
+
+        def on_done(u: NetworkUser, selected: set[str]) -> None:
+            u.fluent_languages[:] = list(selected)
+            self._db.set_user_fluent_languages(u.username, u.fluent_languages)
+            self._show_options_menu(u)
+
+        def on_cancel(u: NetworkUser) -> None:
+            u.fluent_languages[:] = original
+            self._show_options_menu(u)
+
+        if show_language_menu(
+            user,
+            highlight_active_locale=False,
+            multi_select=True,
+            selected=set(user.fluent_languages),
+            on_done=on_done,
+            on_cancel=on_cancel,
+        ):
+            self._user_states[user.username] = {"menu": "language_menu"}
+        else:
+            self._show_options_menu(user)
 
     def _show_dice_keeping_style_menu(self, user: NetworkUser) -> None:
         """Show dice keeping style selection menu."""
@@ -2075,31 +2115,6 @@ class Server(AdministrationMixin):
         """
         prefs_json = json.dumps(user.preferences.to_dict())
         self._db.update_user_preferences(user.username, prefs_json)
-
-    async def _handle_language_selection(
-        self, user: NetworkUser, selection_id: str
-    ) -> None:
-        """Handle language selection.
-
-        Args:
-            user: Acting user.
-            selection_id: Selected language id.
-        """
-        if selection_id.startswith("lang_"):
-            if self._is_localization_warmup_active():
-                self._notify_localization_in_progress(user)
-                self._show_options_menu(user)
-                return
-            lang_code = selection_id[5:]  # Remove "lang_" prefix
-            languages = Localization.get_available_languages(fallback=user.locale)
-            if lang_code in languages:
-                user.set_locale(lang_code)
-                self._db.update_user_locale(user.username, lang_code)
-                user.speak_l("language-changed", language=languages[lang_code])
-                self._show_options_menu(user)
-                return
-        # Back or invalid
-        self._show_options_menu(user)
 
     async def _handle_categories_selection(
         self, user: NetworkUser, selection_id: str, state: dict
@@ -3654,6 +3669,9 @@ class Server(AdministrationMixin):
         # Check for admin editbox handlers
         state = self._user_states.get(username, {})
         current_menu = state.get("menu")
+
+        if await self._handle_document_editbox(user, current_menu, packet, state):
+            return
 
         if current_menu == "decline_reason_editbox":
             text = packet.get("text", "")

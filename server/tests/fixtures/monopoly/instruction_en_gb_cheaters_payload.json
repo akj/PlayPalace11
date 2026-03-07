@@ -1,0 +1,45 @@
+{
+  "page": "/instruction/[instruction]",
+  "query": {
+    "instruction": "monopoly-game-cheaters-edition"
+  },
+  "props": {
+    "pageProps": {
+      "locale": "en-gb",
+      "instructions": {
+        "filtered_instructions": [
+          [
+            {
+              "brand": "Monopoly",
+              "sku": "E1871",
+              "name": "Monopoly Game: Cheaters Edition",
+              "slug": "monopoly-game-cheaters-edition",
+              "pdf": [
+                {
+                  "url": "https://assets-us-01.kc-usercontent.com/monopoly/E18712313_INST_MN_CHEATERS_FAR.pdf",
+                  "size": 20570069
+                }
+              ]
+            }
+          ],
+          [
+            {
+              "brand": "Monopoly",
+              "sku": "E1871",
+              "name": "Monopoly Game: Cheaters Edition",
+              "slug": "monopoly-game-cheaters-edition",
+              "pdf": [
+                {
+                  "url": "https://assets-us-01.kc-usercontent.com/monopoly/E18716566_INST_MN_CHEATERS_e_FAR.pdf",
+                  "size": 20570070
+                }
+              ]
+            }
+          ]
+        ],
+        "search_length": 2
+      }
+    }
+  }
+}
+

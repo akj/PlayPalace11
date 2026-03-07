@@ -13,6 +13,10 @@ clients/desktop/build/
 clients/desktop/dist/
 clients/desktop/*.spec
 
+# Runtime artifacts
+server/errors.log
+server/playpalace.db
+
 # Test report coverage files
 server/.coverage
 server/coverage-report.txt

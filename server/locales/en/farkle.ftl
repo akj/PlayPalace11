@@ -50,6 +50,7 @@ farkle-no-turn = No one is currently taking a turn.
 
 # Farkle-specific options
 farkle-set-target-score = Target score: { $score }
+farkle-desc-target-score = The score needed to win the game
 farkle-enter-target-score = Enter target score (500-5000):
 farkle-option-changed-target = Target score set to { $score }.
 

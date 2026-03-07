@@ -91,6 +91,12 @@ class EventHandlingMixin:
         menu_item_id = event.get("menu_item_id")
         menu_index = event.get("menu_index")
 
+        # Space key speaks option descriptions when not playing
+        if key == "space" and getattr(self, "status", "playing") != "playing" and menu_item_id:
+            handler = getattr(self, "_speak_option_description", None)
+            if handler and handler(player, menu_item_id):
+                return
+
         keybinds = self._keybinds.get(key)
         if keybinds is None:
             return
@@ -141,6 +147,17 @@ class EventHandlingMixin:
                 self.execute_action(player, selection_id)
                 if player.id not in self._pending_actions:
                     self.rebuild_all_menus()
+            else:
+                user = self.get_user(player)
+                if user:
+                    if action.disabled_message:
+                        user.speak_l(action.disabled_message)
+                    elif resolved.disabled_reason:
+                        if isinstance(resolved.disabled_reason, tuple):
+                            key, kwargs = resolved.disabled_reason
+                            user.speak_l(key, **kwargs)
+                        else:
+                            user.speak_l(resolved.disabled_reason)
             return
 
         selection = event.get("selection", 1) - 1
@@ -206,6 +223,10 @@ class EventHandlingMixin:
                     if resolved.enabled:
                         self.execute_action(player, action_id, context=context)
                         executed_any = True
+                    elif action.disabled_message:
+                        user = self.get_user(player)
+                        if user:
+                            user.speak_l(action.disabled_message)
                     elif resolved.disabled_reason:
                         if resolved.disabled_reason != "action-not-available":
                             user = self.get_user(player)

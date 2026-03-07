@@ -2,14 +2,17 @@
 
 # Options
 hc-set-winning-score = Winning score: { $score }
+hc-desc-winning-score = Points needed to win
 hc-enter-winning-score = Enter winning score:
 hc-option-changed-winning-score = Winning score set to { $score }.
 
 hc-set-hand-size = Hand size: { $count }
+hc-desc-hand-size = Number of cards in hand
 hc-enter-hand-size = Enter hand size:
 hc-option-changed-hand-size = Hand size set to { $count }.
 
 hc-set-card-packs = Card packs ({ $count } of { $total } selected)
+hc-desc-card-packs = Which card packs to use
 hc-option-changed-card-packs = Card pack selection changed.
 
 hc-set-czar-selection = Card Czar selection: { $mode }

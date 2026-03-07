@@ -23,14 +23,15 @@ from .ageofheroes.game import AgeOfHeroesGame
 from .fivecarddraw.game import FiveCardDrawGame
 from .holdem.game import HoldemGame
 from .crazyeights.game import CrazyEightsGame
+from .monopoly.game import MonopolyGame
 from .snakesandladders.game import SnakesAndLaddersGame
 from .rollingballs.game import RollingBallsGame
 from .sorry.game import SorryGame
 from .metalpipe.game import MetalPipeGame
 from .humanitycards.game import HumanityCardsGame
+from .nine.game import NineGame
 from .blackjack.game import BlackjackGame
 from .twentyone import TwentyOneGame
-
 
 __all__ = [
     "Game",
@@ -56,11 +57,13 @@ __all__ = [
     "FiveCardDrawGame",
     "HoldemGame",
     "CrazyEightsGame",
+    "MonopolyGame",
     "SnakesAndLaddersGame",
     "RollingBallsGame",
     "SorryGame",
     "MetalPipeGame",
     "HumanityCardsGame",
+    "NineGame",
     "BlackjackGame",
     "TwentyOneGame",
 ]

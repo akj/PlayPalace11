@@ -20,7 +20,7 @@ from ...messages.localization import Localization
 class MetalPipePlayer(Player):
     """Player state for Metal Pipe game."""
 
-    pass
+    alive: bool = True
 
 
 @dataclass
@@ -33,6 +33,7 @@ class MetalPipeOptions(GameOptions):
             value_key="enabled",
             label="metalpipe-set-multiple-bonks",
             change_msg="metalpipe-option-changed-multiple-bonks",
+            description="metalpipe-desc-multiple-bonks",
         )
     )
     allow_self_bonk: bool = option_field(
@@ -41,6 +42,7 @@ class MetalPipeOptions(GameOptions):
             value_key="enabled",
             label="metalpipe-set-allow-self-bonk",
             change_msg="metalpipe-option-changed-allow-self-bonk",
+            description="metalpipe-desc-allow-self-bonk",
         )
     )
 
@@ -166,6 +168,7 @@ class MetalPipeGame(Game):
                 return
 
             self.play_sound("lsmack.ogg")
+            bonked.alive = False
 
             if data["is_self"]:
                 self.broadcast_l("metalpipe-hit-self", bonker=bonker.name)

@@ -12,6 +12,7 @@ import random
 from ..base import Game, Player, GameOptions
 from ..registry import register_game
 from ...game_utils.action_guard_mixin import ActionGuardMixin
+from ...game_utils.round_based_game_mixin import RoundBasedGameMixin
 from ...game_utils.actions import Action, ActionSet, Visibility
 from ...game_utils.bot_helper import BotHelper
 from ...game_utils.dice import DiceSet
@@ -51,7 +52,7 @@ class MidnightOptions(GameOptions):
 
 @dataclass
 @register_game
-class MidnightGame(ActionGuardMixin, Game, DiceGameMixin):
+class MidnightGame(ActionGuardMixin, RoundBasedGameMixin, Game, DiceGameMixin):
     """
     1-4-24 (Midnight) dice game.
 
@@ -350,73 +351,32 @@ class MidnightGame(ActionGuardMixin, Game, DiceGameMixin):
         # Bank action keybind
         self.define_keybind("b", "Bank", ["bank"], state=KeybindState.ACTIVE)
 
-    def on_start(self) -> None:
-        """Called when the game starts."""
-        self.status = "playing"
-        self.game_active = True
-        self.round = 0
+    def should_reset_all_scores(self) -> bool:
+        return True
 
-        # Initialize turn order
-        active_players = self.get_active_players()
-        self.set_turn_players(active_players)
+    def _reset_player_for_game(self, player: MidnightPlayer) -> None:
+        player.dice.reset()
+        player.round_score = 0
+        player.round_wins = 0
+        player.qualified = False
 
-        # Set up TeamManager for score tracking (round wins)
-        self._team_manager.team_mode = "individual"
-        self._team_manager.setup_teams([p.name for p in active_players])
-        self._team_manager.reset_all_scores()
+    def _reset_player_for_round(self, player: MidnightPlayer) -> None:
+        player.dice.reset()
+        player.round_score = 0
+        player.qualified = False
 
-        # Reset player state
-        for player in active_players:
-            player.dice.reset()
-            player.round_score = 0
-            player.round_wins = 0
-            player.qualified = False
+    def _reset_player_for_turn(self, player: MidnightPlayer) -> None:
+        player.dice.reset()
+        player.round_score = 0
+        player.qualified = False
 
-        # Play intro music
-        self.play_music("game_pig/mus.ogg")
-
-        # Start first round
-        self._start_round()
-
-    def _start_round(self) -> None:
-        """Start a new round."""
-        self.round += 1
-
-        # Reset turn order for new round
-        self.set_turn_players(self.get_active_players())
-
-        self.play_sound("game_pig/roundstart.ogg")
-        self.broadcast_l("game-round-start", round=self.round)
-
-        # Reset all players for new round
-        for player in self.get_active_players():
-            player.dice.reset()
-            player.round_score = 0
-            player.qualified = False
-
-        self._start_turn()
-
-    def _start_turn(self) -> None:
-        """Start a player's turn."""
-        player = self.current_player
-        if not player:
-            return
-
-        midnight_player: MidnightPlayer = player  # type: ignore
-        midnight_player.dice.reset()
-        midnight_player.round_score = 0
-        midnight_player.qualified = False
-
-        # Announce turn
+    def _announce_turn_start(self, player) -> None:
         self.play_sound("game_pig/turn.ogg")
         self.broadcast_l("midnight-turn-start", player=player.name)
 
-        # Set up bot if this is a bot's turn
+    def _setup_bot_for_turn(self, player: MidnightPlayer) -> None:
         if player.is_bot:
             BotHelper.set_target(player, 24)
-
-        # Rebuild menus to reflect new turn
-        self.rebuild_all_menus()
 
     def on_tick(self) -> None:
         """Called every tick. Handle bot AI."""
@@ -486,16 +446,6 @@ class MidnightGame(ActionGuardMixin, Game, DiceGameMixin):
             return "bank"
 
         return "roll"
-
-    def _on_turn_end(self) -> None:
-        """Handle end of a player's turn."""
-        # Check if round is over (all active players have gone)
-        if self.turn_index >= len(self.turn_players) - 1:
-            self._on_round_end()
-        else:
-            # Next player
-            self.advance_turn(announce=False)
-            self._start_turn()
 
     def _on_round_end(self) -> None:
         """Handle end of a round."""

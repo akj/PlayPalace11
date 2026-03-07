@@ -45,12 +45,14 @@ class OptionMeta:
         label: Localization key for the option label.
         change_msg: Localization key for change announcements.
         prompt: Localization key for input prompt (if applicable).
+        description: Human-readable description spoken via space key.
     """
 
     default: Any
     label: str  # Localization key for the option label
     change_msg: str  # Localization key for the change announcement
     prompt: str = ""  # Localization key for input prompt (if applicable)
+    description: str = ""  # Description spoken when user presses space
 
     def get_label(self, locale: str, value: Any) -> str:
         """Get the localized label with current value interpolated."""
@@ -501,15 +503,28 @@ def option_field(
     meta: OptionMeta,
     *,
     group: str | None = None,
-    visible_when: tuple[str, Callable[[Any], bool]] | None = None,
+    visible_when: (
+        tuple[str, Callable[[Any], bool]]
+        | list[tuple[str, Callable[[Any], bool]]]
+        | None
+    ) = None,
+    value_when: (
+        tuple[str, Callable[[Any], bool], Any, bool]
+        | list[tuple[str, Callable[[Any], bool], Any, bool]]
+        | None
+    ) = None,
 ) -> Any:
     """Create a dataclass field with option metadata attached.
 
     Args:
         meta: Option metadata instance.
         group: Name of the parent option group (None = top level).
-        visible_when: Tuple of (option_name, predicate). The option is hidden
-            when the predicate returns False for the referenced option's value.
+        visible_when: One or more (option_name, predicate) tuples. The option
+            is hidden when any predicate returns False for its referenced
+            option's value (AND logic).
+        value_when: One or more (option_name, predicate, forced_value, enforce)
+            tuples. When predicate(ref_value) is True, this option is set to
+            forced_value. If enforce is True, the option is also locked.
 
     Returns:
         Dataclass field configured for declarative options.
@@ -518,7 +533,15 @@ def option_field(
     if group is not None:
         metadata["option_group"] = group
     if visible_when is not None:
+        # Normalize single tuple to list
+        if isinstance(visible_when, tuple):
+            visible_when = [visible_when]
         metadata["visible_when"] = visible_when
+    if value_when is not None:
+        # Normalize single tuple to list
+        if isinstance(value_when, tuple):
+            value_when = [value_when]
+        metadata["value_when"] = value_when
     return field(default=meta.default, metadata=metadata)
 
 
@@ -558,14 +581,15 @@ def get_option_field_group(options_class: type, field_name: str) -> str | None:
     return None
 
 
-def get_visibility_condition(
+def get_visibility_conditions(
     options_class: type, field_name: str
-) -> tuple[str, Callable[[Any], bool]] | None:
-    """Get the visible_when condition for an option field, if present."""
+) -> list[tuple[str, Callable[[Any], bool]]] | None:
+    """Get the visible_when conditions for an option field, if present."""
     for f in fields(options_class):
         if f.name == field_name:
             return f.metadata.get("visible_when")
     return None
+
 
 
 @dataclass
@@ -585,13 +609,55 @@ class GameOptions(DataClassJSONMixin):
         return get_all_option_group_metas(type(self))
 
     def _is_option_visible(self, name: str) -> bool:
-        """Check if an option passes its visible_when condition."""
-        condition = get_visibility_condition(type(self), name)
-        if condition is None:
+        """Check if an option passes all visible_when conditions (AND logic)."""
+        conditions = get_visibility_conditions(type(self), name)
+        if not conditions:
             return True
-        ref_name, predicate = condition
-        ref_value = getattr(self, ref_name, None)
-        return predicate(ref_value)
+        for ref_name, predicate in conditions:
+            ref_value = getattr(self, ref_name, None)
+            if not predicate(ref_value):
+                return False
+        return True
+
+    def _is_value_enforced(self, name: str) -> bool:
+        """Check if an option's value is currently locked by value_when + enforce.
+
+        Returns True when any value_when entry has enforce=True and its
+        predicate is currently active.
+        """
+        options_class = type(self)
+        for f in fields(options_class):
+            if f.name != name:
+                continue
+            overrides = f.metadata.get("value_when")
+            if not overrides:
+                return False
+            for ref_name, predicate, _forced_value, enforce in overrides:
+                if enforce:
+                    ref_value = getattr(self, ref_name, None)
+                    if predicate(ref_value):
+                        return True
+            return False
+        return False
+
+    def _apply_value_overrides(self, changed_option: str) -> None:
+        """Apply value_when overrides triggered by a change to changed_option.
+
+        Scans all option fields for value_when conditions referencing
+        changed_option. When the predicate matches, sets the dependent
+        option to the forced value.
+        """
+        options_class = type(self)
+        changed_value = getattr(self, changed_option, None)
+        for f in fields(options_class):
+            overrides = f.metadata.get("value_when")
+            if not overrides:
+                continue
+            for ref_name, predicate, forced_value, _enforce in overrides:
+                if ref_name != changed_option:
+                    continue
+                if predicate(changed_value):
+                    setattr(self, f.name, forced_value)
 
     def _get_options_path(self, game: "Game", player: "Player") -> list[str]:
         """Get the current options navigation path for a player."""
@@ -758,6 +824,10 @@ class GameOptions(DataClassJSONMixin):
                 continue
             current_value = getattr(self, name)
             action = meta.create_action(name, game, player, current_value, locale)
+            # Mark enforced options as disabled-but-visible
+            if self._is_value_enforced(name):
+                action.is_enabled = "_is_always_disabled"
+                action.disabled_message = "option-locked"
             action_set.add(action)
 
         # Add back action if inside a group
@@ -851,6 +921,7 @@ class OptionsHandlerMixin:
 
         # Set the option value
         setattr(self.options, option_name, converted)
+        self.options._apply_value_overrides(option_name)
 
         # Update labels and rebuild menus
         if hasattr(self.options, "update_options_labels"):
@@ -867,6 +938,7 @@ class OptionsHandlerMixin:
         current = getattr(self.options, option_name)
         new_value = not current
         setattr(self.options, option_name, new_value)
+        self.options._apply_value_overrides(option_name)
 
         # Update labels and rebuild menus
         if hasattr(self.options, "update_options_labels"):
@@ -1100,3 +1172,26 @@ class OptionsHandlerMixin:
         if hasattr(self.options, "update_options_labels"):
             self.options.update_options_labels(self)
         self.rebuild_all_menus()
+
+    def _speak_option_description(
+        self, player: "Player", menu_item_id: str
+    ) -> bool:
+        """Speak the description for an option when space is pressed.
+
+        Extracts the option name from the action ID and looks up its
+        description. Returns True if a description was spoken.
+        """
+        option_name = None
+        for prefix in ("set_", "toggle_", "multiselect_", "group_"):
+            if menu_item_id.startswith(prefix):
+                option_name = menu_item_id.removeprefix(prefix)
+                break
+        if option_name is None:
+            return False
+        meta = get_option_meta(type(self.options), option_name)
+        if meta is None or not meta.description:
+            return False
+        user = self.get_user(player)
+        if user:
+            user.speak_l(meta.description)
+        return True

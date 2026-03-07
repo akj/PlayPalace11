@@ -209,7 +209,7 @@ export function installKeybinds({
           }
           return;
         }
-        if (event.key === ",") {
+        if (event.key === "," || event.key === "<") {
           event.preventDefault();
           if (event.shiftKey) {
             onOldestMessage?.();
@@ -218,7 +218,7 @@ export function installKeybinds({
           }
           return;
         }
-        if (event.key === ".") {
+        if (event.key === "." || event.key === ">") {
           event.preventDefault();
           if (event.shiftKey) {
             onNewestMessage?.();

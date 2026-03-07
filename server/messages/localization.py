@@ -24,9 +24,18 @@ class Localization:
     _locales_dir: Path | None = None
     _cache_dir: Path | None = None
     _cache_enabled: bool = True
+    _warmup_active: bool = False
     _CACHE_VERSION = "1"
     _CACHE_DISABLE_ENV = "PLAYPALACE_DISABLE_LOCALE_CACHE"
     _CACHE_DIR_ENV = "PLAYPALACE_LOCALE_CACHE_DIR"
+
+    @classmethod
+    def set_warmup_active(cls, active: bool) -> None:
+        cls._warmup_active = active
+
+    @classmethod
+    def is_warmup_active(cls) -> bool:
+        return cls._warmup_active
 
     @classmethod
     def init(cls, locales_dir: Path | str) -> None:
@@ -277,6 +286,24 @@ class Localization:
             Formatted list string (e.g., "A, B, or C").
         """
         return format_list(items, style="or", locale=locale)
+
+    @classmethod
+    def get_available_locale_codes(cls) -> list[str]:
+        """Return sorted language codes from the locales directory.
+
+        Unlike :meth:`get_available_languages`, this only scans the
+        filesystem and never triggers bundle compilation, so it is safe
+        to call during warmup.
+        """
+        if cls._locales_dir is None:
+            raise RuntimeError(
+                "Localization not initialized. Call Localization.init() first."
+            )
+        return sorted(
+            locale_dir.name
+            for locale_dir in cls._locales_dir.iterdir()
+            if locale_dir.is_dir()
+        )
 
     @classmethod
     def get_available_languages(

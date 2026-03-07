@@ -193,39 +193,8 @@ class TradeoffGame(Game):
         )
         return Localization.get(locale, "tradeoff-toggle-trade", value=die_val, status=status)
 
-    # Per-die enabled/hidden/label methods
-    def _is_toggle_trade_0_enabled(self, player: Player) -> str | None:
-        return self._is_toggle_trade_enabled(player, 0)
-    def _is_toggle_trade_1_enabled(self, player: Player) -> str | None:
-        return self._is_toggle_trade_enabled(player, 1)
-    def _is_toggle_trade_2_enabled(self, player: Player) -> str | None:
-        return self._is_toggle_trade_enabled(player, 2)
-    def _is_toggle_trade_3_enabled(self, player: Player) -> str | None:
-        return self._is_toggle_trade_enabled(player, 3)
-    def _is_toggle_trade_4_enabled(self, player: Player) -> str | None:
-        return self._is_toggle_trade_enabled(player, 4)
-
-    def _is_toggle_trade_0_hidden(self, player: Player) -> Visibility:
-        return self._is_toggle_trade_hidden(player, 0)
-    def _is_toggle_trade_1_hidden(self, player: Player) -> Visibility:
-        return self._is_toggle_trade_hidden(player, 1)
-    def _is_toggle_trade_2_hidden(self, player: Player) -> Visibility:
-        return self._is_toggle_trade_hidden(player, 2)
-    def _is_toggle_trade_3_hidden(self, player: Player) -> Visibility:
-        return self._is_toggle_trade_hidden(player, 3)
-    def _is_toggle_trade_4_hidden(self, player: Player) -> Visibility:
-        return self._is_toggle_trade_hidden(player, 4)
-
-    def _get_toggle_trade_0_label(self, player: Player, action_id: str) -> str:
-        return self._get_toggle_trade_label(player, 0)
-    def _get_toggle_trade_1_label(self, player: Player, action_id: str) -> str:
-        return self._get_toggle_trade_label(player, 1)
-    def _get_toggle_trade_2_label(self, player: Player, action_id: str) -> str:
-        return self._get_toggle_trade_label(player, 2)
-    def _get_toggle_trade_3_label(self, player: Player, action_id: str) -> str:
-        return self._get_toggle_trade_label(player, 3)
-    def _get_toggle_trade_4_label(self, player: Player, action_id: str) -> str:
-        return self._get_toggle_trade_label(player, 4)
+    # Per-die toggle_trade enabled/hidden/label methods are generated dynamically
+    # at module level below the class definition.
 
     # Confirm trades
     def _is_confirm_trades_enabled(self, player: Player) -> str | None:
@@ -318,45 +287,8 @@ class TradeoffGame(Game):
         count = self.pool.count(value)
         return Localization.get(locale, "tradeoff-take-die", value=value, remaining=count)
 
-    # Per-value take enabled/hidden/label methods
-    def _is_take_1_enabled(self, player: Player) -> str | None:
-        return self._is_take_enabled(player, 1)
-    def _is_take_2_enabled(self, player: Player) -> str | None:
-        return self._is_take_enabled(player, 2)
-    def _is_take_3_enabled(self, player: Player) -> str | None:
-        return self._is_take_enabled(player, 3)
-    def _is_take_4_enabled(self, player: Player) -> str | None:
-        return self._is_take_enabled(player, 4)
-    def _is_take_5_enabled(self, player: Player) -> str | None:
-        return self._is_take_enabled(player, 5)
-    def _is_take_6_enabled(self, player: Player) -> str | None:
-        return self._is_take_enabled(player, 6)
-
-    def _is_take_1_hidden(self, player: Player) -> Visibility:
-        return self._is_take_hidden(player, 1)
-    def _is_take_2_hidden(self, player: Player) -> Visibility:
-        return self._is_take_hidden(player, 2)
-    def _is_take_3_hidden(self, player: Player) -> Visibility:
-        return self._is_take_hidden(player, 3)
-    def _is_take_4_hidden(self, player: Player) -> Visibility:
-        return self._is_take_hidden(player, 4)
-    def _is_take_5_hidden(self, player: Player) -> Visibility:
-        return self._is_take_hidden(player, 5)
-    def _is_take_6_hidden(self, player: Player) -> Visibility:
-        return self._is_take_hidden(player, 6)
-
-    def _get_take_1_label(self, player: Player, action_id: str) -> str:
-        return self._get_take_label(player, 1)
-    def _get_take_2_label(self, player: Player, action_id: str) -> str:
-        return self._get_take_label(player, 2)
-    def _get_take_3_label(self, player: Player, action_id: str) -> str:
-        return self._get_take_label(player, 3)
-    def _get_take_4_label(self, player: Player, action_id: str) -> str:
-        return self._get_take_label(player, 4)
-    def _get_take_5_label(self, player: Player, action_id: str) -> str:
-        return self._get_take_label(player, 5)
-    def _get_take_6_label(self, player: Player, action_id: str) -> str:
-        return self._get_take_label(player, 6)
+    # Per-value take enabled/hidden/label methods are generated dynamically
+    # at module level below the class definition.
 
     # Dice key actions (hidden keybind-only)
     def _is_dice_key_enabled(self, player: Player) -> str | None:
@@ -421,7 +353,7 @@ class TradeoffGame(Game):
                 Action(
                     id=f"toggle_trade_{i}",
                     label=f"Die {i + 1}",
-                    handler=f"_action_toggle_trade_{i}",
+                    handler="_action_toggle_trade",
                     is_enabled=f"_is_toggle_trade_{i}_enabled",
                     is_hidden=f"_is_toggle_trade_{i}_hidden",
                     get_label=f"_get_toggle_trade_{i}_label",
@@ -434,7 +366,7 @@ class TradeoffGame(Game):
                 Action(
                     id=f"dice_key_{v}",
                     label=f"Dice key {v}",
-                    handler=f"_action_dice_key_{v}",
+                    handler="_action_dice_key",
                     is_enabled="_is_dice_key_enabled",
                     is_hidden="_is_dice_key_hidden",
                 )
@@ -444,7 +376,7 @@ class TradeoffGame(Game):
                 Action(
                     id=f"dice_trade_{v}",
                     label=f"Trade {v}",
-                    handler=f"_action_dice_trade_{v}",
+                    handler="_action_dice_trade",
                     is_enabled="_is_dice_key_enabled",
                     is_hidden="_is_dice_key_hidden",
                 )
@@ -468,7 +400,7 @@ class TradeoffGame(Game):
                 Action(
                     id=f"take_{v}",
                     label=f"Take a {v}",
-                    handler=f"_action_take_{v}",
+                    handler="_action_take",
                     is_enabled=f"_is_take_{v}_enabled",
                     is_hidden=f"_is_take_{v}_hidden",
                     get_label=f"_get_take_{v}_label",
@@ -558,59 +490,23 @@ class TradeoffGame(Game):
             include_spectators=True,
         )
 
-    # Trading toggle handlers
-    def _action_toggle_trade_0(self, player: Player, action_id: str) -> None:
-        self._toggle_trade(player, 0)
+    # Unified trading toggle handler (extracts index from action_id)
+    def _action_toggle_trade(self, player: Player, action_id: str) -> None:
+        """Handle toggle_trade_X action by extracting die index from action_id."""
+        index = int(action_id.split("_")[-1])
+        self._toggle_trade(player, index)
 
-    def _action_toggle_trade_1(self, player: Player, action_id: str) -> None:
-        self._toggle_trade(player, 1)
+    # Unified keybind handler for dice keys 1-6 (extracts value from action_id)
+    def _action_dice_key(self, player: Player, action_id: str) -> None:
+        """Handle dice_key_X action by extracting key number from action_id."""
+        key_num = int(action_id.split("_")[-1])
+        self._handle_dice_key(player, key_num)
 
-    def _action_toggle_trade_2(self, player: Player, action_id: str) -> None:
-        self._toggle_trade(player, 2)
-
-    def _action_toggle_trade_3(self, player: Player, action_id: str) -> None:
-        self._toggle_trade(player, 3)
-
-    def _action_toggle_trade_4(self, player: Player, action_id: str) -> None:
-        self._toggle_trade(player, 4)
-
-    # Keybind handlers for dice keys 1-6 (respects preference)
-    def _action_dice_key_1(self, player: Player, action_id: str) -> None:
-        self._handle_dice_key(player, 1)
-
-    def _action_dice_key_2(self, player: Player, action_id: str) -> None:
-        self._handle_dice_key(player, 2)
-
-    def _action_dice_key_3(self, player: Player, action_id: str) -> None:
-        self._handle_dice_key(player, 3)
-
-    def _action_dice_key_4(self, player: Player, action_id: str) -> None:
-        self._handle_dice_key(player, 4)
-
-    def _action_dice_key_5(self, player: Player, action_id: str) -> None:
-        self._handle_dice_key(player, 5)
-
-    def _action_dice_key_6(self, player: Player, action_id: str) -> None:
-        self._handle_dice_key(player, 6)
-
-    # Shift+key handlers for trading by value (Quentin C style)
-    def _action_dice_trade_1(self, player: Player, action_id: str) -> None:
-        self._handle_dice_trade(player, 1)
-
-    def _action_dice_trade_2(self, player: Player, action_id: str) -> None:
-        self._handle_dice_trade(player, 2)
-
-    def _action_dice_trade_3(self, player: Player, action_id: str) -> None:
-        self._handle_dice_trade(player, 3)
-
-    def _action_dice_trade_4(self, player: Player, action_id: str) -> None:
-        self._handle_dice_trade(player, 4)
-
-    def _action_dice_trade_5(self, player: Player, action_id: str) -> None:
-        self._handle_dice_trade(player, 5)
-
-    def _action_dice_trade_6(self, player: Player, action_id: str) -> None:
-        self._handle_dice_trade(player, 6)
+    # Unified shift+key handler for trading by value (extracts value from action_id)
+    def _action_dice_trade(self, player: Player, action_id: str) -> None:
+        """Handle dice_trade_X action by extracting value from action_id."""
+        value = int(action_id.split("_")[-1])
+        self._handle_dice_trade(player, value)
 
     def _handle_dice_key(self, player: Player, key_num: int) -> None:
         """
@@ -773,24 +669,11 @@ class TradeoffGame(Game):
                 # No trades, skip to next iteration or scoring
                 self._end_iteration()
 
-    # Taking phase handlers
-    def _action_take_1(self, player: Player, action_id: str) -> None:
-        self._take_die(player, 1)
-
-    def _action_take_2(self, player: Player, action_id: str) -> None:
-        self._take_die(player, 2)
-
-    def _action_take_3(self, player: Player, action_id: str) -> None:
-        self._take_die(player, 3)
-
-    def _action_take_4(self, player: Player, action_id: str) -> None:
-        self._take_die(player, 4)
-
-    def _action_take_5(self, player: Player, action_id: str) -> None:
-        self._take_die(player, 5)
-
-    def _action_take_6(self, player: Player, action_id: str) -> None:
-        self._take_die(player, 6)
+    # Unified take handler (extracts value from action_id)
+    def _action_take(self, player: Player, action_id: str) -> None:
+        """Handle take_X action by extracting die value from action_id."""
+        value = int(action_id.split("_")[-1])
+        self._take_die(player, value)
 
     def _take_die(self, player: Player, value: int) -> None:
         """Take a die with the specified value from the pool."""
@@ -1287,3 +1170,69 @@ class TradeoffGame(Game):
         elif self.phase == "taking":
             return bot_think_taking(self, player)
         return None
+
+
+# =============================================================================
+# Dynamic Per-Die Toggle Trade Methods
+# =============================================================================
+# Generate _is_toggle_trade_X_enabled, _is_toggle_trade_X_hidden,
+# _get_toggle_trade_X_label for each die index 0-4.
+
+def _make_toggle_trade_enabled(index: int):
+    """Create an is_enabled method for a toggle_trade action."""
+    def method(self, player, *, action_id=None):
+        return self._is_toggle_trade_enabled(player, index)
+    return method
+
+
+def _make_toggle_trade_hidden(index: int):
+    """Create an is_hidden method for a toggle_trade action."""
+    def method(self, player, *, action_id=None):
+        return self._is_toggle_trade_hidden(player, index)
+    return method
+
+
+def _make_toggle_trade_label(index: int):
+    """Create a get_label method for a toggle_trade action."""
+    def method(self, player, action_id):
+        return self._get_toggle_trade_label(player, index)
+    return method
+
+
+for _i in range(5):
+    setattr(TradeoffGame, f"_is_toggle_trade_{_i}_enabled", _make_toggle_trade_enabled(_i))
+    setattr(TradeoffGame, f"_is_toggle_trade_{_i}_hidden", _make_toggle_trade_hidden(_i))
+    setattr(TradeoffGame, f"_get_toggle_trade_{_i}_label", _make_toggle_trade_label(_i))
+
+
+# =============================================================================
+# Dynamic Per-Value Take Methods
+# =============================================================================
+# Generate _is_take_X_enabled, _is_take_X_hidden, _get_take_X_label
+# for each die value 1-6.
+
+def _make_take_enabled(value: int):
+    """Create an is_enabled method for a take action."""
+    def method(self, player, *, action_id=None):
+        return self._is_take_enabled(player, value)
+    return method
+
+
+def _make_take_hidden(value: int):
+    """Create an is_hidden method for a take action."""
+    def method(self, player, *, action_id=None):
+        return self._is_take_hidden(player, value)
+    return method
+
+
+def _make_take_label(value: int):
+    """Create a get_label method for a take action."""
+    def method(self, player, action_id):
+        return self._get_take_label(player, value)
+    return method
+
+
+for _v in range(1, 7):
+    setattr(TradeoffGame, f"_is_take_{_v}_enabled", _make_take_enabled(_v))
+    setattr(TradeoffGame, f"_is_take_{_v}_hidden", _make_take_hidden(_v))
+    setattr(TradeoffGame, f"_get_take_{_v}_label", _make_take_label(_v))

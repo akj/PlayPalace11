@@ -20,8 +20,10 @@ view-active-tables = View active tables
 options = Options
 logout = Logout
 back = Back
+done = Done
 context-menu = Context menu.
 no-actions-available = No actions available.
+placeholder-feature = This feature is under consideration, thus is unavailable at this time.
 create-table = Create a new table
 join-as-player = Join as player
 join-as-spectator = Join as spectator
@@ -68,6 +70,12 @@ spectator-left = { $player } stopped spectating.
 welcome = Welcome to PlayPalace!
 goodbye = Goodbye!
 
+# Visibility control
+visibility-public = public
+visibility-private = private
+visibility-available = available
+visibility-unavailable = unavailable
+
 # User presence announcements
 user-online = { $player } came online.
 user-offline = { $player } went offline.
@@ -79,14 +87,20 @@ online-users-many = { $count } users: { $users }
 online-user-not-in-game = Not in game
 online-user-waiting-approval = Waiting for approval
 
+# Action states
+action-locked = This action is currently unavailable.
+
+# Option states and helpers
+option-on = On
+option-off = Off
+option-locked = This option is currently locked by another setting.
+
 # Options
 language = Language
 language-option = Language: { $language }
 language-changed = Language set to { $language }.
 
-# Boolean option states
-option-on = On
-option-off = Off
+fluent-languages-option = Fluent languages ({ $count })
 
 # Sound options
 turn-sound-option = Turn sound: { $status }
@@ -354,5 +368,66 @@ virtual-bots-profiles-header = Profiles: { $count } defined (default: { $default
 virtual-bots-profiles-empty = No profiles are defined.
 virtual-bots-profiles-line = { $profile } ({ $bot_count } bots) overrides: { $overrides }.
 virtual-bots-profiles-no-overrides = inherits base configuration
+
+# Documents
+documents = Documents
+documents-menu-title = Documents System
+documents-all = All documents
+documents-uncategorized = Uncategorized documents
+documents-no-documents = No documents found.
+documents-no-content = No content available for this document.
+
+# Document actions
+documents-view = View document content
+documents-update-contents = Edit document content
+documents-settings = Document settings
+documents-update-title = Change title
+documents-manage-visibility = Manage visibility
+documents-modify-categories = Modify category list
+documents-add-translation = Add translation
+documents-remove-translation = Remove translation
+documents-delete-document = Delete document
+documents-title-prompt = Enter the document title for the { $language } translation:
+documents-title-changed = Title updated for { $language }.
+documents-visibility-changed = Visibility updated for { $language }.
+documents-visibility-no-permission = You do not have permission to change visibility for { $language }.
+documents-categories-updated = Categories updated.
+documents-content-prompt = Enter the content for the { $language } translation:
+documents-translation-added = Translation added for { $language }.
+documents-no-languages-available = No languages available for translation.
+documents-remove-translation-confirm = Remove the { $language } translation? This cannot be undone.
+documents-remove-translation-source = The source translation cannot be removed.
+documents-translation-removed = { $language } translation removed.
+documents-delete-confirm = Delete this document? It has { $count } translations. This cannot be undone.
+documents-deleted = Document deleted.
+documents-no-permission = You do not have any relevant assigned languages for this document.
+documents-visibility-count = Manage visibility ({ $public }/{ $total } languages public)
+
+# Transcriber management
+transcribers-by-language = View transcribers by language
+transcribers-by-user = View transcribers by user
+transcribers-language-users = { $language } ({ $count } users)
+transcribers-language-users-one = { $language } ({ $count } user)
+transcribers-user-languages = { $user } ({ $count } languages)
+transcribers-user-languages-one = { $user } ({ $count } language)
+transcribers-no-users = No transcribers assigned to this language.
+transcribers-no-languages = No languages assigned to this user.
+transcribers-no-transcribers = No transcribers have been assigned yet.
+transcribers-add-user = Add user
+transcribers-add-users = Add users
+transcribers-add-languages = Add languages
+transcribers-remove-confirm = Remove { $user } as a transcriber for { $language }?
+transcribers-remove-lang-confirm = Remove { $language } from { $user }'s transcriber assignments?
+transcribers-removed = { $user } has been removed as a transcriber for { $language }.
+transcribers-added = { $user } has been added as a transcriber for { $language }.
+transcribers-users-added = Added { $users } as transcribers for { $language }.
+transcribers-languages-added = Added { $user } as a transcriber for { $languages }.
+transcribers-not-fluent = { $user } does not have { $language } in their fluent languages and cannot be assigned as a transcriber for it.
+transcribers-no-eligible-users = No eligible users found. Users must have this language in their fluent languages.
+transcribers-no-users-to-add = No users available to add. All users with fluent languages are already transcribers.
+transcribers-no-eligible-languages = No eligible languages found. This user has no unassigned fluent languages.
+transcribers-remove-transcriber = Remove transcriber
+transcribers-remove-all-confirm = Remove all transcriber assignments from { $user }?
+transcribers-removed-all = Removed all transcriber assignments from { $user }.
 
 localization-in-progress-try-again = Localization in progress. Please try again in a minute.

@@ -16,9 +16,10 @@ from ...game_utils.action_guard_mixin import ActionGuardMixin
 from ...game_utils.actions import Action, ActionSet, Visibility
 from ...game_utils.bot_helper import BotHelper
 from ...game_utils.push_your_luck_mixin import PushYourLuckBotMixin
+from ...game_utils.round_based_game_mixin import RoundBasedGameMixin
 from ...game_utils.game_result import GameResult, PlayerResult
 from ...game_utils.options import IntOption, MenuOption, option_field
-from ...game_utils.teams import TeamManager, TeamResultBuilder
+from ...game_utils.teams import TeamResultBuilder
 from ...messages.localization import Localization
 from server.core.ui.keybinds import KeybindState
 
@@ -47,6 +48,7 @@ class TossUpOptions(GameOptions):
             label="game-set-target-score",
             prompt="game-enter-target-score",
             change_msg="game-option-changed-target",
+            description="tossup-desc-target-score",
         )
     )
     starting_dice: int = option_field(
@@ -58,6 +60,7 @@ class TossUpOptions(GameOptions):
             label="tossup-set-starting-dice",
             prompt="tossup-enter-starting-dice",
             change_msg="tossup-option-changed-dice",
+            description="tossup-desc-starting-dice",
         )
     )
     rules_variant: str = option_field(
@@ -68,13 +71,14 @@ class TossUpOptions(GameOptions):
             label="tossup-set-rules-variant",
             prompt="tossup-select-rules-variant",
             change_msg="tossup-option-changed-rules",
+            description="tossup-desc-rules",
         )
     )
 
 
 @dataclass
 @register_game
-class TossUpGame(PushYourLuckBotMixin, ActionGuardMixin, Game):
+class TossUpGame(PushYourLuckBotMixin, ActionGuardMixin, RoundBasedGameMixin, Game):
     """
     Toss Up dice game.
 
@@ -354,67 +358,23 @@ class TossUpGame(PushYourLuckBotMixin, ActionGuardMixin, Game):
         team = self._team_manager.get_team(player.name)
         return team.total_score if team else 0
 
-    def on_start(self) -> None:
-        """Called when the game starts."""
-        self.status = "playing"
-        self.game_active = True
-        self.round = 0
+    def _reset_player_for_game(self, player: TossUpPlayer) -> None:
+        player.turn_points = 0
+        player.dice_count = self.options.starting_dice
+        player.last_roll = {}
 
-        # Set up teams (individual mode only for now)
-        active_players = self.get_active_players()
-        self._team_manager.team_mode = "individual"
-        self._team_manager.setup_teams([p.name for p in active_players])
+    def _reset_player_for_turn(self, player: TossUpPlayer) -> None:
+        player.turn_points = 0
+        player.dice_count = self.options.starting_dice
+        player.last_roll = {}
 
-        # Initialize turn order
-        self.set_turn_players(active_players)
-
-        # Reset player state
-        for player in active_players:
-            player.turn_points = 0
-            player.dice_count = self.options.starting_dice
-            player.last_roll = {}
-
-        # Play intro music
-        self.play_music("game_pig/mus.ogg")
-
-        # Start first round
-        self._start_round()
-
-    def _start_round(self) -> None:
-        """Start a new round."""
-        self.round += 1
-
-        # Refresh turn order with current active players (handles tiebreakers)
-        self.set_turn_players(self.get_active_players())
-
-        self.play_sound("game_pig/roundstart.ogg")
-        self.broadcast_l("game-round-start", round=self.round)
-
-        self._start_turn()
-
-    def _start_turn(self) -> None:
-        """Start a player's turn."""
-        player = self.current_player
-        if not player:
-            return
-
-        tossup_player: TossUpPlayer = player  # type: ignore
-        tossup_player.turn_points = 0
-        tossup_player.dice_count = self.options.starting_dice
-        tossup_player.last_roll = {}
-
-        # Get current score
-        current_score = self.get_player_score(tossup_player)
-
-        # Custom turn announcement for Toss Up
+    def _announce_turn_start(self, player) -> None:
+        current_score = self.get_player_score(player)
         self.play_sound("game_pig/turn.ogg")
         self.broadcast_l("tossup-turn-start", player=player.name, score=current_score)
 
-        # Set up bot target if this is a bot's turn
+    def _setup_bot_for_turn(self, player) -> None:
         self.prepare_push_bot_turn(player)
-
-        # Rebuild menus to reflect new turn
-        self.rebuild_all_menus()
 
     def _adjust_push_bot_target(self, player: Player, target: int) -> int:
         """Set up the bot's target score for this turn."""
@@ -487,16 +447,6 @@ class TossUpGame(PushYourLuckBotMixin, ActionGuardMixin, Game):
         else:
             # Haven't hit target yet, keep rolling
             return "roll"
-
-    def _on_turn_end(self) -> None:
-        """Handle end of a player's turn."""
-        # Check if round is over (all active players have gone)
-        if self.turn_index >= len(self.turn_players) - 1:
-            self._on_round_end()
-        else:
-            # Next player
-            self.advance_turn(announce=False)
-            self._start_turn()
 
     def _on_round_end(self) -> None:
         """Handle end of a round."""

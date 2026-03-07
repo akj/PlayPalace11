@@ -71,15 +71,22 @@ ninetynine-draw-prompt = Press Space or D to draw a card.
 
 # Options
 ninetynine-set-tokens = Starting tokens: { $tokens }
+ninetynine-desc-tokens = Number of tokens each player starts with; lose all your tokens, pay another and you're out!
 ninetynine-enter-tokens = Enter number of starting tokens:
 ninetynine-option-changed-tokens = Starting tokens set to { $tokens }.
-ninetynine-set-rules = Rules variant: { $rules }
-ninetynine-select-rules = Select rules variant
-ninetynine-option-changed-rules = Rules variant set to { $rules }.
+
 ninetynine-set-hand-size = Hand size: { $size }
+ninetynine-desc-hand-size = Number of cards each player starts with
 ninetynine-enter-hand-size = Enter hand size:
 ninetynine-option-changed-hand-size = Hand size set to { $size }.
+
+ninetynine-set-rules = Rules variant: { $rules }
+ninetynine-desc-rules = Choose between different rule sets for Ninety-Nine
+ninetynine-select-rules = Select rules variant
+ninetynine-option-changed-rules = Rules variant set to { $rules }.
+
 ninetynine-set-autodraw = Automatic drawing: { $enabled }
+ninetynine-desc-autodraw = Your hand will refill itself without intervention (recommended for beginners)
 ninetynine-option-changed-autodraw = Automatic drawing set to { $enabled }.
 
 # Rules variant announcements (shown at game start)

@@ -45,6 +45,7 @@ class LudoOptions(GameOptions):
             label="ludo-set-max-sixes",
             prompt="ludo-enter-max-sixes",
             change_msg="ludo-option-changed-max-sixes",
+            description="ludo-desc-max-sixes",
         )
     )
     safe_start_squares: bool = option_field(
@@ -53,6 +54,7 @@ class LudoOptions(GameOptions):
             value_key="safe_start_squares",
             label="ludo-set-safe-start-squares",
             change_msg="ludo-option-changed-safe-start-squares",
+            description="ludo-desc-safe-start-squares",
         )
     )
 

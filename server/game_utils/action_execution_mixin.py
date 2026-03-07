@@ -41,15 +41,18 @@ class ActionExecutionMixin:
         # Check if action is enabled using declarative callback
         resolved = self.resolve_action(player, action)
         if not resolved.enabled:
-            # Speak the reason to the player unless it's a silent block.
-            reason = resolved.disabled_reason
-            if reason and reason != "action-not-available":
-                user = self.get_user(player)
-                if user:
-                    if isinstance(reason, tuple):
-                        user.speak_l(reason[0], **reason[1])
-                    else:
-                        user.speak_l(reason)
+            # Use custom disabled_message if set, otherwise speak the reason.
+            user = self.get_user(player)
+            if user:
+                if action.disabled_message:
+                    user.speak_l(action.disabled_message)
+                else:
+                    reason = resolved.disabled_reason
+                    if reason and reason != "action-not-available":
+                        if isinstance(reason, tuple):
+                            user.speak_l(reason[0], **reason[1])
+                        else:
+                            user.speak_l(reason)
             return
 
         # If action requires input and we don't have it yet

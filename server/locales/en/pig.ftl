@@ -17,11 +17,16 @@ pig-bank-action = { $player } decides to bank { $points }, for a total of { $tot
 pig-winner = We have a winner, and it is { $player }!
 
 # Pig-specific options
+pig-desc-target-score = The score needed to win the game
+
 pig-set-min-bank = Minimum bank: { $points }
-pig-set-dice-sides = Dice sides: { $sides }
+pig-desc-min-bank = Minimum round score required before banking is allowed
 pig-enter-min-bank = Enter the minimum points to bank:
-pig-enter-dice-sides = Enter the number of dice sides:
 pig-option-changed-min-bank = Minimum bank points changed to { $points }
+
+pig-set-dice-sides = Dice sides: { $sides }
+pig-desc-dice-sides = What type of dice to use
+pig-enter-dice-sides = Enter the number of dice sides:
 pig-option-changed-dice = Dice now has { $sides } sides
 
 # Disabled reasons

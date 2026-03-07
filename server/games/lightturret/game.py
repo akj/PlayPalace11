@@ -41,6 +41,7 @@ class LightTurretOptions(GameOptions):
             label="lightturret-set-starting-power",
             prompt="lightturret-enter-starting-power",
             change_msg="lightturret-option-changed-power",
+            description="lightturret-desc-starting-power",
         )
     )
     max_rounds: int = option_field(

@@ -35,6 +35,7 @@ lightturret-tie = It's a tie at { $light } light!
 
 # Options
 lightturret-set-starting-power = Starting power: { $power }
+lightturret-desc-starting-power = Maximum light before destruction of soul
 lightturret-enter-starting-power = Enter starting power:
 lightturret-option-changed-power = Starting power set to { $power }.
 lightturret-set-max-rounds = Max rounds: { $rounds }

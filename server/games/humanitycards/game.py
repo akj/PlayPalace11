@@ -144,6 +144,7 @@ class HumanityCardsOptions(GameOptions):
             label="hc-set-winning-score",
             prompt="hc-enter-winning-score",
             change_msg="hc-option-changed-winning-score",
+            description="hc-desc-winning-score",
         )
     )
     hand_size: int = option_field(
@@ -155,6 +156,7 @@ class HumanityCardsOptions(GameOptions):
             label="hc-set-hand-size",
             prompt="hc-enter-hand-size",
             change_msg="hc-option-changed-hand-size",
+            description="hc-desc-hand-size",
         )
     )
     card_packs: list[str] = multi_select_field(
@@ -166,6 +168,7 @@ class HumanityCardsOptions(GameOptions):
             min_selected=1,
             show_bulk_actions=True,
             groups=get_pack_groups,
+            description="hc-desc-card-packs",
         )
     )
     czar_selection: str = option_field(

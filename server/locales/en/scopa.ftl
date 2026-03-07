@@ -35,27 +35,42 @@ scopa-view-table = View table
 scopa-view-captured = View captured
 
 # Scopa-specific options
+scopa-desc-target-score = Points needed to win the game
 scopa-enter-target-score = Enter target score (1-121)
-scopa-set-cards-per-deal = Cards per deal: { $cards }
-scopa-enter-cards-per-deal = Enter cards per deal (1-10)
-scopa-set-decks = Number of decks: { $decks }
-scopa-enter-decks = Enter number of decks (1-6)
-scopa-toggle-escoba = Escoba (sum to 15): { $enabled }
-scopa-toggle-hints = Show capture hints: { $enabled }
-scopa-set-mechanic = Scopa mechanic: { $mechanic }
-scopa-select-mechanic = Select scopa mechanic
-scopa-toggle-instant-win = Instant win on scopa: { $enabled }
-scopa-toggle-team-scoring = Pool team cards for scoring: { $enabled }
-scopa-toggle-inverse = Inverse mode (reach target = elimination): { $enabled }
 
-# Option change announcements
+scopa-set-cards-per-deal = Cards per deal: { $cards }
+scopa-desc-cards-per-deal = Number of cards each player receives per deal. Leftover cards go on table.
+scopa-enter-cards-per-deal = Enter cards per deal (1-10)
 scopa-option-changed-cards = Cards per deal set to { $cards }.
+
+scopa-set-decks = Number of decks: { $decks }
+scopa-desc-decks = How many 40-card decks to use (allows more players and deals)
+scopa-enter-decks = Enter number of decks (1-6)
 scopa-option-changed-decks = Number of decks set to { $decks }.
+
+scopa-toggle-escoba = Escoba (sum to 15): { $enabled }
+scopa-desc-escoba = Spanish variant: capture cards that sum to 15 (instead of matching rank)
 scopa-option-changed-escoba = Escoba { $enabled }.
+
+scopa-toggle-hints = Show capture hints: { $enabled }
+scopa-desc-hints = Show what each card will capture in the menu
 scopa-option-changed-hints = Capture hints { $enabled }.
+
+scopa-set-mechanic = Scopa mechanic: { $mechanic }
+scopa-desc-mechanic = How scopas affect scoring
+scopa-select-mechanic = Select scopa mechanic
 scopa-option-changed-mechanic = Scopa mechanic set to { $mechanic }.
+
+scopa-toggle-instant-win = Instant win on scopa: { $enabled }
+scopa-desc-instant-win = Scopas award points immediately and can win the game mid-round
 scopa-option-changed-instant = Instant win on scopa { $enabled }.
+
+scopa-toggle-team-scoring = Pool team cards for scoring: { $enabled }
+scopa-desc-team-scoring = Affects end-of-round score calculations. When ON, teams pool cards together. When OFF, teammates compete individually (beware ties)
 scopa-option-changed-team-scoring = Team card scoring { $enabled }.
+
+scopa-toggle-inverse = Inverse mode (reach target = elimination): { $enabled }
+scopa-desc-inverse = Reaching the target score eliminates you - last player standing wins!
 scopa-option-changed-inverse = Inverse mode { $enabled }.
 
 # Scopa mechanic choices

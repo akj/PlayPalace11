@@ -6,24 +6,37 @@ game-name-milebymile = Mile by Mile
 
 # Game options
 milebymile-set-distance = Race distance: { $miles } miles
+milebymile-desc-round-distance = Target distance for each race
 milebymile-enter-distance = Enter race distance (300-3000)
-milebymile-set-winning-score = Winning score: { $score } points
-milebymile-enter-winning-score = Enter winning score (1000-10000)
-milebymile-toggle-perfect-crossing = Require exact finish: { $enabled }
-milebymile-toggle-stacking = Allow stacking attacks: { $enabled }
-milebymile-toggle-reshuffle = Reshuffle discard pile: { $enabled }
-milebymile-toggle-karma = Karma rule: { $enabled }
-milebymile-set-rig = Deck rigging: { $rig }
-milebymile-select-rig = Select deck rigging option
-
-# Option change announcements
 milebymile-option-changed-distance = Race distance set to { $miles } miles.
+
+milebymile-set-winning-score = Winning score: { $score } points
+milebymile-desc-winning-score = Total points needed to win the game
+milebymile-enter-winning-score = Enter winning score (1000-10000)
 milebymile-option-changed-winning = Winning score set to { $score } points.
+
+milebymile-toggle-perfect-crossing = Require exact finish: { $enabled }
+milebymile-desc-perfect-crossing = Prevent playing distance cards that would exceed the race target
 milebymile-option-changed-crossing = Require exact finish { $enabled }.
+
+milebymile-toggle-stacking = Allow stacking attacks: { $enabled }
+milebymile-desc-stacking = Allow multiple hazard cards to be played on the same team
 milebymile-option-changed-stacking = Allow stacking attacks { $enabled }.
+
+milebymile-toggle-reshuffle = Reshuffle discard pile: { $enabled }
+milebymile-desc-reshuffle = When the deck runs out, reshuffle the discard pile to continue. If disabled, the race ends when no one has playable cards.
 milebymile-option-changed-reshuffle = Reshuffle discard pile { $enabled }.
+
+milebymile-toggle-karma = Karma rule: { $enabled }
+milebymile-desc-karma = Teams start with karma protection and lose it when attacking. False Virtue cards can restore karma.
 milebymile-option-changed-karma = Karma rule { $enabled }.
+
+milebymile-set-rig = Deck rigging: { $rig }
+milebymile-desc-rig = Modify deck composition and hand rules
+milebymile-select-rig = Select deck rigging option
 milebymile-option-changed-rig = Deck rigging set to { $rig }.
+
+milebymile-desc-always-discard = When enabled, press backspace on a card to discard it even if it could be played.
 
 # Status
 milebymile-status = { $name }: { $points } points, { $miles } miles, Problems: { $problems }, Safeties: { $safeties }

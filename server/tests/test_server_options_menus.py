@@ -2,20 +2,20 @@
 
 from __future__ import annotations
 
-import asyncio
-import contextlib
 from types import SimpleNamespace
 
 import pytest
 
 from server.core.server import Server
 from server.core.users.preferences import UserPreferences, DiceKeepingStyle
+from server.messages.localization import Localization
 
 
 class DummyDB:
     def __init__(self):
         self.preferences_updates: list[tuple[str, str]] = []
         self.locale_updates: list[tuple[str, str]] = []
+        self.fluent_languages_updates: list[tuple[str, list[str]]] = []
 
     def update_user_preferences(self, username: str, prefs_json: str) -> None:
         self.preferences_updates.append((username, prefs_json))
@@ -23,12 +23,16 @@ class DummyDB:
     def update_user_locale(self, username: str, locale: str) -> None:
         self.locale_updates.append((username, locale))
 
+    def set_user_fluent_languages(self, username: str, languages: list[str]) -> None:
+        self.fluent_languages_updates.append((username, list(languages)))
+
 
 class DummyUser:
     def __init__(self, username: str, locale: str = "en"):
         self.username = username
         self.locale = locale
         self.preferences = UserPreferences()
+        self.fluent_languages: list[str] = []
         self.spoken: list[tuple[str, dict]] = []
         self.menu_id: str | None = None
         self.music_played: list[str] = []
@@ -71,6 +75,10 @@ def server(tmp_path, monkeypatch):
         "server.messages.localization.Localization.get_available_languages",
         lambda _locale="en", fallback="en": {"en": "English", "es": "Español"},
     )
+    monkeypatch.setattr(
+        "server.messages.localization.Localization.get_available_locale_codes",
+        lambda: ["en", "es"],
+    )
     return srv
 
 
@@ -93,7 +101,10 @@ async def test_handle_options_selection_toggle_turn_sound(server, monkeypatch):
 async def test_handle_options_selection_language_opens_menu(server, monkeypatch):
     user = DummyUser("alice")
     opened = {}
-    monkeypatch.setattr(server, "_show_language_menu", lambda u: opened.setdefault("lang", True))
+    monkeypatch.setattr(
+        "server.core.ui.common_flows.show_language_menu",
+        lambda *a, **kw: opened.setdefault("lang", True),
+    )
 
     await server._handle_options_selection(user, "language")
 
@@ -104,18 +115,16 @@ async def test_handle_options_selection_language_opens_menu(server, monkeypatch)
 async def test_handle_options_selection_language_warmup_in_progress(server, monkeypatch):
     user = DummyUser("alice")
     shown = {}
-    server._localization_warmup_task = asyncio.create_task(asyncio.sleep(1))
+    Localization.set_warmup_active(True)
     monkeypatch.setattr(server, "_show_options_menu", lambda u: shown.setdefault("options", True))
-    monkeypatch.setattr(server, "_show_language_menu", lambda u: shown.setdefault("lang", True))
 
-    await server._handle_options_selection(user, "language")
+    try:
+        await server._handle_options_selection(user, "language")
+    finally:
+        Localization.set_warmup_active(False)
 
     assert shown.get("options")
-    assert not shown.get("lang")
     assert user.spoken[-1][0] == "localization-in-progress-try-again"
-    server._localization_warmup_task.cancel()
-    with contextlib.suppress(asyncio.CancelledError):
-        await server._localization_warmup_task
 
 
 @pytest.mark.asyncio
@@ -140,7 +149,7 @@ async def test_handle_language_selection_updates_locale(server, monkeypatch):
     shown = {}
     monkeypatch.setattr(server, "_show_options_menu", lambda u: shown.setdefault("options", True))
 
-    await server._handle_language_selection(user, "lang_es")
+    await server._apply_locale_change(user, "es")
 
     assert user.locale == "es"
     assert server._db.locale_updates == [("alice", "es")]
@@ -148,17 +157,110 @@ async def test_handle_language_selection_updates_locale(server, monkeypatch):
     assert shown.get("options")
 
 
+def test_show_language_menu_warmup_in_progress(server, monkeypatch):
+    from server.core.ui.common_flows import show_language_menu
+
+    user = DummyUser("alice")
+    Localization.set_warmup_active(True)
+
+    try:
+        result = show_language_menu(user)
+    finally:
+        Localization.set_warmup_active(False)
+
+    assert result is False
+    assert user.spoken[-1][0] == "localization-in-progress-try-again"
+
+
 @pytest.mark.asyncio
-async def test_show_language_menu_warmup_in_progress(server, monkeypatch):
+async def test_fluent_languages_warmup_in_progress(server, monkeypatch):
     user = DummyUser("alice")
     shown = {}
-    server._localization_warmup_task = asyncio.create_task(asyncio.sleep(1))
     monkeypatch.setattr(server, "_show_options_menu", lambda u: shown.setdefault("options", True))
+    Localization.set_warmup_active(True)
 
-    server._show_language_menu(user)
+    try:
+        await server._handle_options_selection(user, "fluent_languages")
+    finally:
+        Localization.set_warmup_active(False)
 
     assert shown.get("options")
     assert user.spoken[-1][0] == "localization-in-progress-try-again"
-    server._localization_warmup_task.cancel()
-    with contextlib.suppress(asyncio.CancelledError):
-        await server._localization_warmup_task
+
+
+@pytest.mark.asyncio
+async def test_fluent_languages_opens_language_menu(server, monkeypatch):
+    user = DummyUser("alice")
+    opened = {}
+    monkeypatch.setattr(
+        "server.core.ui.common_flows.show_language_menu",
+        lambda *a, **kw: opened.setdefault("lang", True),
+    )
+
+    await server._handle_options_selection(user, "fluent_languages")
+
+    assert opened.get("lang")
+    assert server._user_states["alice"]["menu"] == "language_menu"
+
+
+@pytest.mark.asyncio
+async def test_fluent_language_toggle_deferred(server, monkeypatch):
+    """Toggling a language plays a sound but does not touch user state or DB."""
+    from server.core.ui.common_flows import handle_language_menu_selection
+
+    user = DummyUser("alice")
+    user.fluent_languages = ["en"]
+    server._show_fluent_languages_menu(user)
+
+    # Toggle es on — only the menu's internal selected set changes
+    await handle_language_menu_selection(user, "lang_es")
+
+    assert user.sounds_played[-1] == "checkbox_list_on.wav"
+    assert user.fluent_languages == ["en"]  # unchanged
+    assert server._db.fluent_languages_updates == []
+
+    # Toggle es off again
+    await handle_language_menu_selection(user, "lang_es")
+
+    assert user.sounds_played[-1] == "checkbox_list_off.wav"
+    assert server._db.fluent_languages_updates == []
+
+
+@pytest.mark.asyncio
+async def test_fluent_language_done_saves(server, monkeypatch):
+    """Pressing Done applies the selected set and writes to the DB."""
+    from server.core.ui.common_flows import handle_language_menu_selection
+
+    user = DummyUser("alice")
+    user.fluent_languages = ["en"]
+    shown = {}
+    monkeypatch.setattr(server, "_show_options_menu", lambda u: shown.setdefault("options", True))
+    server._show_fluent_languages_menu(user)
+
+    # Toggle es on, then press done
+    await handle_language_menu_selection(user, "lang_es")
+    await handle_language_menu_selection(user, "done")
+
+    assert set(user.fluent_languages) == {"en", "es"}
+    assert len(server._db.fluent_languages_updates) == 1
+    assert shown.get("options")
+
+
+@pytest.mark.asyncio
+async def test_fluent_language_cancel_reverts(server, monkeypatch):
+    """Pressing Cancel restores original fluent languages, nothing written."""
+    from server.core.ui.common_flows import handle_language_menu_selection
+
+    user = DummyUser("alice")
+    user.fluent_languages = ["en"]
+    shown = {}
+    monkeypatch.setattr(server, "_show_options_menu", lambda u: shown.setdefault("options", True))
+    server._show_fluent_languages_menu(user)
+
+    # Toggle es on, then cancel
+    await handle_language_menu_selection(user, "lang_es")
+    await handle_language_menu_selection(user, "cancel")
+
+    assert user.fluent_languages == ["en"]  # unchanged
+    assert server._db.fluent_languages_updates == []  # nothing written
+    assert shown.get("options")
