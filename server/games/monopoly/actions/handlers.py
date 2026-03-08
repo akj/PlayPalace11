@@ -534,6 +534,9 @@ def action_mortgage_property(
 
     game._sync_cash_scores()
     game._try_resolve_pending_rent_payment(mono_player)
+    if not game._can_manage_assets_now(player):
+        game.rebuild_all_menus()
+        return
     remaining_options = game._options_for_mortgage_property(player)
     if remaining_options:
         game._reopen_action_options_menu(
@@ -736,6 +739,9 @@ def action_sell_house(game: MonopolyGame, player: Player, space_id: str, action_
 
     game._sync_cash_scores()
     game._try_resolve_pending_rent_payment(mono_player)
+    if not game._can_manage_assets_now(player):
+        game.rebuild_all_menus()
+        return
     remaining_options = game._options_for_sell_house(player)
     if remaining_options:
         game._reopen_action_options_menu(

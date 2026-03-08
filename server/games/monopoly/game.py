@@ -1330,11 +1330,12 @@ class MonopolyGame(ActionGuardMixin, Game):
 
     def _can_raise_cash_for_pending_rent(self, player: MonopolyPlayer) -> bool:
         """Return True when the player still has plausible ways to raise cash."""
+        actionable_pending_trade = self._pending_trade_for_target(player) is not None
         return bool(
             self._mortgage_space_ids(player)
             or self._options_for_sell_house(player)
             or self._options_for_offer_trade(player)
-            or self.pending_trade_offer is not None
+            or actionable_pending_trade
         )
 
     def _start_pending_rent_payment(
@@ -4308,10 +4309,22 @@ class MonopolyGame(ActionGuardMixin, Game):
         for bidder in rotated:
             if bidder.bankrupt:
                 continue
-            if self._current_liquid_balance(bidder) < MIN_AUCTION_INCREMENT:
+            if not self._can_raise_cash_for_auction_bid(bidder, MIN_AUCTION_INCREMENT):
                 continue
             bidders.append(bidder)
         return bidders
+
+    def _can_raise_cash_for_auction_bid(
+        self,
+        player: MonopolyPlayer,
+        minimum_bid: int,
+    ) -> bool:
+        """Return True when the player can legally reach the minimum auction bid."""
+        if player.bankrupt:
+            return False
+        if self._current_liquid_balance(player) >= minimum_bid:
+            return True
+        return bool(self._mortgage_space_ids(player) or self._options_for_sell_house(player))
 
     def _auction_min_bid(self) -> int:
         """Return minimum legal next bid for the active interactive auction."""
@@ -4477,16 +4490,17 @@ class MonopolyGame(ActionGuardMixin, Game):
             winner = bidders[0]
             reserve = max(1, space.price // 2)
             winning_bid = min(self._current_liquid_balance(winner), reserve)
-            self.turn_pending_purchase_space_id = ""
-            self._complete_auction_sale(space, winner, winning_bid)
-            if self.turn_can_roll_again and not declined_by.bankrupt:
-                self._prepare_next_roll_after_doubles(declined_by)
+            if winning_bid > 0:
+                self.turn_pending_purchase_space_id = ""
+                self._complete_auction_sale(space, winner, winning_bid)
+                if self.turn_can_roll_again and not declined_by.bankrupt:
+                    self._prepare_next_roll_after_doubles(declined_by)
+                    self._sync_cash_scores()
+                    self.rebuild_all_menus()
+                    return
                 self._sync_cash_scores()
-                self.rebuild_all_menus()
+                self._advance_after_roll_resolution(declined_by)
                 return
-            self._sync_cash_scores()
-            self._advance_after_roll_resolution(declined_by)
-            return
 
         self.pending_auction_space_id = space.space_id
         self.pending_auction_bidder_ids = [bidder.id for bidder in bidders]

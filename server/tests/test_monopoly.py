@@ -909,6 +909,7 @@ def test_monopoly_bankrupt_when_no_manual_rent_options_remain(monkeypatch):
     assert guest.bankrupt is True
     assert game.status == "finished"
     assert game.game_active is False
+    assert game.pending_rent_payment_amount == 0
     assert game.current_player is not None
     assert game.current_player.name == "Host"
     assert host.cash == STARTING_CASH + 30
@@ -936,6 +937,38 @@ def test_monopoly_bot_bankruptcy_finishes_game(monkeypatch):
     assert game.current_player is not None
     assert game.current_player.name == "Host"
     assert host.cash == STARTING_CASH + 30
+
+
+def test_monopoly_unrelated_pending_trade_does_not_block_bankruptcy():
+    game = _start_three_player_game()
+    host = game.players[0]
+    guest = game.players[1]
+    third = game.players[2]
+
+    game.pending_trade_offer = MonopolyTradeOffer(
+        proposer_id=host.id,
+        target_id=third.id,
+        give_cash=60,
+        receive_property_id="baltic_avenue",
+        summary="Sell Baltic Avenue to Third for $60",
+    )
+    game.current_player = guest
+    guest.cash = 10
+    game._start_pending_rent_payment(
+        guest,
+        owner=host,
+        amount_due=50,
+        landed_space=game.active_space_by_id["baltic_avenue"],
+        reason="rent:baltic_avenue",
+    )
+
+    game._try_resolve_pending_rent_payment(guest)
+
+    assert guest.bankrupt is True
+    assert game.status == "playing"
+    assert game.pending_rent_payment_amount == 0
+    assert game.current_player is not None
+    assert game.current_player.name == "Third"
 
 
 def test_monopoly_manual_end_turn_does_not_clear_pending_payment():
@@ -988,6 +1021,51 @@ def test_monopoly_bot_trade_acceptance_retries_pending_payment_resolution():
     assert game.pending_rent_payment_amount == 0
     assert host.cash == 0
     assert guest.cash == STARTING_CASH - 60
+
+
+def test_monopoly_mortgage_resolution_does_not_reopen_menu_after_turn_advances():
+    game = _start_two_player_game()
+    host = game.players[0]
+    guest = game.players[1]
+
+    host.cash = 0
+    host.owned_space_ids.extend(["boardwalk", "baltic_avenue"])
+    game.property_owners["boardwalk"] = host.id
+    game.property_owners["baltic_avenue"] = host.id
+    game.current_player = host
+    game.turn_has_rolled = True
+    game._start_pending_rent_payment(
+        host,
+        owner=None,
+        amount_due=100,
+        landed_space=None,
+        reason="income_tax",
+        payment_label="Income Tax",
+    )
+
+    game.execute_action(host, "mortgage_property", input_value="Boardwalk for $200")
+
+    assert game.current_player is guest
+    assert game.pending_rent_payment_amount == 0
+    assert game._pending_actions.get(host.id) is None
+
+
+def test_monopoly_cash_poor_bidder_still_enters_auction_if_they_can_raise_cash():
+    game = _start_two_player_game()
+    host = game.players[0]
+    guest = game.players[1]
+
+    guest.cash = 0
+    guest.owned_space_ids.append("baltic_avenue")
+    game.property_owners["baltic_avenue"] = guest.id
+
+    game._start_property_auction(game.active_space_by_id["reading_railroad"], host)
+
+    assert game.pending_auction_space_id == "reading_railroad"
+    assert guest.id in game.pending_auction_bidder_ids
+    current_bidder = game._current_auction_bidder()
+    assert current_bidder is not None
+    assert current_bidder.id == guest.id
 
 
 def test_monopoly_bankruptcy_transfers_assets_to_creditor(monkeypatch):
