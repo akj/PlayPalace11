@@ -7,6 +7,16 @@ Menus will be presented inside of a listbox element, for easier accessibility an
 ## grids:
 Allow for rotating the grid 90 and 180 degrees, or inverting directions aka ascending or decending order for one or all rows / columns.
 
+### When to use grid mode
+Grid mode changes arrow key navigation from a flat list to a 2D grid. Only enable it when the menu genuinely represents a spatial layout (e.g., an 8x8 chess board, a game board with rows and columns). Do **not** enable grid mode for ordinary menus, lobbies, option lists, or any non-spatial content.
+
+When grid mode is active, it must be scoped tightly:
+- Enable grid mode only on the specific menu that contains the grid items (e.g., the turn menu when board squares are visible).
+- Disable grid mode (set `grid_enabled=False`) whenever the menu content changes to something non-spatial (e.g., promotion choices, lobby actions, draw/undo prompts).
+- Never leave grid mode on globally — it should activate and deactivate dynamically based on what the menu is currently showing.
+
+When implementing a game that has a grid or board, always use the server's built-in grid mode (`show_menu` with `grid_enabled=True` and appropriate `grid_width`). Do not attempt to simulate grid navigation with flat lists or custom keybinds. Override `rebuild_player_menu` in the game class to pass the grid parameters to `show_menu`, and conditionally enable it only when the grid items are present in the menu.
+
 ## Keybinds:
 Keybinds act as hotkey or shortcuts to trigger an action that can typically be accessed from a menu. As such, these should hold a high priority, but nevertheless be secondary to menu access.
 A keybind can also contain a scope in which it can be preformed.
