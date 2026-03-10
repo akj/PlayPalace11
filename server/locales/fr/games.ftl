@@ -53,6 +53,8 @@ round-timer-countdown = Prochaine manche dans { $seconds }...
 dice-keeping = Garde { $value }.
 dice-rerolling = Relance { $value }.
 dice-locked = Ce dé est verrouillé et ne peut pas être changé.
+dice-status-locked = locked
+dice-status-kept = kept
 
 # Distribution (jeux de cartes)
 game-deal-counter = Distribution { $current }/{ $total }.

@@ -53,6 +53,8 @@ round-timer-countdown = Vòng tiếp theo trong { $seconds } giây...
 dice-keeping = Giữ { $value }.
 dice-rerolling = Gieo lại { $value }.
 dice-locked = Viên này đã bị khóa và không thể đổi.
+dice-status-locked = locked
+dice-status-kept = kept
 
 # Chia bài (Game bài)
 game-deal-counter = Chia ván { $current }/{ $total }.

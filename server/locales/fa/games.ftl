@@ -53,6 +53,8 @@ round-timer-countdown = دور بعدی در { $seconds }...
 dice-keeping = نگه‌داری { $value }.
 dice-rerolling = انداختن دوباره { $value }.
 dice-locked = آن تاس قفل است و نمی‌توان تغییر داد.
+dice-status-locked = locked
+dice-status-kept = kept
 
 # Dealing (card games)
 game-deal-counter = پخش { $current }/{ $total }.

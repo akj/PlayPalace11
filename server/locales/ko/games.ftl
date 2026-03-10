@@ -53,6 +53,8 @@ round-timer-countdown = { $seconds }초 후 다음 라운드...
 dice-keeping = { $value }을(를) 보관합니다.
 dice-rerolling = { $value }을(를) 다시 굴립니다.
 dice-locked = 해당 주사위는 잠겨있어서 변경할 수 없습니다.
+dice-status-locked = locked
+dice-status-kept = kept
 
 # Dealing (card games)
 game-deal-counter = 딜 { $current }/{ $total }.

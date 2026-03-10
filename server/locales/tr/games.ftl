@@ -53,6 +53,8 @@ round-timer-countdown = Sonraki raund { $seconds } içinde...
 dice-keeping = { $value } tutulyor.
 dice-rerolling = { $value } tekrar atılıyor.
 dice-locked = Bu zar kilitli ve değiştirilemez.
+dice-status-locked = locked
+dice-status-kept = kept
 
 # Dağıtma (kart oyunları)
 game-deal-counter = Dağıtım { $current }/{ $total }.

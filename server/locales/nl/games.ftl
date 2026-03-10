@@ -53,6 +53,8 @@ round-timer-countdown = Volgende ronde over { $seconds }...
 dice-keeping = { $value } bewaren.
 dice-rerolling = { $value } opnieuw gooien.
 dice-locked = Die dobbelsteen is vergrendeld en kan niet worden gewijzigd.
+dice-status-locked = locked
+dice-status-kept = kept
 
 # Dealing (card games)
 game-deal-counter = Deel { $current }/{ $total }.

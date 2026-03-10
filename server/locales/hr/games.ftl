@@ -53,6 +53,8 @@ round-timer-countdown = Sljedeća runda za { $seconds }...
 dice-keeping = Zadržavam { $value }.
 dice-rerolling = Ponovno bacam { $value }.
 dice-locked = Ta kocka je zaključana i ne može se promijeniti.
+dice-status-locked = locked
+dice-status-kept = kept
 
 # Dealing (card games)
 game-deal-counter = Dijeljenje { $current }/{ $total }.

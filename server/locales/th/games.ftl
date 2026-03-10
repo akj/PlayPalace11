@@ -53,6 +53,8 @@ round-timer-countdown = รอบถัดไปใน { $seconds } วินา
 dice-keeping = เก็บ { $value }
 dice-rerolling = ทอยใหม่ { $value }
 dice-locked = ลูกเต้านั้นถูกล็อคและไม่สามารถเปลี่ยนได้
+dice-status-locked = locked
+dice-status-kept = kept
 
 # Dealing (card games)
 game-deal-counter = แจก { $current }/{ $total }

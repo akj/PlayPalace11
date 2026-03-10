@@ -53,6 +53,8 @@ round-timer-countdown = Nächste Runde in { $seconds }...
 dice-keeping = { $value } behalten.
 dice-rerolling = { $value } neu würfeln.
 dice-locked = Dieser Würfel ist gesperrt und kann nicht geändert werden.
+dice-status-locked = locked
+dice-status-kept = kept
 
 # Austeilen (Kartenspiele)
 game-deal-counter = Ausgabe { $current }/{ $total }.

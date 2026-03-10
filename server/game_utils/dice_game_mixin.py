@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 from .actions import Action, ActionSet, Visibility
 from server.core.ui.keybinds import KeybindState
 from server.core.users.preferences import DiceKeepingStyle
+from server.messages.localization import Localization
 
 if TYPE_CHECKING:
     from ..games.base import Player
@@ -69,6 +70,7 @@ class DiceGameMixin:
                     is_hidden=f"_is_toggle_die_{i}_hidden",
                     get_label=f"_get_toggle_die_{i}_label",
                     show_in_actions_menu=False,
+                    show_disabled_label=False,
                 )
             )
 
@@ -374,10 +376,14 @@ class DiceGameMixin:
         die_val = player.dice.get_value(die_index)
         if die_val is None:
             return f"Die {die_index + 1}"
+        user = self.get_user(player)
+        locale = user.locale if user else "en"
         if player.dice.is_locked(die_index):
-            return f"{die_val} (locked)"
+            status = Localization.get(locale, "dice-status-locked")
+            return f"{die_val} ({status})"
         if player.dice.is_kept(die_index):
-            return f"{die_val} (kept)"
+            status = Localization.get(locale, "dice-status-kept")
+            return f"{die_val} ({status})"
         return str(die_val)
 
     # Single toggle handler for all dice (extracts index from action ID)

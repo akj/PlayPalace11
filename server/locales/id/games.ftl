@@ -53,6 +53,8 @@ round-timer-countdown = Ronde berikutnya dalam { $seconds }...
 dice-keeping = Menyimpan { $value }.
 dice-rerolling = Melempar ulang { $value }.
 dice-locked = Dadu itu terkunci dan tidak dapat diubah.
+dice-status-locked = locked
+dice-status-kept = kept
 
 # Dealing (card games)
 game-deal-counter = Bagikan { $current }/{ $total }.

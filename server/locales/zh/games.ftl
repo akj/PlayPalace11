@@ -53,6 +53,8 @@ round-timer-countdown = 下一回合倒计时 { $seconds } 秒...
 dice-keeping = 保留 { $value }。
 dice-rerolling = 重掷 { $value }。
 dice-locked = 该骰子已锁定，无法更改。
+dice-status-locked = locked
+dice-status-kept = kept
 
 # 发牌 (纸牌游戏)
 game-deal-counter = 发牌 { $current }/{ $total }。

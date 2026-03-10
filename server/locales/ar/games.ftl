@@ -52,6 +52,8 @@ round-timer-countdown = الجولة التالية في { $seconds }...
 dice-keeping = الاحتفاظ بـ { $value }.
 dice-rerolling = إعادة رمي { $value }.
 dice-locked = هذا الزهر مقفل ولا يمكن تغييره.
+dice-status-locked = locked
+dice-status-kept = kept
 
 # Dealing (card games)
 game-deal-counter = التوزيع { $current }/{ $total }.

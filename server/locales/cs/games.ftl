@@ -53,6 +53,8 @@ round-timer-countdown = Další kolo za { $seconds }...
 dice-keeping = Držení { $value }.
 dice-rerolling = Přehození { $value }.
 dice-locked = Tato kostka je uzamčena a nelze ji změnit.
+dice-status-locked = locked
+dice-status-kept = kept
 
 # Rozdávání (karetní hry)
 game-deal-counter = Rozdání { $current }/{ $total }.

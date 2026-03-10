@@ -53,6 +53,8 @@ round-timer-countdown = Nästa omgång om { $seconds }...
 dice-keeping = Behåller { $value }.
 dice-rerolling = Slår om { $value }.
 dice-locked = Den tärningen är låst och kan inte ändras.
+dice-status-locked = locked
+dice-status-kept = kept
 
 # Dealing (card games)
 game-deal-counter = Ger { $current }/{ $total }.

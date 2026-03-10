@@ -53,6 +53,8 @@ round-timer-countdown = Umjikelezo olandelayo kumasekhondi angu-{ $seconds }...
 dice-keeping = Kugcinwa { $value }.
 dice-rerolling = Kuphonswa kabusha { $value }.
 dice-locked = Lelo dayisi livalwe futhi alikwazi ukushintshwa.
+dice-status-locked = locked
+dice-status-kept = kept
 
 # Dealing (card games)
 game-deal-counter = Ukwabela { $current }/{ $total }.

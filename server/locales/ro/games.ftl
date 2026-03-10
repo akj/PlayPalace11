@@ -53,6 +53,8 @@ round-timer-countdown = Următoarea rundă în { $seconds }...
 dice-keeping = Păstrez { $value }.
 dice-rerolling = Relansez { $value }.
 dice-locked = Acel zar este blocat și nu poate fi schimbat.
+dice-status-locked = locked
+dice-status-kept = kept
 
 # Dealing (card games)
 game-deal-counter = Împărțire { $current }/{ $total }.

@@ -53,6 +53,8 @@ round-timer-countdown = 次のラウンドまで{ $seconds }秒...
 dice-keeping = { $value }を保持します。
 dice-rerolling = { $value }を再ロールします。
 dice-locked = そのサイコロはロックされており変更できません。
+dice-status-locked = locked
+dice-status-kept = kept
 
 # 配る(カードゲーム)
 game-deal-counter = { $current }/{ $total }を配ります。

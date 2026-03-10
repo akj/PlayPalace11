@@ -53,6 +53,8 @@ round-timer-countdown = अगला राउंड { $seconds } में...
 dice-keeping = { $value } को रख रहे हैं।
 dice-rerolling = { $value } को फिर से रोल कर रहे हैं।
 dice-locked = वह पासा बंद है और बदला नहीं जा सकता।
+dice-status-locked = locked
+dice-status-kept = kept
 
 # Dealing (card games)
 game-deal-counter = बांटें { $current }/{ $total }।

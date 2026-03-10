@@ -53,6 +53,8 @@ round-timer-countdown = Prossimo round tra { $seconds }...
 dice-keeping = Tengo { $value }.
 dice-rerolling = Rilancio { $value }.
 dice-locked = Quel dado è bloccato e non può essere cambiato.
+dice-status-locked = locked
+dice-status-kept = kept
 
 # Dealing (card games)
 game-deal-counter = Distribuzione { $current }/{ $total }.

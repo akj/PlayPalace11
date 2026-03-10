@@ -53,6 +53,8 @@ round-timer-countdown = Következő kör { $seconds } másodperc múlva...
 dice-keeping = { $value } megtartása.
 dice-rerolling = { $value } újradobása.
 dice-locked = Ez a kocka zárolva van és nem változtatható meg.
+dice-status-locked = locked
+dice-status-kept = kept
 
 # Dealing (card games)
 game-deal-counter = Osztás { $current }/{ $total }.

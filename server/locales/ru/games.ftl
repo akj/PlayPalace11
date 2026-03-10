@@ -84,6 +84,8 @@ round-timer-countdown = Следующий раунд через { $seconds }...
 dice-keeping = Оставляем: { $value }.
 dice-rerolling = Перебрасываем: { $value }.
 dice-locked = Этот кубик заблокирован, его нельзя изменить.
+dice-status-locked = locked
+dice-status-kept = kept
 
 # Dealing (card games)
 game-deal-counter = Раздача { $current }/{ $total }.
