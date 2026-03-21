@@ -1,8 +1,14 @@
-"""Bot AI for Backgammon — GNUBG engine with random/simple fallback."""
+"""Bot AI for Backgammon — GNUBG engine with random/simple fallback.
+
+GNUBG queries run in a background thread to avoid blocking the server.
+bot_think() returns None while waiting for a result, and the BotHelper
+will retry on the next tick.
+"""
 
 from __future__ import annotations
 
 import random
+from concurrent.futures import Future, ThreadPoolExecutor
 from typing import TYPE_CHECKING
 
 from .gnubg import GnubgProcess, is_gnubg_available
@@ -20,16 +26,28 @@ from .state import (
 if TYPE_CHECKING:
     from .game import BackgammonGame, BackgammonPlayer
 
+# Shared thread pool for GNUBG queries (1 thread — GNUBG is single-process)
+_gnubg_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="gnubg")
+
 
 def bot_think(game: BackgammonGame, player: BackgammonPlayer) -> str | None:
     """Decide the bot's next action."""
     gs = game.game_state
     color = player.color
 
+    # Check if we're waiting for an async GNUBG result
+    pending = _check_pending(game)
+    if pending is not None:
+        return pending
+    if _is_pending(game):
+        return None  # Still waiting
+
     if gs.turn_phase == "pre_roll":
         game._bot_action_queue.clear()
         # GNUBG bots consider doubling before rolling
         cube_action = _maybe_offer_double(game, player)
+        if cube_action is _WAITING:
+            return None
         if cube_action:
             return cube_action
         return "point_0"
@@ -49,8 +67,39 @@ def bot_think(game: BackgammonGame, player: BackgammonPlayer) -> str | None:
     return None
 
 
-def _maybe_offer_double(game: BackgammonGame, player: BackgammonPlayer) -> str | None:
-    """Check if a GNUBG-backed bot should offer a double before rolling."""
+# Sentinel value meaning "query submitted, wait for it"
+_WAITING = object()
+
+
+def _submit_async(game: BackgammonGame, fn, *args) -> None:
+    """Submit a GNUBG query to the thread pool."""
+    game._gnubg_future = _gnubg_pool.submit(fn, *args)
+
+
+def _is_pending(game: BackgammonGame) -> bool:
+    """Check if there's an in-flight GNUBG query."""
+    future = getattr(game, "_gnubg_future", None)
+    return future is not None and not future.done()
+
+
+def _check_pending(game: BackgammonGame) -> str | None:
+    """Check if a pending GNUBG query has completed. Returns action or None."""
+    future: Future | None = getattr(game, "_gnubg_future", None)
+    if future is None or not future.done():
+        return None
+
+    game._gnubg_future = None
+    try:
+        return future.result(timeout=0)
+    except Exception:
+        return None
+
+
+def _maybe_offer_double(game: BackgammonGame, player: BackgammonPlayer):
+    """Check if a GNUBG-backed bot should offer a double before rolling.
+
+    Returns an action string, None (no double), or _WAITING.
+    """
     from .game import DIFFICULTY_PLY
 
     difficulty = game.options.bot_difficulty
@@ -61,11 +110,9 @@ def _maybe_offer_double(game: BackgammonGame, player: BackgammonPlayer) -> str |
     if ply is None:
         return None
 
-    # Whackgammon never doubles (it's trying to lose)
     if difficulty == "whackgammon":
         return None
 
-    # Can this player even double?
     if not game._can_double(player):
         return None
 
@@ -73,13 +120,18 @@ def _maybe_offer_double(game: BackgammonGame, player: BackgammonPlayer) -> str |
     if gnubg_proc is None:
         return None
 
-    decision = gnubg_proc.get_cube_decision(game.game_state, player.color)
-    if decision == "double":
-        return "offer_double"
-    return None
+    # Submit async query
+    def _query():
+        decision = gnubg_proc.get_cube_decision(game.game_state, player.color)
+        if decision == "double":
+            return "offer_double"
+        return "point_0"  # No double, just roll
+
+    _submit_async(game, _query)
+    return _WAITING
 
 
-def _decide_take_or_drop(game: BackgammonGame, player: BackgammonPlayer) -> str:
+def _decide_take_or_drop(game: BackgammonGame, player: BackgammonPlayer) -> str | None:
     """Decide whether to take or drop a double offer."""
     from .game import DIFFICULTY_PLY
 
@@ -91,7 +143,6 @@ def _decide_take_or_drop(game: BackgammonGame, player: BackgammonPlayer) -> str:
     if ply is None:
         return "accept_double"
 
-    # Whackgammon always takes (it's trying to lose, taking a bad double helps)
     if difficulty == "whackgammon":
         return "accept_double"
 
@@ -99,14 +150,15 @@ def _decide_take_or_drop(game: BackgammonGame, player: BackgammonPlayer) -> str:
     if gnubg_proc is None:
         return "accept_double"
 
-    # Query from the perspective of the opponent (who offered the double)
-    # to get "double, pass" vs "double, take" — but it's easier to just
-    # check the equity of taking vs dropping from our perspective.
-    # GNUBG's cube decision from the receiver's perspective:
-    decision = gnubg_proc.get_cube_decision(game.game_state, player.color)
-    if decision == "drop":
-        return "drop_double"
-    return "accept_double"
+    # Submit async query
+    def _query():
+        decision = gnubg_proc.get_cube_decision(game.game_state, player.color)
+        if decision == "drop":
+            return "drop_double"
+        return "accept_double"
+
+    _submit_async(game, _query)
+    return None  # Wait for result
 
 
 def _pick_move(game: BackgammonGame, player: BackgammonPlayer) -> str | None:
@@ -123,27 +175,32 @@ def _pick_move(game: BackgammonGame, player: BackgammonPlayer) -> str | None:
     if difficulty == "simple":
         return _pick_simple_move(game, color)
 
-    # GNUBG-based difficulties
+    # GNUBG-based difficulties — run async
     ply = DIFFICULTY_PLY.get(difficulty)
     if ply is None:
         return _pick_random_move(game, color)
 
     is_whack = difficulty == "whackgammon"
     gnubg_proc = _get_gnubg_process(game, ply)
-    if gnubg_proc is not None:
+    if gnubg_proc is None:
+        _notify_fallback(game)
+        return _pick_simple_move(game, color)
+
+    def _query():
         if is_whack:
             actions = gnubg_proc.get_worst_move(gs, color)
         else:
             actions = gnubg_proc.get_best_move(gs, color)
         if actions:
-            # Queue all sub-moves; return the first, queue the rest
             action_strs = [f"point_{src}_{dst}" for src, dst in actions]
             game._bot_action_queue = action_strs[1:]
             return action_strs[0]
+        # Fallback
+        _notify_fallback(game)
+        return _pick_simple_move(game, color)
 
-    # Fallback to simple if GNUBG unavailable
-    _notify_fallback(game)
-    return _pick_simple_move(game, color)
+    _submit_async(game, _query)
+    return None  # Wait for result
 
 
 def _pick_random_move(game: BackgammonGame, color: str) -> str | None:

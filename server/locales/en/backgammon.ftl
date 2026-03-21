@@ -19,12 +19,13 @@ backgammon-roll = { $player } rolls { $die1 } and { $die2 }.
 backgammon-no-moves = { $player } has no legal moves.
 
 # Move commentary (shorthand)
-backgammon-move-normal = { $player }: { $src } to { $dest }, { $remain } { $count }.
-backgammon-move-emptying = { $player }: Emptying { $src } to { $dest }, { $count }.
-backgammon-move-hit = { $player }: { $src } to capture on { $dest }, { $remain }.
-backgammon-move-bar = { $player }: Bar to { $dest }, { $count }.
-backgammon-move-bar-hit = { $player }: Bar to capture on { $dest }, { $count }.
-backgammon-move-bearoff = { $player }: Bearing off from { $src }, { $remain }.
+backgammon-move-normal = { $src } to { $dest }, { $remain } { $count }.
+backgammon-move-emptying = Emptying { $src } to { $dest }, { $count }.
+backgammon-move-hit = { $src } to capture on { $dest }, { $remain }.
+backgammon-move-emptying-hit = Emptying { $src } to capture on { $dest }.
+backgammon-move-bar = Bar to { $dest }, { $count }.
+backgammon-move-bar-hit = Bar to capture on { $dest }, { $count }.
+backgammon-move-bearoff = Bearing off from { $src }, { $remain }.
 
 # Doubling
 backgammon-doubles = { $player } doubles to { $value }.
@@ -32,6 +33,22 @@ backgammon-accepts = { $player } accepts.
 backgammon-drops = { $player } drops.
 backgammon-accept = Accept
 backgammon-drop = Drop
+
+# Point labels
+backgammon-point-empty = { $point } empty
+backgammon-point-empty-selected = { $point } empty selected
+backgammon-point-occupied = { $point } { $color }, { $count }
+backgammon-point-occupied-selected = { $point } { $color }, { $count } selected
+
+# Local hint
+backgammon-hint-bar = bar
+backgammon-hint-off = off
+
+# Action labels
+backgammon-label-double = Double
+backgammon-label-undo = Undo
+backgammon-label-hint = Hint
+backgammon-label-cube-hint = Cube hint
 
 # Selection feedback
 backgammon-selected-point = Selected point { $point }, { $count } checkers.
@@ -45,6 +62,9 @@ backgammon-bearoff-blocked = You can't bear off from the { $point }-point with a
 backgammon-bearoff-no-die = You can't bear off from the { $point }-point with your remaining dice ({ $die }).
 backgammon-nothing-to-undo = Nothing to undo.
 backgammon-undone = Move undone.
+backgammon-cannot-double = You can't double right now.
+backgammon-cannot-undo = Nothing to undo.
+backgammon-not-doubling-phase = No double to respond to.
 
 # Hints
 backgammon-hint = { $player } asks for a hint: { $hint }
@@ -62,7 +82,7 @@ backgammon-check-cube = Cube
 backgammon-check-pip = Pip count
 backgammon-check-score = Score
 backgammon-check-dice = Dice
-backgammon-status = Red bar: { $bar_red }. White bar: { $bar_white }. Red off: { $off_red }. White off: { $off_white }. Dice: { $dice }.
+backgammon-status = Red bar: { $bar_red }. White bar: { $bar_white }. Red off: { $off_red }. White off: { $off_white }.
 backgammon-dice = { $dice }
 backgammon-dice-none = No dice.
 backgammon-cube-status = Cube at { $value }. { $owner ->

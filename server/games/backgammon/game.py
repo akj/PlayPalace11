@@ -218,7 +218,7 @@ class BackgammonGame(Game):
         # Offer double (keybind-triggered, hidden from menu)
         action_set.add(Action(
             id="offer_double",
-            label="Double",
+            label=Localization.get(locale, "backgammon-label-double"),
             handler="_action_offer_double",
             is_enabled="_is_offer_double_enabled",
             is_hidden="_is_always_hidden",
@@ -246,7 +246,7 @@ class BackgammonGame(Game):
         # Undo (keybind-triggered, hidden from menu)
         action_set.add(Action(
             id="undo_move",
-            label="Undo",
+            label=Localization.get(locale, "backgammon-label-undo"),
             handler="_action_undo_move",
             is_enabled="_is_undo_enabled",
             is_hidden="_is_always_hidden",
@@ -256,9 +256,19 @@ class BackgammonGame(Game):
         # Hint (keybind-triggered, hidden from menu)
         action_set.add(Action(
             id="get_hint",
-            label="Hint",
+            label=Localization.get(locale, "backgammon-label-hint"),
             handler="_action_get_hint",
             is_enabled="_is_hint_enabled",
+            is_hidden="_is_always_hidden",
+            show_in_actions_menu=False,
+        ))
+
+        # Cube hint (keybind-triggered, hidden from menu)
+        action_set.add(Action(
+            id="get_cube_hint",
+            label=Localization.get(locale, "backgammon-label-cube-hint"),
+            handler="_action_get_cube_hint",
+            is_enabled="_is_cube_hint_enabled",
             is_hidden="_is_always_hidden",
             show_in_actions_menu=False,
         ))
@@ -297,6 +307,13 @@ class BackgammonGame(Game):
                 id="check_score",
                 label=Localization.get(locale, "backgammon-check-score"),
                 handler="_action_check_score",
+                is_enabled="_is_info_enabled",
+                is_hidden="_is_always_hidden",
+            ),
+            Action(
+                id="check_cube",
+                label=Localization.get(locale, "backgammon-check-cube"),
+                handler="_action_check_cube",
                 is_enabled="_is_info_enabled",
                 is_hidden="_is_always_hidden",
             ),
@@ -494,7 +511,24 @@ class BackgammonGame(Game):
         self.process_scheduled_sounds()
         if not self.game_active:
             return
+        self._check_pending_hint()
         BotHelper.on_tick(self)
+
+    def _check_pending_hint(self) -> None:
+        """Check if an async hint query has completed."""
+        future = getattr(self, "_hint_future", None)
+        if future is None or not future.done():
+            return
+        self._hint_future = None
+        try:
+            result = future.result(timeout=0)
+            if result:
+                msg_key = result.pop("message_key")
+                self.broadcast_l(msg_key, **result)
+            else:
+                self.broadcast_l("backgammon-hint-unavailable")
+        except Exception:
+            self.broadcast_l("backgammon-hint-unavailable")
 
     def bot_think(self, player: BackgammonPlayer) -> str | None:
         return bot_think(self, player)
@@ -556,9 +590,6 @@ class BackgammonGame(Game):
                 if not self._try_bear_off(player, point_idx):
                     gs.selected_source = None
                     self.play_sound("game_chess/setdown.ogg")
-                    user = self.get_user(player)
-                    if user:
-                        user.speak_l("backgammon-deselected")
                     self.update_player_menu(player)
             else:
                 self._try_move_to(player, selected, point_idx)
@@ -599,11 +630,6 @@ class BackgammonGame(Game):
 
         gs.selected_source = point_idx
         self.play_sound("game_chess/pickup.ogg")
-        user = self.get_user(player)
-        if user:
-            pn = point_number_for_player(point_idx, color)
-            cnt = point_count(gs, point_idx)
-            user.speak_l("backgammon-selected-point", point=pn, count=cnt)
         self.update_player_menu(player)
 
     def _try_move_to(self, player: BackgammonPlayer, source: int, dest_point: int) -> None:
@@ -932,14 +958,12 @@ class BackgammonGame(Game):
         bar_w = gs.board.bar_white
         off_r = gs.board.off_red
         off_w = gs.board.off_white
-        dice_str = ", ".join(str(d) for d in remaining_dice(gs)) if remaining_dice(gs) else "none"
         user.speak_l(
             "backgammon-status",
             bar_red=bar_r,
             bar_white=bar_w,
             off_red=off_r,
             off_white=off_w,
-            dice=dice_str,
         )
 
     def _action_check_pip(self, player: Player, action_id: str) -> None:
@@ -1014,86 +1038,110 @@ class BackgammonGame(Game):
         else:
             user.speak_l("backgammon-dice-none")
 
-    def _action_get_hint(self, player: Player, action_id: str) -> None:
-        """Get a GNUBG hint and broadcast it to the table."""
-        if not isinstance(player, BackgammonPlayer):
-            return
-        gs = self.game_state
-        if gs.turn_phase != "moving":
-            user = self.get_user(player)
-            if user:
-                user.speak_l("backgammon-hint-not-now")
-            return
-        if not self.options.hints_enabled:
-            user = self.get_user(player)
-            if user:
-                user.speak_l("backgammon-hints-disabled")
-            return
-
-        from .gnubg import GnubgProcess, is_gnubg_available, parse_hint_line
+    def _get_hint_proc(self) -> GnubgProcess | None:
+        """Get or create the hint GNUBG process."""
+        from .gnubg import GnubgProcess, is_gnubg_available
         if not is_gnubg_available():
-            self.broadcast_l("backgammon-hint-unavailable")
-            return
-
-        # Use a temporary process at ply 2 for best hint quality
+            return None
         proc = getattr(self, "_hint_proc", None)
         if proc is None:
             proc = GnubgProcess(ply=2)
             if not proc.start():
-                self.broadcast_l("backgammon-hint-unavailable")
-                return
+                return None
             self._hint_proc = proc
+        return proc
 
-        # Get raw hint lines for display
-        from .gnubg import encode_position_id, _HINT_RE
-        pos_id = encode_position_id(gs)
-        proc._send(f"set board {pos_id}")
-        proc._read_until_idle()
-        proc._send("set turn 1")
-        proc._read_until_idle()
-        unused = [d for d, u in zip(gs.dice, gs.dice_used) if not u]
-        if len(unused) < 2:
-            if unused:
-                unused = [unused[0], unused[0]]
-            else:
-                return
-        proc._send(f"set dice {unused[0]} {unused[1]}")
-        proc._read_until_idle()
-        proc._send("hint 3")
-        output = proc._read_until_idle()
-
-        # Parse and format the top moves
-        hint_lines = []
-        for line in output:
-            m = _HINT_RE.match(line)
-            if m:
-                rank = m.group(1)
-                move_str = m.group(2).strip()
-                hint_lines.append(f"{rank}. {move_str}")
-
-        if hint_lines:
-            hint_text = "; ".join(hint_lines)
-            self.broadcast_l("backgammon-hint", player=player.name, hint=hint_text)
-        else:
-            self.broadcast_l("backgammon-hint-unavailable")
-
-    def _action_get_cube_hint(self, player: Player, action_id: str) -> None:
-        """Get a GNUBG cube hint."""
+    def _action_get_hint(self, player: Player, action_id: str) -> None:
+        """Get a GNUBG hint and broadcast it to the table (async)."""
         if not isinstance(player, BackgammonPlayer):
             return
         gs = self.game_state
 
-        if gs.turn_phase not in ("pre_roll", "doubling"):
-            user = self.get_user(player)
-            if user:
-                user.speak_l("backgammon-cube-hint-not-now")
+        # Mid-turn (some dice used): list legal moves locally
+        unused_dice = [d for d, u in zip(gs.dice, gs.dice_used) if not u]
+        if len(unused_dice) < 2:
+            self._show_local_hint(player, unused_dice)
             return
 
-        if not self.options.cube_hints_enabled:
+        if getattr(self, "_hint_future", None) is not None:
+            return  # Already a hint in progress
+
+        proc = self._get_hint_proc()
+        if proc is None:
+            self.broadcast_l("backgammon-hint-unavailable")
+            return
+
+        player_name = player.name
+        color = player.color
+
+        def _query():
+            from .gnubg import _HINT_RE, encode_position_id
+            pos_id = encode_position_id(gs)
+            with proc._lock:
+                proc._send(f"set board {pos_id}")
+                proc._read_until_idle()
+                proc._send("set turn 1")
+                proc._read_until_idle()
+                proc._send(f"set dice {unused_dice[0]} {unused_dice[1]}")
+                proc._read_until_idle()
+                proc._send("hint 3")
+                output = proc._read_until_idle()
+
+            hint_lines = []
+            for line in output:
+                m = _HINT_RE.match(line)
+                if m:
+                    rank = m.group(1)
+                    move_str = m.group(2).strip()
+                    hint_lines.append(f"{rank}. {move_str}")
+
+            if hint_lines:
+                hint_text = "; ".join(hint_lines)
+                return {"message_key": "backgammon-hint", "player": player_name, "hint": hint_text}
+            return None
+
+        from .bot import _gnubg_pool
+        self._hint_future = _gnubg_pool.submit(_query)
+
+    def _show_local_hint(self, player: BackgammonPlayer, unused_dice: list[int]) -> None:
+        """Show legal moves locally when GNUBG can't be used (mid-turn)."""
+        gs = self.game_state
+        locale = self._player_locale(player)
+        color = player.color
+        viewer_color = color
+        bar_str = Localization.get(locale, "backgammon-hint-bar")
+        off_str = Localization.get(locale, "backgammon-hint-off")
+
+        move_strs = []
+        for die_val in set(unused_dice):
+            for m in generate_legal_moves(gs, color, die_val):
+                if m.source == -1:
+                    src_str = bar_str
+                else:
+                    src_str = str(point_number_for_player(m.source, viewer_color))
+                if m.is_bear_off:
+                    dst_str = off_str
+                else:
+                    dst_str = str(point_number_for_player(m.destination, viewer_color))
+                desc = f"{src_str}/{dst_str}"
+                if m.is_hit:
+                    desc += "*"
+                if desc not in move_strs:
+                    move_strs.append(desc)
+
+        if move_strs:
+            hint_text = ", ".join(move_strs)
+            self.broadcast_l("backgammon-hint", player=player.name, hint=hint_text)
+        else:
             user = self.get_user(player)
             if user:
-                user.speak_l("backgammon-cube-hints-disabled")
+                user.speak_l("backgammon-no-moves-from-here")
+
+    def _action_get_cube_hint(self, player: Player, action_id: str) -> None:
+        """Get a GNUBG cube hint (async)."""
+        if not isinstance(player, BackgammonPlayer):
             return
+        gs = self.game_state
 
         if gs.match_length <= 1:
             user = self.get_user(player)
@@ -1101,24 +1149,25 @@ class BackgammonGame(Game):
                 user.speak_l("backgammon-cube-no-match")
             return
 
-        from .gnubg import GnubgProcess, is_gnubg_available
-        if not is_gnubg_available():
+        if getattr(self, "_hint_future", None) is not None:
+            return  # Already a hint in progress
+
+        proc = self._get_hint_proc()
+        if proc is None:
             self.broadcast_l("backgammon-hint-unavailable")
             return
 
-        proc = getattr(self, "_hint_proc", None)
-        if proc is None:
-            proc = GnubgProcess(ply=2)
-            if not proc.start():
-                self.broadcast_l("backgammon-hint-unavailable")
-                return
-            self._hint_proc = proc
+        player_name = player.name
+        color = player.color
 
-        hint_text = proc.get_cube_hint_text(gs, player.color)
-        if hint_text:
-            self.broadcast_l("backgammon-cube-hint", player=player.name, hint=hint_text)
-        else:
-            self.broadcast_l("backgammon-hint-unavailable")
+        def _query():
+            hint_text = proc.get_cube_hint_text(gs, color)
+            if hint_text:
+                return {"message_key": "backgammon-cube-hint", "player": player_name, "hint": hint_text}
+            return None
+
+        from .bot import _gnubg_pool
+        self._hint_future = _gnubg_pool.submit(_query)
 
     def _action_resign(self, player: Player, action_id: str) -> None:
         if not isinstance(player, BackgammonPlayer):
@@ -1270,10 +1319,6 @@ class BackgammonGame(Game):
     ) -> None:
         """Speak a single sub-move to a user with point numbers in their perspective."""
         gs = self.game_state
-        mover_name = "Red" if mover_color == "red" else "White"
-        player = self._get_player_by_color(mover_color)
-        if player:
-            mover_name = player.name
 
         if move.source == -1:
             # Bar entry
@@ -1282,14 +1327,12 @@ class BackgammonGame(Game):
             if move.is_hit:
                 user.speak_l(
                     "backgammon-move-bar-hit",
-                    player=mover_name,
                     dest=dest_pn,
                     count=dest_count,
                 )
             else:
                 user.speak_l(
                     "backgammon-move-bar",
-                    player=mover_name,
                     dest=dest_pn,
                     count=dest_count,
                 )
@@ -1298,7 +1341,6 @@ class BackgammonGame(Game):
             remain = point_count(gs, move.source)
             user.speak_l(
                 "backgammon-move-bearoff",
-                player=mover_name,
                 src=src_pn,
                 remain=remain,
             )
@@ -1306,13 +1348,19 @@ class BackgammonGame(Game):
             src_pn = point_number_for_player(move.source, viewer_color)
             dest_pn = point_number_for_player(move.destination, viewer_color)
             src_remain = point_count(gs, move.source)
-            user.speak_l(
-                "backgammon-move-hit",
-                player=mover_name,
-                src=src_pn,
-                dest=dest_pn,
-                remain=src_remain,
-            )
+            if src_remain == 0:
+                user.speak_l(
+                    "backgammon-move-emptying-hit",
+                    src=src_pn,
+                    dest=dest_pn,
+                )
+            else:
+                user.speak_l(
+                    "backgammon-move-hit",
+                    src=src_pn,
+                    dest=dest_pn,
+                    remain=src_remain,
+                )
         else:
             src_pn = point_number_for_player(move.source, viewer_color)
             dest_pn = point_number_for_player(move.destination, viewer_color)
@@ -1321,7 +1369,6 @@ class BackgammonGame(Game):
             if src_remain == 0:
                 user.speak_l(
                     "backgammon-move-emptying",
-                    player=mover_name,
                     src=src_pn,
                     dest=dest_pn,
                     count=dest_count,
@@ -1329,7 +1376,6 @@ class BackgammonGame(Game):
             else:
                 user.speak_l(
                     "backgammon-move-normal",
-                    player=mover_name,
                     src=src_pn,
                     dest=dest_pn,
                     remain=src_remain,
@@ -1368,29 +1414,21 @@ class BackgammonGame(Game):
             return ""
 
         gs = self.game_state
+        locale = self._player_locale(player)
         color = player.color if isinstance(player, BackgammonPlayer) else "red"
         pn = point_number_for_player(point_idx, color)
         val = gs.board.points[point_idx]
-        selected = gs.selected_source
+        selected = gs.selected_source == point_idx
 
-        if val > 0:
-            cnt = val
-            owner = "red"
-        elif val < 0:
-            cnt = -val
-            owner = "white"
-        else:
-            if selected == point_idx:
-                return f"[{pn} empty]"
-            return f"{pn} empty"
+        if val == 0:
+            key = "backgammon-point-empty-selected" if selected else "backgammon-point-empty"
+            return Localization.get(locale, key, point=pn)
 
-        owner_name = Localization.get(self._player_locale(player), f"backgammon-color-{owner}")
-        label = f"{pn} {owner_name}, {cnt}"
-
-        if selected == point_idx:
-            label = f"[{label}]"
-
-        return label
+        cnt = abs(val)
+        owner = "red" if val > 0 else "white"
+        owner_name = Localization.get(locale, f"backgammon-color-{owner}")
+        key = "backgammon-point-occupied-selected" if selected else "backgammon-point-occupied"
+        return Localization.get(locale, key, point=pn, color=owner_name, count=cnt)
 
     def _get_point_sound(self, player: Player, action_id: str) -> str | None:
         """Get navigation sound for a board point based on its contents.
@@ -1424,23 +1462,23 @@ class BackgammonGame(Game):
         if self.status != "playing":
             return "action-not-playing"
         if not isinstance(player, BackgammonPlayer):
-            return "action-not-available"
+            return "backgammon-cannot-double"
         if not self._can_double(player):
-            return "action-not-available"
+            return "backgammon-cannot-double"
         return None
 
     def _is_undo_enabled(self, player: Player) -> str | None:
         if self.status != "playing":
             return "action-not-playing"
         if not isinstance(player, BackgammonPlayer):
-            return "action-not-available"
+            return "backgammon-cannot-undo"
         gs = self.game_state
         if gs.turn_phase != "moving":
-            return "action-not-available"
+            return "backgammon-cannot-undo"
         if player.color != gs.current_color:
             return "action-not-your-turn"
         if not gs.moves_this_turn:
-            return "action-not-available"
+            return "backgammon-cannot-undo"
         return None
 
     def _is_hint_enabled(self, player: Player) -> str | None:
@@ -1448,7 +1486,19 @@ class BackgammonGame(Game):
             return "action-not-playing"
         gs = self.game_state
         if gs.turn_phase != "moving":
-            return "action-not-available"
+            return "backgammon-hint-not-now"
+        if not self.options.hints_enabled:
+            return "backgammon-hints-disabled"
+        return None
+
+    def _is_cube_hint_enabled(self, player: Player) -> str | None:
+        if self.status != "playing":
+            return "action-not-playing"
+        gs = self.game_state
+        if gs.turn_phase not in ("pre_roll", "doubling"):
+            return "backgammon-cube-hint-not-now"
+        if not self.options.cube_hints_enabled:
+            return "backgammon-cube-hints-disabled"
         return None
 
     def _is_accept_double_enabled(self, player: Player, action_id: str = "") -> str | None:
@@ -1456,11 +1506,11 @@ class BackgammonGame(Game):
             return "action-not-playing"
         gs = self.game_state
         if gs.turn_phase != "doubling":
-            return "action-not-available"
+            return "backgammon-not-doubling-phase"
         if not isinstance(player, BackgammonPlayer):
-            return "action-not-available"
+            return "backgammon-not-doubling-phase"
         if player.color == gs.current_color:
-            return "action-not-available"
+            return "backgammon-not-doubling-phase"
         return None
 
     def _is_accept_double_hidden(self, player: Player, action_id: str = "") -> Visibility:
