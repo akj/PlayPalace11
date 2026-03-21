@@ -7,11 +7,14 @@ will retry on the next tick.
 
 from __future__ import annotations
 
+import logging
 import random
 from concurrent.futures import Future, ThreadPoolExecutor
 from typing import TYPE_CHECKING
 
-from .gnubg import GnubgProcess, is_gnubg_available
+log = logging.getLogger(__name__)
+
+from .gnubg import GnubgProcess, is_gnubg_available, resolve_next_action
 from .moves import BackgammonMove, generate_legal_moves, has_any_legal_move
 from .state import (
     bar_count,
@@ -43,7 +46,7 @@ def bot_think(game: BackgammonGame, player: BackgammonPlayer) -> str | None:
         return None  # Still waiting
 
     if gs.turn_phase == "pre_roll":
-        game._bot_action_queue.clear()
+        game._bot_goals.clear()
         # GNUBG bots consider doubling before rolling
         cube_action = _maybe_offer_double(game, player)
         if cube_action is _WAITING:
@@ -59,9 +62,15 @@ def bot_think(game: BackgammonGame, player: BackgammonPlayer) -> str | None:
         if not has_any_legal_move(gs, color):
             game._end_moving_phase()
             return None
-        # Pop from queued GNUBG actions if available
-        if game._bot_action_queue:
-            return game._bot_action_queue.pop(0)
+        # Resolve next action from GNUBG goals if available
+        if game._bot_goals:
+            action = resolve_next_action(
+                game._bot_goals, gs, color, forced_dice=game._forced_dice
+            )
+            if action:
+                return action
+            # Goals exhausted or stuck — fall through to pick a new move
+            game._bot_goals.clear()
         return _pick_move(game, player)
 
     return None
@@ -90,9 +99,31 @@ def _check_pending(game: BackgammonGame) -> str | None:
 
     game._gnubg_future = None
     try:
-        return future.result(timeout=0)
+        result = future.result(timeout=0)
     except Exception:
-        return None
+        result = None
+
+    # Move queries return a goals list — store them for bot_think to resolve
+    if isinstance(result, list):
+        game._bot_goals = result
+        return None  # bot_think will resolve on the current state
+
+    # Cube/other queries return an action string
+    if result is not None:
+        return result
+
+    # Future completed but returned None — GNUBG failed.
+    log.warning("GNUBG future returned None (phase=%s)", game.game_state.turn_phase)
+    _notify_fallback(game)
+    gs = game.game_state
+    color = gs.current_color
+    if gs.turn_phase == "moving":
+        return _pick_simple_move(game, color)
+    if gs.turn_phase == "pre_roll":
+        return "point_0"  # Just roll
+    if gs.turn_phase == "doubling":
+        return "accept_double"
+    return None
 
 
 def _maybe_offer_double(game: BackgammonGame, player: BackgammonPlayer):
@@ -123,7 +154,9 @@ def _maybe_offer_double(game: BackgammonGame, player: BackgammonPlayer):
     # Submit async query
     def _query():
         decision = gnubg_proc.get_cube_decision(game.game_state, player.color)
-        if decision == "double":
+        if decision in ("double-take", "double-pass"):
+            # Store decision so the opponent's take/drop can use it
+            game._gnubg_cube_decision = decision
             return "offer_double"
         return "point_0"  # No double, just roll
 
@@ -132,7 +165,12 @@ def _maybe_offer_double(game: BackgammonGame, player: BackgammonPlayer):
 
 
 def _decide_take_or_drop(game: BackgammonGame, player: BackgammonPlayer) -> str | None:
-    """Decide whether to take or drop a double offer."""
+    """Decide whether to take or drop a double offer.
+
+    Uses the cube decision stored by _maybe_offer_double when the opponent
+    doubled. GNUBG's analysis is always from the doubler's perspective —
+    "double-pass" means the receiver should drop, "double-take" means take.
+    """
     from .game import DIFFICULTY_PLY
 
     difficulty = game.options.bot_difficulty
@@ -146,19 +184,14 @@ def _decide_take_or_drop(game: BackgammonGame, player: BackgammonPlayer) -> str 
     if difficulty == "whackgammon":
         return "accept_double"
 
-    gnubg_proc = _get_gnubg_process(game, ply)
-    if gnubg_proc is None:
-        return "accept_double"
-
-    # Submit async query
-    def _query():
-        decision = gnubg_proc.get_cube_decision(game.game_state, player.color)
-        if decision == "drop":
-            return "drop_double"
-        return "accept_double"
-
-    _submit_async(game, _query)
-    return None  # Wait for result
+    # Use the stored decision from the doubler's GNUBG query
+    stored = getattr(game, "_gnubg_cube_decision", None)
+    if stored == "double-pass":
+        game._gnubg_cube_decision = None
+        return "drop_double"
+    # "double-take", unknown, or no stored decision — accept
+    game._gnubg_cube_decision = None
+    return "accept_double"
 
 
 def _pick_move(game: BackgammonGame, player: BackgammonPlayer) -> str | None:
@@ -188,16 +221,12 @@ def _pick_move(game: BackgammonGame, player: BackgammonPlayer) -> str | None:
 
     def _query():
         if is_whack:
-            actions = gnubg_proc.get_worst_move(gs, color)
+            goals = gnubg_proc.get_worst_move(gs, color)
         else:
-            actions = gnubg_proc.get_best_move(gs, color)
-        if actions:
-            action_strs = [f"point_{src}_{dst}" for src, dst in actions]
-            game._bot_action_queue = action_strs[1:]
-            return action_strs[0]
-        # Fallback
-        _notify_fallback(game)
-        return _pick_simple_move(game, color)
+            goals = gnubg_proc.get_best_move(gs, color)
+        if goals:
+            return goals  # Return goals; bot_think resolves with current state
+        return None  # GNUBG failed
 
     _submit_async(game, _query)
     return None  # Wait for result

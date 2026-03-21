@@ -105,9 +105,6 @@ backgammon-wins-game = { $player } gana { $points } punto{ $points ->
 backgammon-new-game = Comenzando partida { $number }.
 backgammon-match-winner = ¡{ $player } gana el match!
 backgammon-crawford = Partida Crawford: no se permite doblar en esta partida.
-backgammon-resigns = { $player } se rinde.
-backgammon-resign = Rendirse
-
 # Niveles de dificultad
 backgammon-difficulty-random = Aleatorio
 backgammon-difficulty-simple = Simple

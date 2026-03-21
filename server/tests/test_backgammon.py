@@ -37,7 +37,7 @@ from server.games.backgammon.bot import _score_move, _pick_simple_move
 from server.games.backgammon.gnubg import (
     encode_position_id,
     parse_hint_line,
-    hint_to_actions,
+    hint_to_goals,
 )
 from server.games.backgammon.game import (
     BackgammonGame,
@@ -560,31 +560,31 @@ class TestHintParsing:
         assert parse_hint_line("GNU Backgammon  Position ID: 4HPwATDgc/ABMA") is None
         assert parse_hint_line("") is None
 
-    def test_hint_to_actions_red(self):
+    def test_hint_to_goals_red(self):
         submoves = [("8", "5", 1), ("6", "5", 1)]
-        actions = hint_to_actions(submoves, "red")
-        assert actions == [(7, 4), (5, 4)]
+        goals = hint_to_goals(submoves, "red")
+        assert goals == [(7, 4), (5, 4)]
 
-    def test_hint_to_actions_white(self):
+    def test_hint_to_goals_white(self):
         submoves = [("8", "5", 1)]
-        actions = hint_to_actions(submoves, "white")
+        goals = hint_to_goals(submoves, "white")
         # White's point 8 = index 24-8=16, point 5 = index 24-5=19
-        assert actions == [(16, 19)]
+        assert goals == [(16, 19)]
 
-    def test_hint_to_actions_bar(self):
+    def test_hint_to_goals_bar(self):
         submoves = [("bar", "22", 1)]
-        actions = hint_to_actions(submoves, "red")
-        assert actions == [(-1, 21)]
+        goals = hint_to_goals(submoves, "red")
+        assert goals == [(-1, 21)]
 
-    def test_hint_to_actions_off(self):
+    def test_hint_to_goals_off(self):
         submoves = [("3", "off", 1)]
-        actions = hint_to_actions(submoves, "red")
-        assert actions == [(2, 24)]
+        goals = hint_to_goals(submoves, "red")
+        assert goals == [(2, 24)]
 
-    def test_hint_to_actions_count(self):
+    def test_hint_to_goals_count(self):
         submoves = [("24", "18", 2)]
-        actions = hint_to_actions(submoves, "red")
-        assert actions == [(23, 17), (23, 17)]
+        goals = hint_to_goals(submoves, "red")
+        assert goals == [(23, 17), (23, 17)]
 
 
 # ==========================================================================

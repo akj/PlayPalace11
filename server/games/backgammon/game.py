@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 import random
+
+log = logging.getLogger(__name__)
 
 from ..base import Game, Player, GameOptions
 from ..registry import register_game
 from ...game_utils.actions import Action, ActionSet, Visibility
 from ...game_utils.options import IntOption, BoolOption, MenuOption, option_field
 from ...game_utils.bot_helper import BotHelper
+from ...game_utils.game_result import GameResult, PlayerResult
 from ...messages.localization import Localization
 from server.core.ui.keybinds import KeybindState
 from server.core.users.bot import Bot
@@ -144,7 +148,7 @@ class BackgammonGame(Game):
     # Track which dice the must-use-both rule restricts to
     _forced_dice: list[int] | None = None
     # Queued bot actions from GNUBG (full turn planned at once)
-    _bot_action_queue: list[str] = field(default_factory=list)
+    _bot_goals: list[tuple[int, int]] = field(default_factory=list)
 
     @classmethod
     def get_name(cls) -> str:
@@ -273,16 +277,6 @@ class BackgammonGame(Game):
             show_in_actions_menu=False,
         ))
 
-        # Resign (actions menu)
-        action_set.add(Action(
-            id="resign",
-            label=Localization.get(locale, "backgammon-resign"),
-            handler="_action_resign",
-            is_enabled="_is_resign_enabled",
-            is_hidden="_is_resign_hidden",
-            show_in_actions_menu=True,
-        ))
-
         return action_set
 
     def create_standard_action_set(self, player: Player) -> ActionSet:
@@ -360,7 +354,6 @@ class BackgammonGame(Game):
         self.define_keybind("c", "Dice", ["check_dice"], state=KeybindState.ACTIVE, include_spectators=True)
         self.define_keybind("h", "Hint", ["get_hint"], state=KeybindState.ACTIVE)
         self.define_keybind("shift+h", "Cube hint", ["get_cube_hint"], state=KeybindState.ACTIVE)
-        self.define_keybind("shift+r", "Resign", ["resign"], state=KeybindState.ACTIVE)
 
     # ==========================================================================
     # Grid helpers
@@ -464,7 +457,7 @@ class BackgammonGame(Game):
 
         # Opening roll
         self._do_opening_roll()
-        BotHelper.jolt_bots(self, ticks=random.randint(12, 20))
+        BotHelper.jolt_bots(self, ticks=random.randint(4, 8))
 
     def _do_opening_roll(self) -> None:
         """Roll one die each for opening; higher goes first."""
@@ -527,6 +520,22 @@ class BackgammonGame(Game):
         if not self.game_active:
             return
         self._check_pending_hint()
+
+        # During doubling phase, the responder is the OPPONENT of current_player.
+        # BotHelper.on_tick only processes current_player, so we handle this case
+        # explicitly: find the opponent bot and run their think/execute cycle.
+        gs = self.game_state
+        if gs.turn_phase == "doubling":
+            opp_color = opponent_color(gs.current_color)
+            opp = self._get_player_by_color(opp_color)
+            if opp and opp.is_bot:
+                BotHelper.process_bot_action(
+                    bot=opp,
+                    think_fn=lambda: self.bot_think(opp),
+                    execute_fn=lambda action_id: self.execute_action(opp, action_id),
+                )
+            return  # Don't run normal BotHelper — doubler shouldn't act now
+
         BotHelper.on_tick(self)
 
     def _check_pending_hint(self) -> None:
@@ -750,8 +759,12 @@ class BackgammonGame(Game):
                 break
 
         if matched_move is None or matched_die_idx is None:
+            log.warning(
+                "Illegal move: game=%s color=%s src=%s dst=%s dice=%s used=%s forced=%s",
+                gs.game_number, color, source, dest, gs.dice, gs.dice_used, self._forced_dice,
+            )
             gs.selected_source = None
-            self._bot_action_queue.clear()  # Discard stale queued moves
+            self._bot_goals.clear()  # Discard stale goals
             self.play_sound("game_chess/setdown.ogg")
             user = self.get_user(player)
             if user:
@@ -845,7 +858,7 @@ class BackgammonGame(Game):
         gs.selected_source = None
         gs.moves_this_turn = []
         self._forced_dice = None
-        self._bot_action_queue.clear()
+        self._bot_goals.clear()
 
         # Advance to other player
         opp_color = opponent_color(gs.current_color)
@@ -855,7 +868,7 @@ class BackgammonGame(Game):
             self.current_player = opp_player
             self.broadcast_personal_l(opp_player, "game-your-turn", "game-turn-start")
             if opp_player.is_bot:
-                BotHelper.jolt_bot(opp_player, ticks=random.randint(15, 30))  # nosec B311
+                BotHelper.jolt_bot(opp_player, ticks=random.randint(5, 10))  # nosec B311
 
         self.rebuild_all_menus()
 
@@ -891,6 +904,11 @@ class BackgammonGame(Game):
             player=player.name,
             value=new_value,
         )
+        # Jolt the opponent bot so they pause before responding
+        opp_color = opponent_color(player.color)
+        opp = self._get_player_by_color(opp_color)
+        if opp and opp.is_bot:
+            BotHelper.jolt_bot(opp, ticks=random.randint(3, 6))
         self.rebuild_all_menus()
 
     def _action_accept_double(self, player: Player, action_id: str) -> None:
@@ -1087,28 +1105,9 @@ class BackgammonGame(Game):
         color = player.color
 
         def _query():
-            from .gnubg import _HINT_RE, encode_position_id
-            pos_id = encode_position_id(gs)
-            with proc._lock:
-                proc._send(f"set board {pos_id}")
-                proc._read_until_idle()
-                proc._send("set turn 1")
-                proc._read_until_idle()
-                proc._send(f"set dice {unused_dice[0]} {unused_dice[1]}")
-                proc._read_until_idle()
-                proc._send("hint 3")
-                output = proc._read_until_idle()
-
-            hint_lines = []
-            for line in output:
-                m = _HINT_RE.match(line)
-                if m:
-                    rank = m.group(1)
-                    move_str = m.group(2).strip()
-                    hint_lines.append(f"{rank}. {move_str}")
-
-            if hint_lines:
-                hint_text = "; ".join(hint_lines)
+            hints = proc.get_move_hint_text(gs, color, hint_count=3)
+            if hints:
+                hint_text = "; ".join(hints)
                 return {"message_key": "backgammon-hint", "player": player_name, "hint": hint_text}
             return None
 
@@ -1181,17 +1180,6 @@ class BackgammonGame(Game):
         from .bot import _gnubg_pool
         self._hint_future = _gnubg_pool.submit(_query)
 
-    def _action_resign(self, player: Player, action_id: str) -> None:
-        if not isinstance(player, BackgammonPlayer):
-            return
-        if self.status != "playing":
-            return
-        winner_color = opponent_color(player.color)
-        winner = self._get_player_by_color(winner_color)
-        self.broadcast_l("backgammon-resigns", player=player.name)
-        if winner:
-            self._score_game(winner, self.game_state.cube_value)
-
     # ==========================================================================
     # Scoring & game end
     # ==========================================================================
@@ -1252,16 +1240,47 @@ class BackgammonGame(Game):
 
         self.broadcast_l("backgammon-new-game", number=gs.game_number)
         self._do_opening_roll()
-        BotHelper.jolt_bots(self, ticks=random.randint(12, 20))
+        BotHelper.jolt_bots(self, ticks=random.randint(4, 8))
 
     def _finish_match(self, winner: BackgammonPlayer | None) -> None:
         """End the match."""
-        self.game_active = False
-        self.status = "finished"
         cleanup_gnubg(self)
+        self._match_winner = winner
         if winner:
             self.broadcast_l("backgammon-match-winner", player=winner.name)
-        self.rebuild_all_menus()
+        self.finish_game()
+
+    def build_game_result(self) -> GameResult:
+        """Build the game result for the end screen."""
+        from datetime import datetime
+
+        gs = self.game_state
+        winner = getattr(self, "_match_winner", None)
+        red = self._get_player_by_color("red")
+        white = self._get_player_by_color("white")
+
+        return GameResult(
+            game_type=self.get_type(),
+            timestamp=datetime.now().isoformat(),
+            duration_ticks=self.sound_scheduler_tick,
+            player_results=[
+                PlayerResult(
+                    player_id=p.id,
+                    player_name=p.name,
+                    is_bot=p.is_bot,
+                    is_virtual_bot=getattr(p, "is_virtual_bot", False),
+                )
+                for p in self.players if not p.is_spectator
+            ],
+            custom_data={
+                "winner_name": winner.name if winner else None,
+                "score_red": gs.score_red,
+                "score_white": gs.score_white,
+                "match_length": gs.match_length,
+                "red_name": red.name if red else "Red",
+                "white_name": white.name if white else "White",
+            },
+        )
 
     # ==========================================================================
     # Leave handling
@@ -1537,17 +1556,6 @@ class BackgammonGame(Game):
     def _is_drop_double_hidden(self, player: Player, action_id: str = "") -> Visibility:
         return self._is_accept_double_hidden(player)
 
-    def _is_resign_enabled(self, player: Player) -> str | None:
-        if self.status != "playing":
-            return "action-not-playing"
-        return None
-
-    def _is_resign_hidden(self, player: Player) -> Visibility:
-        if self.status != "playing":
-            return Visibility.HIDDEN
-        if isinstance(player, BackgammonPlayer) and player.is_spectator:
-            return Visibility.HIDDEN
-        return Visibility.HIDDEN  # Actions menu only
 
     def _is_info_enabled(self, player: Player) -> str | None:
         if self.status != "playing":

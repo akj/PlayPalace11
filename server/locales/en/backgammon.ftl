@@ -105,9 +105,6 @@ backgammon-wins-game = { $player } wins { $points } point{ $points ->
 backgammon-new-game = Starting game { $number }.
 backgammon-match-winner = { $player } wins the match!
 backgammon-crawford = Crawford game: no doubling this game.
-backgammon-resigns = { $player } resigns.
-backgammon-resign = Resign
-
 # Difficulty levels
 backgammon-difficulty-random = Random
 backgammon-difficulty-simple = Simple

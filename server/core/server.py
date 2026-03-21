@@ -2256,7 +2256,7 @@ class Server(AdministrationMixin, DocumentBrowsingMixin, TranscriberRoleMixin):
         # Determine if user can join as player
         can_join_as_player = (
             game.status != "playing"
-            and len(game.players) < game.get_max_players()
+            and sum(1 for p in game.players if not p.is_spectator) < game.get_max_players()
         )
 
         if can_join_as_player:
@@ -2341,7 +2341,8 @@ class Server(AdministrationMixin, DocumentBrowsingMixin, TranscriberRoleMixin):
                     }
                     return
 
-            if len(game.players) >= game.get_max_players():
+            active_count = sum(1 for p in game.players if not p.is_spectator)
+            if active_count >= game.get_max_players():
                 user.speak_l("table-full")
                 self._return_from_join_menu(user, state)
                 return

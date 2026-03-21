@@ -13,7 +13,7 @@ import re
 import shutil
 import subprocess
 import threading
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 if TYPE_CHECKING:
     from .state import BackgammonGameState
@@ -145,120 +145,153 @@ def parse_hint_line(line: str) -> list[tuple[str, str, int]] | None:
     return submoves if submoves else None
 
 
-def hint_to_actions(
+def hint_to_goals(
     hint_submoves: list[tuple[str, str, int]],
     color: str,
-    dice: list[int] | None = None,
 ) -> list[tuple[int, int]]:
-    """Convert parsed GNUBG hint sub-moves to (source_idx, dest_idx) pairs.
+    """Convert parsed GNUBG hint sub-moves to checker goals.
 
-    GNUBG uses the on-roll player's perspective for point numbers.
-    We convert to absolute board indices (0-23, -1=bar, 24=off).
-
-    Compound moves (e.g. 24/14 using a 6 and a 4) are expanded into
-    individual die-sized sub-moves so the game engine can apply them
-    one at a time.
-
-    Args:
-        hint_submoves: List of (source, dest, count) from parse_hint_line.
-        color: "red" or "white" — the player on roll.
-        dice: The two dice values (e.g. [6, 4]) for expanding compound moves.
-
-    Returns:
-        List of (source_index, dest_index) pairs, one per sub-move
-        (expanded for count > 1 and compound moves).
+    Returns a list of (source_idx, dest_idx) pairs representing where
+    each checker should START and where it should END UP. These are NOT
+    individual die moves — compound moves like "24/14" become a single
+    goal (24, 14). The bot resolves each goal into individual die steps
+    at execution time using the game's legal move generator, which
+    correctly handles bar-first rules, forced dice, and overshoot.
     """
-    actions: list[tuple[int, int]] = []
-    # Movement direction on the board: Red moves high→low, White moves low→high
-    move_dir = -1 if color == "red" else 1
-
+    goals: list[tuple[int, int]] = []
     for src_str, dst_str, count in hint_submoves:
-        src = _gnubg_point_to_index(src_str, color)
-        dst = _gnubg_point_to_index(dst_str, color)
-
+        src_idx = _linear_to_index(_parse_linear(src_str), color)
+        dst_idx = _linear_to_index(_parse_linear(dst_str), color)
         for _ in range(count):
-            # Calculate pip distance to detect compound moves
-            if dst == 24:  # bear off
-                actions.append((src, dst))
-                continue
-            if src == -1:  # bar entry
-                # Bar entry: Red enters at index 24-die, White at die-1
-                # So pips = 24-dst for Red, dst+1 for White
-                if color == "red":
-                    pips = 24 - dst
-                else:
-                    pips = dst + 1
-            else:
-                pips = abs(dst - src)
-
-            # Check if this is a compound move (uses more than one die)
-            if dice and len(dice) >= 2 and not _is_single_die_move(pips, dice):
-                # Expand into individual die-sized sub-moves
-                expanded = _expand_compound_move(src, dst, pips, color, dice)
-                actions.extend(expanded)
-            else:
-                actions.append((src, dst))
-
-    return actions
+            goals.append((src_idx, dst_idx))
+    return goals
 
 
-def _is_single_die_move(pips: int, dice: list[int]) -> bool:
-    """Check if the pip distance matches a single die value."""
-    return pips in dice
+def resolve_next_action(
+    goals: list[tuple[int, int]],
+    state: "BackgammonGameState",
+    color: str,
+    forced_dice: list[int] | None = None,
+) -> str | None:
+    """Pick the next legal move that progresses toward a GNUBG goal.
 
-
-def _expand_compound_move(
-    src: int, dst: int, pips: int, color: str, dice: list[int],
-) -> list[tuple[int, int]]:
-    """Expand a compound move into individual die-sized sub-moves."""
-    # Red moves high→low (subtract), White moves low→high (add)
-    move_dir = -1 if color == "red" else 1
-    d1, d2 = dice[0], dice[1]
-
-    if d1 == d2:
-        # Doubles: each step uses one die
-        n_steps = pips // d1
-        if n_steps <= 1:
-            return [(src, dst)]
-        moves = []
-        cur = src
-        for _ in range(n_steps):
-            if cur == -1:  # bar
-                nxt = (d1 - 1) if color == "red" else (24 - d1)
-            else:
-                nxt = cur + d1 * move_dir
-            moves.append((cur, nxt))
-            cur = nxt
-        return moves
-    else:
-        # Non-doubles compound: d1 + d2 on one checker
-        if pips == d1 + d2:
-            if src == -1:  # bar
-                mid = (24 - d1) if color == "red" else (d1 - 1)
-            else:
-                mid = src + d1 * move_dir
-            return [(src, mid), (mid, dst)]
-        return [(src, dst)]
-
-
-def _gnubg_point_to_index(point_str: str, color: str) -> int:
-    """Convert a GNUBG point string to an internal board index.
-
-    GNUBG numbers from the on-roll player's perspective:
-      their point 1 is closest to bearing off.
-
-    For Red: GNUBG point N = index (N - 1)  [Red's 1-point = index 0]
-    For White: GNUBG point N = index (24 - N) [White's 1-point = index 23]
+    Examines the goal list and finds a legal move that advances a checker
+    toward its target. Modifies `goals` in place (removes completed goals,
+    updates source of in-progress goals). Returns an action string like
+    "point_{src}_{dst}", or None if no goal can be progressed.
     """
+    from .moves import generate_legal_moves
+    from .state import bar_count, remaining_dice_unique
+
+    usable_dice = remaining_dice_unique(state)
+    if forced_dice is not None:
+        usable_dice = [d for d in usable_dice if d in forced_dice]
+    if not usable_dice:
+        goals.clear()
+        return None
+
+    # Build all legal moves for quick lookup
+    legal_by_source: dict[int, list[tuple[int, int, int]]] = {}
+    for die_val in usable_dice:
+        for m in generate_legal_moves(state, color, die_val):
+            legal_by_source.setdefault(m.source, []).append(
+                (m.source, m.destination, die_val)
+            )
+
+    # If on bar, we must enter first — find a bar goal or any bar entry
+    on_bar = bar_count(state, color) > 0
+    if on_bar:
+        bar_moves = legal_by_source.get(-1, [])
+        if not bar_moves:
+            goals.clear()
+            return None
+        # Find a goal that starts from bar
+        for i, (gsrc, gdst) in enumerate(goals):
+            if gsrc == -1:
+                # Find best bar entry for this goal
+                for src, dst, dv in bar_moves:
+                    # If entering directly at the goal destination, perfect
+                    if dst == gdst:
+                        goals[i] = (gdst, gdst)  # Mark complete
+                        return f"point_{src}_{dst}"
+                # Enter anywhere legal and update goal source
+                src, dst, dv = bar_moves[0]
+                goals[i] = (dst, gdst)
+                return f"point_{src}_{dst}"
+        # No bar goal found but we're on bar — just enter
+        src, dst, dv = bar_moves[0]
+        return f"point_{src}_{dst}"
+
+    # Not on bar — try each goal in order
+    for i, (gsrc, gdst) in enumerate(goals):
+        if gsrc == gdst:
+            # Goal already complete (e.g. checker reached destination)
+            continue
+
+        moves_from_src = legal_by_source.get(gsrc, [])
+        if not moves_from_src:
+            continue
+
+        # Exact match: a legal move reaches the goal destination directly
+        for src, dst, dv in moves_from_src:
+            if dst == gdst:
+                goals[i] = (gdst, gdst)  # Mark complete
+                return f"point_{src}_{dst}"
+
+        # Partial: pick the move that gets closest to the destination
+        # For a goal that needs multiple dice (compound move), we want
+        # to advance toward the destination. "Closest" depends on color
+        # direction, but since all moves from this source go in the
+        # right direction, pick the one nearest to gdst.
+        best = None
+        best_dist = 999
+        for src, dst, dv in moves_from_src:
+            if dst == 24:
+                # Bear off — if the goal is also bear-off, great
+                if gdst == 24:
+                    goals[i] = (24, 24)
+                    return f"point_{src}_{dst}"
+                continue  # Don't bear off if the goal isn't bear-off
+            dist = abs(dst - gdst)
+            if dist < best_dist:
+                best_dist = dist
+                best = (src, dst)
+
+        if best is not None:
+            goals[i] = (best[1], gdst)  # Update source to new position
+            return f"point_{best[0]}_{best[1]}"
+
+    # No goal could be progressed — clear stale goals
+    goals.clear()
+    return None
+
+
+def _parse_linear(point_str: str) -> int:
+    """Parse a GNUBG point string to linear position (bar=25, off=0)."""
     if point_str == "bar":
-        return -1
+        return 25
     if point_str == "off":
+        return 0
+    return int(point_str)
+
+
+def _linear_to_index(pos: int, color: str) -> int:
+    """Convert a linear position to a board index.
+
+    Linear space: bar=25, points 24→1, off=0
+    Board indices: bar=-1, points 0-23, off=24
+
+    Red:   point N → index N-1  (point 1 = index 0)
+    White: point N → index 24-N (point 1 = index 23)
+    """
+    if pos == 25:  # bar
+        return -1
+    if pos <= 0:  # off (0 or negative from overshoot bear-off)
         return 24
-    n = int(point_str)
     if color == "red":
-        return n - 1
+        return pos - 1
     else:
-        return 24 - n
+        return 24 - pos
 
 
 # ---------------------------------------------------------------------------
@@ -270,7 +303,16 @@ class GnubgProcess:
 
     Uses a persistent reader thread to consume stdout lines into a queue,
     since select() doesn't work with subprocess pipes on Windows.
+
+    Commands are batched and sent together; only a single short idle wait
+    is needed after the final command to collect all output.
     """
+
+    # Idle wait after the last line of output before we consider GNUBG done.
+    # GNUBG responds in <1ms locally, so 50ms is generous.
+    _IDLE_WAIT = 0.05
+    # Longer idle wait for startup (banner can be slow).
+    _STARTUP_IDLE_WAIT = 0.5
 
     def __init__(self, ply: int = 0):
         self._proc: subprocess.Popen | None = None
@@ -298,14 +340,14 @@ class GnubgProcess:
             reader = threading.Thread(target=self._reader_loop, daemon=True)
             reader.start()
 
-            # Read startup banner
-            self._read_until_idle()
-            # Set ply depth
-            self._send(f"set evaluation chequerplay evaluation plies {self._ply}")
-            self._read_until_idle()
-            # Start a game so we can set board positions
-            self._send("new game")
-            self._read_until_idle()
+            # Read startup banner (may be slow)
+            self._read_until_idle(idle_wait=self._STARTUP_IDLE_WAIT)
+            # Set ply depth and start a game — batch these setup commands
+            self._send_batch([
+                f"set evaluation chequerplay evaluation plies {self._ply}",
+                "new game",
+            ])
+            self._read_until_idle(idle_wait=self._STARTUP_IDLE_WAIT)
             self._started = True
             log.info("GNUBG subprocess started (ply=%d)", self._ply)
             return True
@@ -342,10 +384,14 @@ class GnubgProcess:
                 self._proc = None
                 self._started = False
 
+    # ------------------------------------------------------------------
+    # Public query API
+    # ------------------------------------------------------------------
+
     def get_best_move(
         self, state: BackgammonGameState, color: str, timeout: float = 5.0
     ) -> list[tuple[int, int]] | None:
-        """Get the best move from GNUBG for the current position.
+        """Get the best move for the current position.
 
         Returns a list of (source_idx, dest_idx) pairs, or None on failure.
         """
@@ -378,12 +424,11 @@ class GnubgProcess:
     ) -> str | None:
         """Get GNUBG's cube decision for the current position.
 
-        Returns one of:
-            "double" — player should double
-            "no-double" — player should not double
-            "take" — player should accept the double
-            "drop" — player should drop the double
-            "too-good" — position too good to double (lose gammon value)
+        Always queries from the on-roll player's perspective. Returns one of:
+            "no-double"    — should not double
+            "too-good"     — too good to double (would lose gammon value)
+            "double-take"  — should double, opponent should take
+            "double-pass"  — should double, opponent should drop
             None — on failure
         """
         with self._lock:
@@ -396,31 +441,116 @@ class GnubgProcess:
                 self._restart()
                 return None
 
+    def get_cube_hint_text(
+        self, state: BackgammonGameState, color: str, timeout: float = 5.0
+    ) -> str | None:
+        """Get a human-readable cube hint string from GNUBG.
+
+        Returns the "Proper cube action" line, or None on failure.
+        """
+        with self._lock:
+            if not self._proc or not self._started:
+                return None
+            try:
+                output = self._setup_and_query_cube(state, color, timeout)
+                for line in output:
+                    if "Proper cube action" in line:
+                        return line.strip()
+                return None
+            except Exception as e:
+                log.warning("GNUBG cube hint failed: %s", e)
+                self._restart()
+                return None
+
+    def get_move_hint_text(
+        self,
+        state: BackgammonGameState,
+        color: str,
+        hint_count: int = 3,
+        timeout: float = 5.0,
+    ) -> list[str] | None:
+        """Get ranked move hints as human-readable strings.
+
+        Returns a list like ["1. 8/5 6/5", "2. 13/7"] or None on failure.
+        """
+        with self._lock:
+            if not self._proc or not self._started:
+                return None
+            try:
+                unused_dice = [d for d, u in zip(state.dice, state.dice_used) if not u]
+                if len(unused_dice) < 2:
+                    return None
+
+                self._send_batch([
+                    *self._position_commands(state),
+                    f"set dice {unused_dice[0]} {unused_dice[1]}",
+                    f"hint {hint_count}",
+                ])
+                output = self._read_until_idle(timeout=timeout)
+
+                hints = []
+                for line in output:
+                    m = _HINT_RE.match(line)
+                    if m:
+                        hints.append(f"{m.group(1)}. {m.group(2).strip()}")
+                return hints or None
+            except Exception as e:
+                log.warning("GNUBG move hint failed: %s", e)
+                self._restart()
+                return None
+
+    # ------------------------------------------------------------------
+    # Internal query implementations
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _position_commands(state: BackgammonGameState) -> list[str]:
+        """Build the commands to set up a board position."""
+        return [
+            f"set board {encode_position_id(state)}",
+            "set turn 1",
+        ]
+
+    @staticmethod
+    def _cube_commands(state: BackgammonGameState, color: str) -> list[str]:
+        """Build the commands to set up cube state."""
+        cmds = [f"set cube value {state.cube_value}"]
+        if not state.cube_owner:
+            cmds.append("set cube centre")
+        elif state.cube_owner == color:
+            cmds.append("set cube owner 1")  # on-roll player
+        else:
+            cmds.append("set cube owner 0")  # opponent
+        return cmds
+
+    def _setup_and_query_cube(
+        self, state: BackgammonGameState, color: str, timeout: float,
+    ) -> list[str]:
+        """Set position + cube, send hint 0, return raw output lines."""
+        self._send_batch([
+            *self._position_commands(state),
+            *self._cube_commands(state, color),
+            "hint 0",
+        ])
+        return self._read_until_match(
+            lambda line: "proper cube action" in line.lower()
+            or (line.strip().startswith("1.") and "No double" in line),
+            timeout=timeout,
+        )
+
     def _query_cube(
         self, state: BackgammonGameState, color: str, timeout: float,
     ) -> str | None:
-        """Send position to GNUBG and parse the cube evaluation."""
-        pos_id = encode_position_id(state)
+        """Send position to GNUBG and parse the cube evaluation.
 
-        self._send(f"set board {pos_id}")
-        self._read_until_idle()
-        self._send("set turn 1")
-        self._read_until_idle()
-
-        # Set cube state
-        self._send(f"set cube value {state.cube_value}")
-        self._read_until_idle()
-        if not state.cube_owner:
-            self._send("set cube centre")
-        elif state.cube_owner == color:
-            self._send("set cube owner 1")  # on-roll player
-        else:
-            self._send("set cube owner 0")  # opponent
-        self._read_until_idle()
-
-        # hint 0 = cube analysis only (no dice set)
-        self._send("hint 0")
-        output = self._read_until_idle()
+        Returns one of:
+            "no-double"    — should not double
+            "too-good"     — too good to double (would lose gammon value)
+            "double-take"  — should double, opponent should take
+            "double-pass"  — should double, opponent should drop
+            None           — on failure
+        """
+        output = self._setup_and_query_cube(state, color, timeout)
 
         # Parse "Proper cube action:" line
         for line in output:
@@ -428,21 +558,17 @@ class GnubgProcess:
             if "proper cube action" not in low:
                 continue
             if "no double" in low or "no redouble" in low:
-                if "beaver" in low:
-                    return "no-double"
                 if "too good" in low:
                     return "too-good"
                 return "no-double"
             if "double" in low or "redouble" in low:
                 if "pass" in low or "drop" in low:
-                    return "double"  # double because opponent should drop
-                if "take" in low:
-                    return "double"  # double, opponent will take but it's still correct
-                return "double"
+                    return "double-pass"
+                return "double-take"  # "take" or unqualified double
             if "take" in low:
-                return "take"
+                return "double-take"  # opponent asked, should take
             if "pass" in low or "drop" in low:
-                return "drop"
+                return "double-pass"  # opponent asked, should drop
 
         # Fallback: parse the cubeful equities to decide
         # Line format: "1. No double           +0.098"
@@ -454,12 +580,12 @@ class GnubgProcess:
                     equities["no-double"] = float(line_s.split()[-1])
                 except ValueError:
                     pass
-            elif line_s.startswith("2.") and "pass" in line_s.lower():
+            elif "pass" in line_s.lower() and "Double" in line_s:
                 try:
                     equities["double-pass"] = float(line_s.split()[-2])
                 except (ValueError, IndexError):
                     pass
-            elif line_s.startswith("3.") and "take" in line_s.lower():
+            elif "take" in line_s.lower() and "Double" in line_s:
                 try:
                     equities["double-take"] = float(line_s.split()[-2])
                 except (ValueError, IndexError):
@@ -472,77 +598,41 @@ class GnubgProcess:
             best = max(nd, dt, dp)
             if best == nd:
                 return "no-double"
-            return "double"
+            if best == dp:
+                return "double-pass"
+            return "double-take"
 
         return None
-
-    def get_cube_hint_text(
-        self, state: BackgammonGameState, color: str, timeout: float = 5.0
-    ) -> str | None:
-        """Get a human-readable cube hint string from GNUBG.
-
-        Returns the full cube analysis text, or None on failure.
-        """
-        with self._lock:
-            if not self._proc or not self._started:
-                return None
-            try:
-                pos_id = encode_position_id(state)
-                self._send(f"set board {pos_id}")
-                self._read_until_idle()
-                self._send("set turn 1")
-                self._read_until_idle()
-
-                self._send(f"set cube value {state.cube_value}")
-                self._read_until_idle()
-                if not state.cube_owner:
-                    self._send("set cube centre")
-                elif state.cube_owner == color:
-                    self._send("set cube owner 1")
-                else:
-                    self._send("set cube owner 0")
-                self._read_until_idle()
-
-                self._send("hint 0")
-                output = self._read_until_idle()
-
-                # Extract the "Proper cube action" line
-                for line in output:
-                    if "Proper cube action" in line:
-                        return line.strip()
-                return None
-            except Exception as e:
-                log.warning("GNUBG cube hint failed: %s", e)
-                self._restart()
-                return None
 
     def _query_hint(
         self, state: BackgammonGameState, color: str, timeout: float,
         pick_worst: bool = False,
     ) -> list[tuple[int, int]] | None:
-        """Send position to GNUBG and parse the hint response."""
-        pos_id = encode_position_id(state)
+        """Send position to GNUBG and parse the hint response.
 
-        self._send(f"set board {pos_id}")
-        self._read_until_idle()
-
-        self._send("set turn 1")
-        self._read_until_idle()
-
+        Returns a list of checker goals as (source_idx, dest_idx) pairs.
+        These are final destinations, not individual die steps.
+        """
         unused_dice = [d for d, u in zip(state.dice, state.dice_used) if not u]
         if len(unused_dice) < 2:
             if unused_dice:
                 d = unused_dice[0]
                 unused_dice = [d, d]
             else:
+                log.debug("GNUBG query skipped: no unused dice")
                 return None
-        self._send(f"set dice {unused_dice[0]} {unused_dice[1]}")
-        self._read_until_idle()
 
-        # Request many hints for Whackgammon, just 1 for normal play
         hint_count = 20 if pick_worst else 1
-        self._send(f"hint {hint_count}")
-        output = self._read_until_idle()
+        self._send_batch([
+            *self._position_commands(state),
+            f"set dice {unused_dice[0]} {unused_dice[1]}",
+            f"hint {hint_count}",
+        ])
+        output = self._read_until_match(
+            lambda line: _HINT_RE.match(line) is not None,
+            timeout=timeout,
+        )
+        log.debug("GNUBG hint response: %d lines", len(output))
 
         # Parse all hint lines
         last_submoves = None
@@ -556,26 +646,48 @@ class GnubgProcess:
 
         chosen = last_submoves if pick_worst else first_submoves
         if chosen:
-            return hint_to_actions(chosen, color, dice=unused_dice)
+            goals = hint_to_goals(chosen, color)
+            log.debug("GNUBG goals: %s", goals)
+            return goals
+        log.debug("GNUBG: no hint parsed from output")
         return None
 
+    # ------------------------------------------------------------------
+    # Low-level I/O
+    # ------------------------------------------------------------------
+
     def _send(self, command: str) -> None:
-        """Send a command to GNUBG."""
+        """Send a single command to GNUBG."""
         if self._proc and self._proc.stdin:
             self._proc.stdin.write(command + "\n")
             self._proc.stdin.flush()
 
-    def _read_until_idle(self, timeout: float = 5.0) -> list[str]:
-        """Read GNUBG output from the persistent reader queue until idle.
+    def _send_batch(self, commands: list[str]) -> None:
+        """Send multiple commands to GNUBG at once.
 
-        We consider GNUBG idle when no new output arrives for 0.3s
-        after receiving at least one line.
+        All commands are written before flushing, so GNUBG processes them
+        back-to-back with no idle gaps between them.
+        """
+        if self._proc and self._proc.stdin:
+            self._proc.stdin.write("".join(cmd + "\n" for cmd in commands))
+            self._proc.stdin.flush()
+
+    def _read_until_idle(
+        self, timeout: float = 5.0, idle_wait: float | None = None,
+    ) -> list[str]:
+        """Read GNUBG output from the queue until idle.
+
+        GNUBG is considered idle when no new output arrives for `idle_wait`
+        seconds after receiving at least one line. Use only for startup/setup
+        where there's no specific pattern to wait for.
         """
         import time
 
+        if idle_wait is None:
+            idle_wait = self._IDLE_WAIT
+
         lines: list[str] = []
         deadline = time.monotonic() + timeout
-        idle_wait = 0.3
 
         while time.monotonic() < deadline:
             remaining = deadline - time.monotonic()
@@ -590,6 +702,55 @@ class GnubgProcess:
                     break
 
         return lines
+
+    def _read_until_match(
+        self, predicate: Callable[[str], bool],
+        timeout: float = 5.0,
+    ) -> list[str]:
+        """Read GNUBG output until a line matches the predicate.
+
+        Returns all lines read (including the match). This is the correct
+        way to wait for query results — it doesn't depend on idle timing,
+        so it works regardless of how long GNUBG takes to compute.
+        """
+        import time
+
+        lines: list[str] = []
+        deadline = time.monotonic() + timeout
+
+        while time.monotonic() < deadline:
+            remaining = deadline - time.monotonic()
+            try:
+                item = self._output_queue.get(timeout=max(0.01, remaining))
+                if item is None:  # EOF
+                    break
+                lines.append(item)
+                if predicate(item):
+                    # Drain any remaining quick output (e.g. multi-hint)
+                    self._drain_quick(lines)
+                    break
+            except queue.Empty:
+                pass
+
+        return lines
+
+    def _drain_quick(self, lines: list[str]) -> None:
+        """Drain any output that arrives quickly after a match.
+
+        After seeing the first hint line, there may be more (equity details,
+        additional hints for pick_worst). Grab them without a long wait.
+        """
+        import time
+        deadline = time.monotonic() + self._IDLE_WAIT
+        while time.monotonic() < deadline:
+            remaining = deadline - time.monotonic()
+            try:
+                item = self._output_queue.get(timeout=max(0.001, remaining))
+                if item is None:
+                    break
+                lines.append(item)
+            except queue.Empty:
+                break
 
     def _restart(self) -> None:
         """Kill and restart the subprocess."""
