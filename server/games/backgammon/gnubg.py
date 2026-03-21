@@ -486,7 +486,10 @@ class GnubgProcess:
                     f"set dice {unused_dice[0]} {unused_dice[1]}",
                     f"hint {hint_count}",
                 ])
-                output = self._read_until_idle(timeout=timeout)
+                output = self._read_until_match(
+                    lambda line: _HINT_RE.match(line) is not None,
+                    timeout=timeout,
+                )
 
                 hints = []
                 for line in output:
