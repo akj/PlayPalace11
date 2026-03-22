@@ -35,8 +35,8 @@ backgammon-accept = Accept
 backgammon-drop = Drop
 
 # Point labels
-backgammon-point-empty = { $point } empty
-backgammon-point-empty-selected = { $point } empty selected
+backgammon-point-empty = { $point }
+backgammon-point-empty-selected = { $point } selected
 backgammon-point-occupied = { $point } { $color }, { $count }
 backgammon-point-occupied-selected = { $point } { $color }, { $count } selected
 

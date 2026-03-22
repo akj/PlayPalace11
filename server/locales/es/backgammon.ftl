@@ -35,8 +35,8 @@ backgammon-accept = Aceptar
 backgammon-drop = Rechazar
 
 # Etiquetas de puntos
-backgammon-point-empty = { $point } vacío
-backgammon-point-empty-selected = { $point } vacío seleccionado
+backgammon-point-empty = { $point }
+backgammon-point-empty-selected = { $point } seleccionado
 backgammon-point-occupied = { $point } { $color }, { $count }
 backgammon-point-occupied-selected = { $point } { $color }, { $count } seleccionado
 
