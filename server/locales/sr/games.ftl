@@ -61,11 +61,11 @@ option-selected-count = { $count } { $count ->
     [few] stavke izabrane
     *[other] stavki izabrano
 }.
-+option-deselected-count = { $count } { $count ->
+option-deselected-count = { $count } { $count ->
     [one] stavka nije izabrana
     [few] stavke nisu izabrane
     *[other] stavki nije izabrano
-+}.
+}.
 
 # Status box
 status-box-closed = Informacije o stanju zatvorene.
@@ -82,8 +82,8 @@ round-timer-countdown = Sledeća runda za { $seconds }...
 dice-keeping = Zadržava se { $value }.
 dice-rerolling = Ponovo se baca { $value }.
 dice-locked = Ova kockica je zaključana i ne može se promeniti.
-dice-status-locked = locked
-dice-status-kept = kept
+dice-status-locked = Zaključana
+dice-status-kept = Zadržana
 
 # Dealing (card games)
 game-deal-counter = Deljenje { $current }/{ $total }.
@@ -108,6 +108,12 @@ color-red = Crvena
 color-violet = Ljubičasta
 color-white = Bela
 color-yellow = Žuta
+
+# Gendered color forms (m = masculine, f = feminine) — same in English
+color-white-m = beli
+color-white-f = bela
+color-black-m = crni
+color-black-f = crna
 
 # Suit names
 suit-diamonds = Karo

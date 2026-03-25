@@ -5,7 +5,7 @@ import random
 
 from ..base import Game, Player, GameOptions
 from ..registry import register_game
-from ...game_utils.actions import Action, ActionSet, Visibility
+from ...game_utils.actions import Action, ActionSet, Visibility, EditboxInput, MenuInput
 from ...game_utils.game_result import GameResult, PlayerResult
 
 from ...game_utils.options import MenuOption, BoolOption, option_field
@@ -73,6 +73,18 @@ def piece_name(piece: str, locale: str) -> str:
     if key:
         return Localization.get(locale, key)
     return piece
+
+
+def piece_color_name(piece: str, color: str, locale: str) -> str:
+    """Get the grammatically correct localized color word for a piece.
+
+    Looks up the piece's gender from chess-piece-{piece}-gender, then
+    returns color-{color}-m or color-{color}-f accordingly.
+    """
+    gender = Localization.get(locale, f"chess-piece-{piece}-gender")
+    if gender not in ("m", "f"):
+        gender = "m"
+    return Localization.get(locale, f"color-{color}-{gender}")
 
 
 @dataclass
@@ -355,11 +367,16 @@ class ChessGame(Game):
         # Resign
         action_set.add(Action(
             id="resign",
-            label=Localization.get(locale, "chess-you-resign", opponent=""),
+            label=Localization.get(locale, "chess-resign"),
             handler="_action_resign",
             is_enabled="_is_resign_enabled",
             is_hidden="_is_resign_hidden",
             show_in_actions_menu=True,
+            input_request=MenuInput(
+                prompt="chess-resign-confirm",
+                options="_resign_confirm_options",
+                include_cancel=False,
+            ),
         ))
 
         return action_set
@@ -390,6 +407,14 @@ class ChessGame(Game):
                 is_hidden="_is_always_hidden",
             ),
             Action(
+                id="type_move",
+                label=Localization.get(locale, "chess-type-move"),
+                handler="_action_type_move",
+                is_enabled="_is_type_move_enabled",
+                is_hidden="_is_always_hidden",
+                input_request=EditboxInput(prompt="chess-enter-move"),
+            ),
+            Action(
                 id="import_fen",
                 label=Localization.get(locale, "chess-import-fen"),
                 handler="_action_import_fen",
@@ -416,6 +441,7 @@ class ChessGame(Game):
         super().setup_keybinds()
         self.define_keybind("b", "View board", ["view_board"], state=KeybindState.ACTIVE, include_spectators=True)
         self.define_keybind("s", "Check status", ["check_status"], state=KeybindState.ACTIVE, include_spectators=True)
+        self.define_keybind("m", "Type a move", ["type_move"], state=KeybindState.ACTIVE)
         self.define_keybind("i", "Import FEN", ["import_fen"], state=KeybindState.ACTIVE)
         self.define_keybind("shift+t", "Turn timer", ["check_turn_timer"], state=KeybindState.ACTIVE, include_spectators=True)
         self.define_keybind("shift+f", "Flip board", ["flip_board"], state=KeybindState.ACTIVE, include_spectators=True)
@@ -507,6 +533,10 @@ class ChessGame(Game):
         white_player = self._get_player_by_color("white")
         black_player = self._get_player_by_color("black")
 
+        # Default orientation: black player views from black's side
+        if black_player:
+            self.board_flipped[black_player.id] = True
+
         # Initialize board
         self._init_board()
 
@@ -549,7 +579,6 @@ class ChessGame(Game):
 
         self._start_turn_timer()
         self.rebuild_all_menus()
-
         self.broadcast_personal_l(player, "game-your-turn", "game-turn-start")
 
         if player.is_bot:
@@ -603,6 +632,11 @@ class ChessGame(Game):
             if isinstance(player, ChessPlayer):
                 self._action_square_click(player, action_id)
                 return
+        # Speak the confirmation prompt before the resign menu appears
+        if action_id == "resign" and input_value is None and not player.is_bot:
+            user = self.get_user(player)
+            if user:
+                user.speak_l("chess-resign-confirm")
         super().execute_action(player, action_id, input_value=input_value, context=context)
 
     # ==========================================================================
@@ -1039,7 +1073,6 @@ class ChessGame(Game):
 
         self.halfmove_clock += 1
         self.en_passant_target = -1
-        self.position_history.append(self._get_position_hash())
 
     # ==========================================================================
     # Move execution
@@ -1599,7 +1632,8 @@ class ChessGame(Game):
                 if user:
                     notation = index_to_notation(sq_index)
                     p_name = piece_name(piece["piece"], locale)
-                    user.speak_l("chess-you-select", piece=f"{piece['color']} {p_name}", square=notation)
+                    color_name = piece_color_name(piece["piece"], piece["color"], locale)
+                    user.speak_l("chess-you-select", piece=f"{color_name} {p_name}", square=notation)
                 self.update_player_menu(player)
             else:
                 user = self.get_user(player)
@@ -1653,6 +1687,114 @@ class ChessGame(Game):
         self._broadcast_move(player, "chess-you-promote", "chess-player-promotes", pieces={"piece": piece_type}, square=notation)
 
         self._post_move_checks(player)
+
+    def _action_type_move(self, player: Player, input_value: str, action_id: str) -> None:
+        """Execute a move typed by the player in text notation."""
+        if not isinstance(player, ChessPlayer):
+            return
+        user = self.get_user(player)
+        text = input_value.strip() if input_value else ""
+        if not text:
+            return
+        from_sq, to_sq, promotion = self._parse_move_text(text, player.color)
+        if from_sq is None or to_sq is None:
+            if user:
+                user.speak_l("chess-move-parse-error")
+            return
+        legal, _ = self._is_legal_move(from_sq, to_sq, player.color)
+        if not legal:
+            if user:
+                user.speak_l("chess-illegal-move")
+            return
+        self._execute_move_full(player, from_sq, to_sq)
+        if promotion and self.promotion_pending and player.color == self.current_color:
+            self._action_promote(player, f"promote_{promotion}")
+
+    def _parse_move_text(self, text: str, color: str) -> tuple[int | None, int | None, str]:
+        """Parse typed move text into (from_sq, to_sq, promotion_piece).
+
+        Accepted formats:
+          - o-o / O-O / 0-0            kingside castle
+          - o-o-o / O-O-O / 0-0-0      queenside castle
+          - e2-e4  or  e2e4            coordinate move (hyphen optional)
+          - pe2-e4 / Pe2-E4            piece-prefixed coordinate move (prefix ignored)
+          - e2xe4                      capture notation (x treated like -)
+          - e7-e8=q                    promotion, piece appended after =
+          - e1-g1 / e1-h1             remapped to kingside castle for white
+          - e1-c1 / e1-d1 / e1-a1     remapped to queenside castle for white
+          - e8-g8 / e8-h8             remapped to kingside castle for black
+          - e8-c8 / e8-d8 / e8-a8     remapped to queenside castle for black
+
+        Returns (None, None, "") on parse failure.
+        """
+        s = text.strip().lower().rstrip("+#!")
+
+        rank = 0 if color == "white" else 7
+
+        # Castling symbolic notation
+        if s in ("o-o-o", "0-0-0"):
+            king_sq = rank * 8 + 4
+            return king_sq, rank * 8 + 2, ""
+        if s in ("o-o", "0-0"):
+            king_sq = rank * 8 + 4
+            return king_sq, rank * 8 + 6, ""
+
+        # Strip optional piece prefix (p n b r q k).
+        # Special case: "b" is ambiguous — strip it as a bishop prefix only when
+        # the next character is a file letter (a-h), e.g. "bc1-e3". If the next
+        # character is a digit it is the b-file coordinate, e.g. "b1-c3".
+        if s and s[0] in "pnrqk":
+            s = s[1:]
+        elif len(s) >= 2 and s[0] == "b" and s[1] in "abcdefgh":
+            s = s[1:]
+
+        # Promotion suffix:  ...=q
+        promotion = ""
+        if "=" in s:
+            s, promo_str = s.split("=", 1)
+            piece_map = {"q": "queen", "r": "rook", "b": "bishop", "n": "knight"}
+            promotion = piece_map.get(promo_str.strip()[:1], "")
+
+        # Normalise separator: allow hyphen, x, or nothing
+        # Expect exactly 4 chars after normalisation: e2e4
+        s = s.replace("-", "").replace("x", "")
+
+        if len(s) != 4:
+            return None, None, ""
+
+        from_str = s[0:2]
+        to_str = s[2:4]
+
+        from_sq = notation_to_index(from_str)
+        to_sq = notation_to_index(to_str)
+
+        if from_sq is None or to_sq is None:
+            return None, None, ""
+
+        # Remap castling shorthands where the player typed the rook square or
+        # an intermediate square instead of the king's destination.
+        king_file = 4  # e-file
+        if from_sq % 8 == king_file and from_sq // 8 == rank:
+            to_file = to_sq % 8
+            if to_file == 7:   # h-file  ->  kingside (g-file)
+                to_sq = rank * 8 + 6
+            elif to_file == 0:  # a-file  ->  queenside (c-file)
+                to_sq = rank * 8 + 2
+            elif to_file == 3:  # d-file  ->  queenside (c-file)
+                to_sq = rank * 8 + 2
+
+        return from_sq, to_sq, promotion
+
+    def _is_type_move_enabled(self, player: Player) -> str | None:
+        if self.status != "playing":
+            return "action-not-playing"
+        if not isinstance(player, ChessPlayer):
+            return "action-not-available"
+        if player.color != self.current_color:
+            return "action-not-your-turn"
+        if self.game_over or self.promotion_pending:
+            return "action-not-available"
+        return None
 
     def _action_offer_draw(self, player: Player, action_id: str) -> None:
         if not isinstance(player, ChessPlayer):
@@ -1747,10 +1889,21 @@ class ChessGame(Game):
         self.broadcast_personal_l(player, "chess-you-decline-undo", "chess-player-declines-undo")
         self.rebuild_all_menus()
 
-    def _action_resign(self, player: Player, action_id: str) -> None:
+    def _resign_confirm_options(self, player: Player) -> list[str]:
+        locale = self._player_locale(player)
+        return [
+            Localization.get(locale, "chess-resign-yes"),
+            Localization.get(locale, "chess-resign-no"),
+        ]
+
+    def _action_resign(self, player: Player, input_value: str, action_id: str) -> None:
         if not isinstance(player, ChessPlayer):
             return
         if self.game_over:
+            return
+
+        locale = self._player_locale(player)
+        if input_value != Localization.get(locale, "chess-resign-yes"):
             return
 
         opponent_color = "black" if player.color == "white" else "white"
@@ -1895,11 +2048,13 @@ class ChessGame(Game):
             if selected == sq_index:
                 if sq:
                     p_name = piece_name(sq["piece"], locale)
-                    return f"[{notation}: {sq['color']} {p_name}]"
+                    color_name = piece_color_name(sq["piece"], sq["color"], locale)
+                    return f"[{notation}: {color_name} {p_name}]"
 
         if sq:
             p_name = piece_name(sq["piece"], locale)
-            return f"{notation}: {sq['color']} {p_name}"
+            color_name = piece_color_name(sq["piece"], sq["color"], locale)
+            return f"{notation}: {color_name} {p_name}"
         return notation
 
     def _is_promote_enabled(self, player: Player) -> str | None:

@@ -105,6 +105,12 @@ color-violet = violet
 color-white = white
 color-yellow = yellow
 
+# Gendered color forms (m = masculine, f = feminine) — same in English
+color-white-m = white
+color-white-f = white
+color-black-m = black
+color-black-f = black
+
 # Suit names
 suit-diamonds = diamonds
 suit-clubs = clubs
