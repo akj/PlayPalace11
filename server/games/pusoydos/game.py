@@ -957,13 +957,13 @@ class PusoyDosGame(Game, TurnTimerMixin):
         if not user:
             return
 
-        lines = []
+        parts = []
         for p in self._playing_players():
-            lines.append(Localization.get(user.locale, "pusoydos-card-count-line",
-                                          player=p.name, count=len(p.hand)))
+            if p.id in self.turn_player_ids:
+                parts.append(f"{p.name} {len(p.hand)}")
 
-        if lines:
-            user.speak("; ".join(lines), buffer="table")
+        if parts:
+            user.speak(", ".join(parts))
 
     def _action_check_turn_timer(self, player: Player, action_id: str) -> None:
         user = self.get_user(player)

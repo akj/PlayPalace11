@@ -322,7 +322,7 @@ class TestFirstTurn:
 
 class TestPlayValidation:
     def _setup_mid_game(self):
-        game, players = _make_game(4)
+        game, players = _make_game(4, instant_wins=False)
         game.on_start()
 
         game.is_first_turn = False

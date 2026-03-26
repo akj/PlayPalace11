@@ -194,7 +194,6 @@ pusoydos-trick-won = { $player } wins the trick.
 pusoydos-trick-empty = The trick is empty.
 pusoydos-trick-status = { $player } played a { $combo } of { $cards }.
 pusoydos-your-hand = Your hand: { $cards }.
-pusoydos-card-count-line = { $player } has { $count } cards
 
 pusoydos-one-card = { $player } has one card left!
 
