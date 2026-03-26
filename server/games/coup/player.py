@@ -13,6 +13,7 @@ class CoupPlayer(Player):
     coins: int = 0
     influences: list[Card] = field(default_factory=list)
     is_dead: bool = False
+    action_history: list[str] = field(default_factory=list)
 
     @property
     def live_influences(self) -> list[Card]:

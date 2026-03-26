@@ -9,12 +9,28 @@ if TYPE_CHECKING:
     from .game import CoupGame
     from .player import CoupPlayer
 
+# How many recent actions to track for repetition decay
+ACTION_HISTORY_WINDOW = 4
+# Multiplier applied per occurrence of an action in recent history
+REPETITION_DECAY = 0.6
+
 
 class CoupBot(BotHelper):
     """Dedicated Bot class for Coup."""
 
     @classmethod
-    def select_best_target(cls, game: "CoupGame", player: "Player", options: list[str]) -> str | None:
+    def _record_action(cls, player: "CoupPlayer", action: str) -> None:
+        """Push an action into the bot's history and trim to window size."""
+        player.action_history.append(action)
+        if len(player.action_history) > ACTION_HISTORY_WINDOW:
+            player.action_history = player.action_history[-ACTION_HISTORY_WINDOW:]
+
+    @classmethod
+    def _is_two_player(cls, game: "CoupGame") -> bool:
+        return len(game.get_alive_players()) == 2
+
+    @classmethod
+    def select_best_target(cls, game: "CoupGame", player: "CoupPlayer", options: list[str]) -> str | None:
         if not options:
             return None
 
@@ -116,9 +132,6 @@ class CoupBot(BotHelper):
         elif game.turn_phase == "losing_influence":
             target = game.get_player_by_id(game._losing_player_id)
             if target and target.is_bot:
-                # Bots don't need a pending action loop for lose_influence/exchange
-                # if we just execute it directly, but let's adhere to the structure or
-                # directly process the logic if it's their turn to lose influence.
                 if target.bot_think_ticks > 0:
                     target.bot_think_ticks -= 1
                 else:
@@ -137,8 +150,14 @@ class CoupBot(BotHelper):
                 cls.process_bot_action(
                     bot=current,
                     think_fn=lambda: cls.bot_think(game, current),
-                    execute_fn=lambda action_id: game.execute_action(current, action_id),
+                    execute_fn=lambda action_id: cls._execute_and_record(game, current, action_id),
                 )
+
+    @classmethod
+    def _execute_and_record(cls, game: "CoupGame", player: "CoupPlayer", action_id: str) -> None:
+        """Execute the action and record it in the bot's history."""
+        cls._record_action(player, action_id)
+        game.execute_action(player, action_id)
 
     @classmethod
     def bot_think(cls, game: "CoupGame", player: "CoupPlayer") -> str | None:
@@ -233,13 +252,38 @@ class CoupBot(BotHelper):
             claims = game.player_claims[claimer.id]
             live_count = len(claimer.live_influences)
             if len(claims) > live_count:
-                base_chance += 0.25  # Increase challenge chance significantly, but don't guarantee it to avoid bot suicide.
+                base_chance += 0.25
 
         # Aggression towards threats
         if claimer.coins >= 7:
             base_chance += 0.15 # Need to stop them
         if game.active_target_id == bot.id and game.active_action == "assassinate":
             base_chance += 0.30 # Desperation
+
+        # --- Stake-based reluctance ---
+        # Bystanders who aren't targeted have less reason to stick their neck out.
+        is_target = game.active_target_id == bot.id
+        two_player = cls._is_two_player(game)
+
+        if two_player:
+            # In heads-up, you're always affected — increase aggression
+            base_chance *= 1.3
+        elif not is_target:
+            # Bystander: check if the action is dangerous to the table
+            claimer_coins_after = claimer.coins
+            if game.active_action == "tax":
+                claimer_coins_after += 3
+            elif game.active_action == "foreign_aid":
+                claimer_coins_after += 2
+            elif game.active_action == "steal":
+                claimer_coins_after += 2
+
+            if claimer_coins_after >= 7:
+                # Action brings claimer to coup range — moderate concern
+                base_chance *= 0.6
+            else:
+                # Low-stakes bystander — heavy reluctance
+                base_chance *= 0.2
 
         # Cap the challenge chance so it's not guaranteed unless 100% proven
         challenge_chance = min(base_chance, 0.45)
@@ -252,6 +296,8 @@ class CoupBot(BotHelper):
 
         Returns the action ID to execute, or None if not blocking.
         """
+        past_claims = game.player_claims.get(bot.id, set())
+
         if game.active_action == "steal" and game.active_target_id == bot.id:
             should_block = False
             if bot.has_influence("captain") or bot.has_influence("ambassador"):
@@ -265,25 +311,62 @@ class CoupBot(BotHelper):
                 elif bot.has_influence("ambassador"):
                     return "block_ambassador"
                 else:
-                    # Bluffing — pick randomly
-                    return random.choice(["block_captain", "block_ambassador"])
+                    # Bluffing — prefer consistency with past claims
+                    if "captain" in past_claims:
+                        return "block_captain"
+                    elif "ambassador" in past_claims:
+                        return "block_ambassador"
+                    else:
+                        return random.choice(["block_captain", "block_ambassador"])
+
         elif game.active_action == "assassinate" and game.active_target_id == bot.id:
             if bot.has_influence("contessa"):
                 return "block"
-            if random.random() < 0.35:
+            # Bluff block — prefer if we've previously claimed contessa
+            bluff_chance = 0.35
+            if "contessa" in past_claims:
+                bluff_chance = 0.55
+            if random.random() < bluff_chance:
                 return "block"
+
         elif game.active_action == "foreign_aid":
+            claimer = game.get_player_by_id(game.active_claimer_id)
+            claimer_coins_after = (claimer.coins + 2) if claimer else 0
+
+            # Determine if the claimer is suspected of having an assassin
+            claimer_claims = game.player_claims.get(game.active_claimer_id, set()) if game.active_claimer_id else set()
+            suspects_assassin = "assassin" in claimer_claims
+
             if bot.has_influence("duke"):
-                if random.random() < 0.85:
-                    return "block"
-            else:
-                past_claims = game.player_claims.get(bot.id, set())
-                if "duke" in past_claims:
-                    if random.random() < 0.60:
+                # We actually have the duke — block strategically, not reflexively
+                if claimer_coins_after >= 7:
+                    # They'd reach coup range — almost always block
+                    if random.random() < 0.90:
+                        return "block"
+                elif claimer_coins_after >= 3 and suspects_assassin:
+                    # They could assassinate us soon — proactive block
+                    if random.random() < 0.65:
                         return "block"
                 else:
-                    if random.random() < 0.10:
+                    # Low-stakes: blocking reveals duke for no real gain
+                    if random.random() < 0.15:
                         return "block"
+            else:
+                # Bluff blocking foreign aid as duke
+                if claimer_coins_after >= 7:
+                    # Desperate — worth the bluff to stop a coup
+                    bluff_chance = 0.30
+                    if "duke" in past_claims:
+                        bluff_chance = 0.50
+                    if random.random() < bluff_chance:
+                        return "block"
+                elif claimer_coins_after >= 3 and suspects_assassin:
+                    bluff_chance = 0.10
+                    if "duke" in past_claims:
+                        bluff_chance = 0.25
+                    if random.random() < bluff_chance:
+                        return "block"
+                # Otherwise don't bluff-block low-stakes foreign aid
 
         return None
 
@@ -294,6 +377,8 @@ class CoupBot(BotHelper):
             return "coup"
         if bot.coins >= 7:
             return "coup"
+
+        two_player = cls._is_two_player(game)
 
         # Calculate base utilities
         utilities = {
@@ -359,7 +444,8 @@ class CoupBot(BotHelper):
                         utilities[action] += int(utility_bonus * 0.8) # Maintain consistency!
                     else:
                         # Only occasionally decide to start a new bluff
-                        if random.random() < 0.35:
+                        bluff_threshold = 0.25 if two_player else 0.35
+                        if random.random() < bluff_threshold:
                             utilities[action] += utility_bonus
                         else:
                             utilities[action] = max(0, utilities[action] - 15)
@@ -372,6 +458,36 @@ class CoupBot(BotHelper):
         # Ensure only available actions are selected
         if bot.coins < 3: utilities["assassinate"] = 0
         if not has_good_steal_target: utilities["steal"] = 0
+
+        # --- Repetition decay: penalize actions the bot has spammed recently ---
+        for action in utilities:
+            if utilities[action] > 0:
+                repeats = bot.action_history.count(action)
+                if repeats > 0:
+                    utilities[action] = int(utilities[action] * (REPETITION_DECAY ** repeats))
+
+        # --- Winning position passivity: coast to coup when dominant ---
+        if len(bot.live_influences) == 2:
+            bot_coins = bot.coins
+            is_richest = all(
+                p.coins <= bot_coins
+                for p in game.get_alive_players()
+                if p.id != bot.id
+            )
+            if is_richest and bot_coins >= 5:
+                # Dominant position — favor safe income to avoid drawing attention
+                utilities["income"] += 25
+                utilities["foreign_aid"] += 15
+                utilities["assassinate"] = max(0, int(utilities["assassinate"] * 0.6))
+                utilities["steal"] = max(0, int(utilities["steal"] * 0.6))
+
+        # --- Two-player endgame: bias toward coup-oriented play ---
+        if two_player:
+            # In heads-up, the meta is aggressive coin accumulation into coup.
+            # Boost coin-generating actions, reduce exchange value.
+            utilities["income"] += 10
+            utilities["tax"] += 10
+            utilities["exchange"] = max(0, int(utilities["exchange"] * 0.5))
 
         # Filter out 0 utility options
         valid_actions = {k: v for k, v in utilities.items() if v > 0}
