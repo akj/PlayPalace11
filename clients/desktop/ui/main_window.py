@@ -653,8 +653,10 @@ class MainWindow(wx.Frame):
         if function_key is not None:
             return function_key
 
-        if key_code in (wx.WXK_ESCAPE, wx.WXK_BACK):
+        if key_code == wx.WXK_ESCAPE:
             return "escape"
+        if key_code == wx.WXK_BACK:
+            return "backspace"
         if key_code == wx.WXK_SPACE:
             return "space"
 
