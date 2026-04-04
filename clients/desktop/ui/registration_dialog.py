@@ -25,12 +25,14 @@ LOG = logging.getLogger(__name__)
 class RegistrationDialog(wx.Dialog):
     """Registration dialog for creating new accounts."""
 
-    def __init__(self, parent, server_url, server_id=None):
+    def __init__(self, parent, server_url, server_id=None, config_manager=None):
         """Initialize the registration dialog."""
         super().__init__(parent, title="Create Play Palace Account", size=(500, 450))
 
         self.server_url = server_url
         self.server_id = server_id
+        self.config_manager = config_manager
+        self._registered_account_id = None
         self._create_ui()
         self.CenterOnScreen()
 
@@ -461,10 +463,22 @@ class RegistrationDialog(wx.Dialog):
 
         # Check if it was successful
         if "successfully" in message.lower() or "approval" in message.lower():
+            # Auto-save the registered account to config
+            if self.config_manager and self.server_id:
+                self._registered_account_id = self.config_manager.add_account(
+                    self.server_id,
+                    username=self.username_input.GetValue().strip(),
+                    password=self.password_input.GetValue(),
+                    email=self.email_input.GetValue().strip(),
+                )
             wx.MessageBox(message, "Registration Successful", wx.OK | wx.ICON_INFORMATION)
             self.EndModal(wx.ID_OK)
         else:
             wx.MessageBox(message, "Registration Failed", wx.OK | wx.ICON_ERROR)
+
+    def get_registered_account_id(self):
+        """Get the account ID created by a successful registration, or None."""
+        return self._registered_account_id
 
     def on_cancel(self, event):
         """Handle cancel button click."""

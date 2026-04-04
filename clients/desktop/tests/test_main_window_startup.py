@@ -92,8 +92,8 @@ def make_window_stub(monkeypatch, should_connect=True):
         (text, buffer)
     )
     window._show_connection_error_calls = []
-    window._show_connection_error = (
-        lambda message, return_to_login=False: window._show_connection_error_calls.append(message)
+    window._show_connection_error = lambda message, return_to_login=False: (
+        window._show_connection_error_calls.append(message)
     )
     window.Close = lambda: None
     return window
