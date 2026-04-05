@@ -314,6 +314,30 @@ incorrect-username = The username you entered does not exist.
 incorrect-password = The password you entered is incorrect.
 already-logged-in = This account is already logged in.
 
+# Credential validation
+credential-username-length = Username must be between { $min } and { $max } characters.
+credential-password-length = Password must be between { $min } and { $max } characters.
+
+# Rate limiting
+rate-limit-login-ip = Too many login attempts from this address. Please wait and try again.
+rate-limit-login-user = Too many failed login attempts for this username. Please wait and try again.
+rate-limit-registration = Too many registration attempts from this address. Please wait and try again.
+rate-limit-refresh = Too many refresh attempts from this address. Please wait and try again.
+
+# Session/auth errors
+account-not-found = Account not found.
+session-expired = Session expired. Please log in again.
+session-token-mismatch = Session token does not match username.
+refresh-token-expired = Refresh token expired. Please log in again.
+refresh-token-mismatch = Refresh token does not match username.
+
+# Registration
+registration-success = Registration successful! Your account is waiting for approval.
+registration-username-taken = Username already taken. Please choose a different username.
+
+# Preference fallback
+pref-invalid-value = Invalid selection, using default.
+
 # Decline reason
 decline-reason-prompt = Enter a reason for declining (or press Escape to cancel):
 account-action-empty-reason = No reason given.

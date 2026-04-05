@@ -252,6 +252,30 @@ incorrect-username = 입력한 사용자 이름이 존재하지 않습니다.
 incorrect-password = 입력한 비밀번호가 올바르지 않습니다.
 already-logged-in = 이 계정은 이미 로그인되어 있습니다.
 
+# 자격 증명 검증
+credential-username-length = 사용자 이름은 { $min }자 이상 { $max }자 이하여야 합니다.
+credential-password-length = 비밀번호는 { $min }자 이상 { $max }자 이하여야 합니다.
+
+# 속도 제한
+rate-limit-login-ip = 이 주소에서 로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.
+rate-limit-login-user = 이 사용자 이름으로 로그인 실패가 너무 많습니다. 잠시 후 다시 시도해 주세요.
+rate-limit-registration = 이 주소에서 등록 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.
+rate-limit-refresh = 이 주소에서 갱신 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.
+
+# 세션/인증 오류
+account-not-found = 계정을 찾을 수 없습니다.
+session-expired = 세션이 만료되었습니다. 다시 로그인해 주세요.
+session-token-mismatch = 세션 토큰이 사용자 이름과 일치하지 않습니다.
+refresh-token-expired = 갱신 토큰이 만료되었습니다. 다시 로그인해 주세요.
+refresh-token-mismatch = 갱신 토큰이 사용자 이름과 일치하지 않습니다.
+
+# 등록
+registration-success = 등록이 완료되었습니다! 계정 승인을 기다리고 있습니다.
+registration-username-taken = 이미 사용 중인 사용자 이름입니다. 다른 사용자 이름을 선택해 주세요.
+
+# 기본 설정
+pref-invalid-value = 잘못된 선택입니다. 기본값을 사용합니다.
+
 # Decline reason
 decline-reason-prompt = 거부 사유를 입력하세요 (또는 Escape를 눌러 취소):
 account-action-empty-reason = 사유가 제공되지 않았습니다.

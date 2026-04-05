@@ -219,6 +219,30 @@ incorrect-username = O nome de usuário que você digitou não existe.
 incorrect-password = A senha que você digitou está incorreta.
 already-logged-in = Esta conta já está conectada.
 
+# Validação de credenciais
+credential-username-length = O nome de usuário deve ter entre { $min } e { $max } caracteres.
+credential-password-length = A senha deve ter entre { $min } e { $max } caracteres.
+
+# Limite de tentativas
+rate-limit-login-ip = Muitas tentativas de login deste endereço. Aguarde e tente novamente.
+rate-limit-login-user = Muitas tentativas de login malsucedidas para este nome de usuário. Aguarde e tente novamente.
+rate-limit-registration = Muitas tentativas de registro deste endereço. Aguarde e tente novamente.
+rate-limit-refresh = Muitas tentativas de atualização deste endereço. Aguarde e tente novamente.
+
+# Erros de sessão e autenticação
+account-not-found = Conta não encontrada.
+session-expired = Sessão expirada. Faça login novamente.
+session-token-mismatch = O token de sessão não corresponde ao nome de usuário.
+refresh-token-expired = Token de atualização expirado. Faça login novamente.
+refresh-token-mismatch = O token de atualização não corresponde ao nome de usuário.
+
+# Registro
+registration-success = Registro realizado com sucesso! Sua conta está aguardando aprovação.
+registration-username-taken = Nome de usuário já utilizado. Por favor, escolha um nome de usuário diferente.
+
+# Preferência padrão
+pref-invalid-value = Seleção inválida, usando o valor padrão.
+
 # Motivo da recusa
 decline-reason-prompt = Digite um motivo para a recusa (ou pressione Escape para cancelar):
 account-action-empty-reason = Nenhum motivo fornecido.

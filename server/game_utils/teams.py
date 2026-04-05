@@ -431,7 +431,8 @@ class TeamManager(DataClassJSONMixin):
         lines = []
         for team in sorted_teams:
             name = self.get_team_name(team, locale)
-            lines.append(f"{name}: {team.total_score} points")
+            points = Localization.get(locale, "game-points", count=team.total_score)
+            lines.append(f"{name}: {points}")
         return lines
 
 

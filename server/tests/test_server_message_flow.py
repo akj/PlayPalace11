@@ -191,13 +191,13 @@ def test_registration_and_refresh_limits_block(make_server, monkeypatch):
     srv._registration_attempts_ip = {"ip": deque([0.0])}
     monkeypatch.setattr("server.core.server.time", SimpleNamespace(monotonic=lambda: 0.0))
 
-    msg = srv._check_registration_rate_limit("ip")
+    msg = srv._check_registration_rate_limit("ip", "en")
     assert "registration" in msg
 
     srv._refresh_ip_limit = 1
     srv._refresh_ip_window = 10
     srv._refresh_attempts_ip = {"ip": deque([0.0])}
-    msg2 = srv._check_refresh_rate_limit("ip")
+    msg2 = srv._check_refresh_rate_limit("ip", "en")
     assert "refresh" in msg2
 
 

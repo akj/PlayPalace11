@@ -478,16 +478,21 @@ class Server(AdministrationMixin, DocumentBrowsingMixin, TranscriberRoleMixin):
         password = password or ""
         return username, password
 
-    def _validate_credentials(self, username: str, password: str) -> tuple[str, str, str | None]:
-        """Validate username/password lengths and return an error message if invalid."""
+    def _validate_credentials(
+        self, username: str, password: str, locale: str
+    ) -> tuple[str, str, str | None]:
+        """Validate username/password lengths and return a localized error message if invalid."""
         username, password = self._sanitize_credentials(username, password)
 
         if len(username) < self._username_min_length or len(username) > self._username_max_length:
             return (
                 username,
                 password,
-                (
-                    f"Username must be between {self._username_min_length} and {self._username_max_length} characters."
+                Localization.get(
+                    locale,
+                    "credential-username-length",
+                    min=self._username_min_length,
+                    max=self._username_max_length,
                 ),
             )
 
@@ -495,8 +500,11 @@ class Server(AdministrationMixin, DocumentBrowsingMixin, TranscriberRoleMixin):
             return (
                 username,
                 password,
-                (
-                    f"Password must be between {self._password_min_length} and {self._password_max_length} characters."
+                Localization.get(
+                    locale,
+                    "credential-password-length",
+                    min=self._password_min_length,
+                    max=self._password_max_length,
                 ),
             )
 
@@ -561,21 +569,19 @@ class Server(AdministrationMixin, DocumentBrowsingMixin, TranscriberRoleMixin):
         dq = bucket.setdefault(key, deque())
         dq.append(now)
 
-    def _check_login_rate_limit(self, client_ip: str, username: str) -> str | None:
-        """Check login rate limits and return an error message if blocked."""
+    def _check_login_rate_limit(self, client_ip: str, username: str, locale: str) -> str | None:
+        """Check login rate limits and return a localized error message if blocked."""
         now = time.monotonic()
         if not self._allow_attempt(
             self._login_attempts_ip, client_ip, self._login_ip_limit, self._login_ip_window, now
         ):
-            return "Too many login attempts from this address. Please wait and try again."
+            return Localization.get(locale, "rate-limit-login-ip")
         if username:
             failures = self._get_attempt_count(
                 self._login_attempts_user, username, self._login_user_window, now
             )
             if self._login_user_limit > 0 and failures >= self._login_user_limit:
-                return (
-                    "Too many failed login attempts for this username. Please wait and try again."
-                )
+                return Localization.get(locale, "rate-limit-login-user")
         return None
 
     def _record_login_failure(self, username: str) -> None:
@@ -586,8 +592,8 @@ class Server(AdministrationMixin, DocumentBrowsingMixin, TranscriberRoleMixin):
         self._get_attempt_count(self._login_attempts_user, username, self._login_user_window, now)
         self._record_attempt(self._login_attempts_user, username, now)
 
-    def _check_registration_rate_limit(self, client_ip: str) -> str | None:
-        """Check registration rate limits and return an error message if blocked."""
+    def _check_registration_rate_limit(self, client_ip: str, locale: str) -> str | None:
+        """Check registration rate limits and return a localized error message if blocked."""
         now = time.monotonic()
         if not self._allow_attempt(
             self._registration_attempts_ip,
@@ -596,11 +602,11 @@ class Server(AdministrationMixin, DocumentBrowsingMixin, TranscriberRoleMixin):
             self._registration_ip_window,
             now,
         ):
-            return "Too many registration attempts from this address. Please wait and try again."
+            return Localization.get(locale, "rate-limit-registration")
         return None
 
-    def _check_refresh_rate_limit(self, client_ip: str) -> str | None:
-        """Check refresh token rate limits and return an error message if blocked."""
+    def _check_refresh_rate_limit(self, client_ip: str, locale: str) -> str | None:
+        """Check refresh token rate limits and return a localized error message if blocked."""
         now = time.monotonic()
         if not self._allow_attempt(
             self._refresh_attempts_ip,
@@ -609,7 +615,7 @@ class Server(AdministrationMixin, DocumentBrowsingMixin, TranscriberRoleMixin):
             self._refresh_ip_window,
             now,
         ):
-            return "Too many refresh attempts from this address. Please wait and try again."
+            return Localization.get(locale, "rate-limit-refresh")
         return None
 
     def _warn_if_no_users(self) -> None:
@@ -1081,6 +1087,7 @@ class Server(AdministrationMixin, DocumentBrowsingMixin, TranscriberRoleMixin):
         client: ClientConnection,
         username: str,
         *,
+        locale: str,
         session_token: str,
         session_expires_at: int,
         refresh_token: str,
@@ -1091,7 +1098,9 @@ class Server(AdministrationMixin, DocumentBrowsingMixin, TranscriberRoleMixin):
         # Create or update network user with preferences and persistent UUID
         user_record = self._auth.get_user(username)
         if not user_record:
-            await self._send_credential_error(client, "Account not found.")
+            await self._send_credential_error(
+                client, Localization.get(locale, "account-not-found")
+            )
             return
         preferences = self._load_user_preferences(user_record)
         user, is_new_login = await self._attach_or_update_user(
@@ -1306,20 +1315,26 @@ class Server(AdministrationMixin, DocumentBrowsingMixin, TranscriberRoleMixin):
         if session_token:
             token_username = self._auth.validate_session(session_token)
             if not token_username:
-                await self._send_credential_error(client, "Session expired. Please log in again.")
+                await self._send_credential_error(
+                    client, Localization.get(locale, "session-expired")
+                )
                 return
             if username_raw and token_username.lower() != username_raw.lower():
-                await self._send_credential_error(client, "Session token does not match username.")
+                await self._send_credential_error(
+                    client, Localization.get(locale, "session-token-mismatch")
+                )
                 return
             username = token_username
         else:
-            username, password, error = self._validate_credentials(username_raw, password_raw)
+            username, password, error = self._validate_credentials(
+                username_raw, password_raw, locale
+            )
             if error:
                 await self._send_credential_error(client, error)
                 return
 
             client_ip = self._get_client_ip(client)
-            throttle_message = self._check_login_rate_limit(client_ip, username)
+            throttle_message = self._check_login_rate_limit(client_ip, username, locale)
             if throttle_message:
                 await self._send_credential_error(client, throttle_message)
                 return
@@ -1383,6 +1398,7 @@ class Server(AdministrationMixin, DocumentBrowsingMixin, TranscriberRoleMixin):
         await self._finalize_login(
             client,
             username,
+            locale=locale,
             session_token=access_token,
             session_expires_at=access_expires,
             refresh_token=refresh_token,
@@ -1402,13 +1418,15 @@ class Server(AdministrationMixin, DocumentBrowsingMixin, TranscriberRoleMixin):
         # email and bio are sent but not stored yet
         locale = packet.get("locale") or self._default_locale
 
-        username, password, error = self._validate_credentials(username_raw, password_raw)
+        username, password, error = self._validate_credentials(
+            username_raw, password_raw, locale
+        )
         if error:
             await client.send({"type": "speak", "text": error, "buffer": "activity"})
             return
 
         client_ip = self._get_client_ip(client)
-        throttle_message = self._check_registration_rate_limit(client_ip)
+        throttle_message = self._check_registration_rate_limit(client_ip, locale)
         if throttle_message:
             await client.send({"type": "speak", "text": throttle_message, "buffer": "activity"})
             return
@@ -1421,7 +1439,7 @@ class Server(AdministrationMixin, DocumentBrowsingMixin, TranscriberRoleMixin):
             await client.send(
                 {
                     "type": "speak",
-                    "text": "Registration successful! Your account is waiting for approval.",
+                    "text": Localization.get(locale, "registration-success"),
                     "buffer": "activity",
                 }
             )
@@ -1432,7 +1450,7 @@ class Server(AdministrationMixin, DocumentBrowsingMixin, TranscriberRoleMixin):
             await client.send(
                 {
                     "type": "speak",
-                    "text": "Username already taken. Please choose a different username.",
+                    "text": Localization.get(locale, "registration-username-taken"),
                     "buffer": "activity",
                 }
             )
@@ -1441,10 +1459,11 @@ class Server(AdministrationMixin, DocumentBrowsingMixin, TranscriberRoleMixin):
         """Refresh an access session using a refresh token."""
         refresh_token = packet.get("refresh_token", "")
         username_hint = packet.get("username", "")
+        locale = packet.get("locale") or self._default_locale
         client.client_type = packet.get("client_type") or ""
         client.platform = packet.get("platform") or ""
         client_ip = self._get_client_ip(client)
-        throttle_message = self._check_refresh_rate_limit(client_ip)
+        throttle_message = self._check_refresh_rate_limit(client_ip, locale)
         if throttle_message:
             await self._send_credential_error(client, throttle_message)
             return
@@ -1456,7 +1475,7 @@ class Server(AdministrationMixin, DocumentBrowsingMixin, TranscriberRoleMixin):
             await client.send(
                 {
                     "type": "refresh_session_failure",
-                    "message": "Refresh token expired. Please log in again.",
+                    "message": Localization.get(locale, "refresh-token-expired"),
                 }
             )
             await client.send(
@@ -1465,7 +1484,7 @@ class Server(AdministrationMixin, DocumentBrowsingMixin, TranscriberRoleMixin):
                     "reconnect": False,
                     "show_message": True,
                     "return_to_login": True,
-                    "message": "Session expired. Please log in again.",
+                    "message": Localization.get(locale, "session-expired"),
                 }
             )
             return
@@ -1475,7 +1494,7 @@ class Server(AdministrationMixin, DocumentBrowsingMixin, TranscriberRoleMixin):
             await client.send(
                 {
                     "type": "refresh_session_failure",
-                    "message": "Refresh token does not match username.",
+                    "message": Localization.get(locale, "refresh-token-mismatch"),
                 }
             )
             await client.send(
@@ -1484,7 +1503,7 @@ class Server(AdministrationMixin, DocumentBrowsingMixin, TranscriberRoleMixin):
                     "reconnect": False,
                     "show_message": True,
                     "return_to_login": True,
-                    "message": "Session expired. Please log in again.",
+                    "message": Localization.get(locale, "session-expired"),
                 }
             )
             return
@@ -1492,6 +1511,7 @@ class Server(AdministrationMixin, DocumentBrowsingMixin, TranscriberRoleMixin):
         await self._finalize_login(
             client,
             username,
+            locale=locale,
             session_token=access_token,
             session_expires_at=access_expires,
             refresh_token=new_refresh_token,
@@ -2515,6 +2535,7 @@ class Server(AdministrationMixin, DocumentBrowsingMixin, TranscriberRoleMixin):
                         new_val = meta.enum_class(value_str)
                     except (ValueError, KeyError):
                         new_val = meta.default
+                        user.speak_l("pref-invalid-value")
                 else:
                     new_val = value_str
                 setattr(prefs, field_name, new_val)

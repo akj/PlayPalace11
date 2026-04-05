@@ -261,6 +261,30 @@ incorrect-username = El nombre de usuario que ingresaste no existe.
 incorrect-password = La contraseña que ingresaste es incorrecta.
 already-logged-in = Esta cuenta ya está conectada.
 
+# Validación de credenciales
+credential-username-length = El nombre de usuario debe tener entre { $min } y { $max } caracteres.
+credential-password-length = La contraseña debe tener entre { $min } y { $max } caracteres.
+
+# Límite de intentos
+rate-limit-login-ip = Demasiados intentos de inicio de sesión desde esta dirección. Espera un momento e inténtalo de nuevo.
+rate-limit-login-user = Demasiados intentos fallidos de inicio de sesión para este nombre de usuario. Espera un momento e inténtalo de nuevo.
+rate-limit-registration = Demasiados intentos de registro desde esta dirección. Espera un momento e inténtalo de nuevo.
+rate-limit-refresh = Demasiados intentos de actualización desde esta dirección. Espera un momento e inténtalo de nuevo.
+
+# Errores de sesión y autenticación
+account-not-found = Cuenta no encontrada.
+session-expired = La sesión ha expirado. Por favor, inicia sesión de nuevo.
+session-token-mismatch = El token de sesión no coincide con el nombre de usuario.
+refresh-token-expired = El token de actualización ha expirado. Por favor, inicia sesión de nuevo.
+refresh-token-mismatch = El token de actualización no coincide con el nombre de usuario.
+
+# Registro
+registration-success = ¡Registro exitoso! Tu cuenta está esperando aprobación.
+registration-username-taken = El nombre de usuario ya está en uso. Por favor, elige un nombre de usuario diferente.
+
+# Valor predeterminado de preferencias
+pref-invalid-value = Selección no válida, se usará el valor predeterminado.
+
 # Decline reason
 decline-reason-prompt = Ingresa una razón para rechazar (o presiona Escape para cancelar):
 account-action-empty-reason = No se dio razón.
