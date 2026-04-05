@@ -2525,6 +2525,11 @@ class Server(AdministrationMixin, DocumentBrowsingMixin, TranscriberRoleMixin):
                         new_val = meta.enum_class(value_str)
                     except (ValueError, KeyError):
                         new_val = meta.default
+                        LOG.warning(
+                            "User '%s' sent invalid preference value '%s' for '%s', "
+                            "falling back to default",
+                            user.username, value_str, field_name,
+                        )
                         user.speak_l("pref-invalid-value")
                 else:
                     new_val = value_str

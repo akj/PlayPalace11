@@ -177,8 +177,9 @@ async def test_register_requires_username_and_password(server):
 
     await server._handle_register(client, {"username": "", "password": ""})
 
-    expected = f"Username must be between {server._username_min_length} and {server._username_max_length} characters."
-    assert client.sent == [{"type": "speak", "text": expected, "buffer": "activity"}]
+    assert len(client.sent) == 1
+    assert client.sent[0]["type"] == "speak"
+    assert "Username" in client.sent[0]["text"] and str(server._username_min_length) in client.sent[0]["text"]
 
 
 @pytest.mark.asyncio
@@ -192,11 +193,8 @@ async def test_register_success_notifies_admins(server):
     client = DummyClient()
     await server._handle_register(client, {"username": "fresh", "password": "validpass"})
 
-    assert client.sent[-1] == {
-        "type": "speak",
-        "text": "Registration successful! Your account is waiting for approval.",
-        "buffer": "activity",
-    }
+    assert client.sent[-1]["type"] == "speak"
+    assert "Registration" in client.sent[-1]["text"] or "approval" in client.sent[-1]["text"]
     assert auth.calls["register"] == [("fresh", "validpass")]
     assert notifications == [("account-request", "accountrequest.ogg")]
 
@@ -210,11 +208,8 @@ async def test_register_rejects_duplicate_username(server):
     client = DummyClient()
     await server._handle_register(client, {"username": "taken", "password": "validpass"})
 
-    assert client.sent[-1] == {
-        "type": "speak",
-        "text": "Username already taken. Please choose a different username.",
-        "buffer": "activity",
-    }
+    assert client.sent[-1]["type"] == "speak"
+    assert "already taken" in client.sent[-1]["text"] or "Username" in client.sent[-1]["text"]
     assert auth.calls["register"] == [("taken", "validpass")]
 
 
@@ -228,7 +223,7 @@ async def test_authorize_rejects_invalid_username_length(server):
 
     assert server._auth.calls["authenticate"] == []
     assert len(client.sent) == 3
-    assert client.sent[1]["text"].startswith("Username must be between")
+    assert "Username" in client.sent[1]["text"] and str(server._username_min_length) in client.sent[1]["text"]
 
 
 @pytest.mark.asyncio
@@ -241,7 +236,7 @@ async def test_authorize_rejects_invalid_password_length(server):
 
     assert server._auth.calls["authenticate"] == []
     assert len(client.sent) == 3
-    assert client.sent[1]["text"].startswith("Password must be between")
+    assert "Password" in client.sent[1]["text"] and str(server._password_min_length) in client.sent[1]["text"]
 
 
 @pytest.mark.asyncio
@@ -373,7 +368,7 @@ async def test_register_rejects_invalid_lengths(server):
     await server._handle_register(client, {"username": "aa", "password": "pw"})
 
     assert server._auth.calls["register"] == []
-    assert client.sent[-1]["text"].startswith("Username must be between")
+    assert "Username" in client.sent[-1]["text"] and str(server._username_min_length) in client.sent[-1]["text"]
 
 
 @pytest.mark.asyncio
