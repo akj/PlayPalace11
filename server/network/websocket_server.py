@@ -37,13 +37,23 @@ class ClientConnection:
             payload = packet_model.model_dump(exclude_none=True)
         except ValidationError as exc:
             identifier = self.username or self.address
-            PACKET_LOGGER.warning("Refusing to send invalid packet to %s: %s", identifier, exc)
+            PACKET_LOGGER.warning(
+                "Refusing to send invalid packet (type=%s) to %s: %s",
+                packet.get("type", "?"),
+                identifier,
+                exc,
+            )
             return
 
         try:
             await self.websocket.send(json.dumps(payload))
         except websockets.exceptions.ConnectionClosed:
-            pass
+            identifier = self.username or self.address
+            PACKET_LOGGER.debug(
+                "Dropped packet type=%s to disconnected client %s",
+                payload.get("type", "?"),
+                identifier,
+            )
 
     async def close(self) -> None:
         """Close this connection."""
@@ -162,7 +172,8 @@ class WebSocketServer:
                     if self._on_message:
                         await self._on_message(client, packet)
                 except json.JSONDecodeError:
-                    pass  # Ignore malformed messages
+                    identifier = client.username or client.address
+                    PACKET_LOGGER.warning("Malformed JSON from %s", identifier)
                 except Exception:
                     # Safety net: log and continue so the connection survives.
                     # The server layer should catch and handle errors before

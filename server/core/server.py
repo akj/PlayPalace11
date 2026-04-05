@@ -340,7 +340,7 @@ class Server(AdministrationMixin, DocumentBrowsingMixin, TranscriberRoleMixin):
             with open(path_obj, "rb") as f:
                 config: dict[str, Any] = tomllib.load(f)
         except (OSError, tomllib.TOMLDecodeError) as exc:  # pragma: no cover - logging only
-            print(f"Failed to load config from {path_obj}: {exc}")
+            LOG.error("Failed to load config from %s: %s", path_obj, exc)
             return
 
         auth_cfg = config.get("auth")
@@ -364,6 +364,10 @@ class Server(AdministrationMixin, DocumentBrowsingMixin, TranscriberRoleMixin):
             try:
                 value_int = int(value)
             except (TypeError, ValueError):
+                LOG.warning(
+                    "Invalid config value for '%s': %r, using default %d",
+                    key, value, current,
+                )
                 return current
             return max(minimum, value_int)
 
@@ -616,6 +620,7 @@ class Server(AdministrationMixin, DocumentBrowsingMixin, TranscriberRoleMixin):
             if self._db.get_user_count() > 0:
                 return
         except Exception:
+            LOG.warning("Failed to check user count at startup", exc_info=True)
             return
 
         print(
@@ -878,7 +883,17 @@ class Server(AdministrationMixin, DocumentBrowsingMixin, TranscriberRoleMixin):
                 client = self._ws_server.get_client_by_username(username)
                 if client:
                     for msg in messages:
-                        asyncio.create_task(client.send(msg))
+                        task = asyncio.create_task(client.send(msg))
+                        task.add_done_callback(self._log_send_task_exception)
+
+    @staticmethod
+    def _log_send_task_exception(task: asyncio.Task) -> None:
+        """Log exceptions from fire-and-forget send tasks."""
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc is not None:
+            LOG.warning("Error sending queued message: %s", exc)
 
     async def _handoff_existing_session(
         self, user: NetworkUser, new_client: ClientConnection
@@ -899,8 +914,10 @@ class Server(AdministrationMixin, DocumentBrowsingMixin, TranscriberRoleMixin):
                 )
             except (OSError, RuntimeError, websockets.exceptions.ConnectionClosed) as exc:
                 LOG.debug("Failed to notify replaced session: %s", exc)
-            with contextlib.suppress(Exception):
+            try:
                 await old_client.close()
+            except (OSError, RuntimeError, websockets.exceptions.ConnectionClosed) as exc:
+                LOG.debug("Failed to close replaced session: %s", exc)
         new_client.username = user.username
         new_client.authenticated = True
         user.set_connection(new_client)
@@ -1120,8 +1137,11 @@ class Server(AdministrationMixin, DocumentBrowsingMixin, TranscriberRoleMixin):
             try:
                 prefs_data = json.loads(user_record.preferences_json)
                 return UserPreferences.from_dict(prefs_data)
-            except (json.JSONDecodeError, KeyError):
-                pass
+            except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+                LOG.warning(
+                    "Corrupt preferences for user '%s', resetting to defaults: %s",
+                    user_record.uuid, exc,
+                )
         return UserPreferences()
 
     async def _attach_or_update_user(

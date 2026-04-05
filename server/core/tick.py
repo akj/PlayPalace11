@@ -1,10 +1,12 @@
 """Tick scheduler for game updates."""
 
 import asyncio
+import logging
 import sys
 from pathlib import Path
 from typing import Callable
 
+LOG = logging.getLogger("playpalace.tick")
 
 # Default tick interval
 DEFAULT_TICK_INTERVAL_MS = 50
@@ -98,8 +100,8 @@ class TickScheduler:
             try:
                 # Call tick callback synchronously
                 self._on_tick()
-            except Exception as e:
-                print(f"Error in tick: {e}")
+            except Exception:
+                LOG.exception("Error in tick callback")
 
             # Sleep for tick interval
             await asyncio.sleep(self.tick_interval_s)

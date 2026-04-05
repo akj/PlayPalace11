@@ -1,11 +1,14 @@
 """Mixin providing game duration estimation via simulation."""
 
+import logging
 import subprocess  # nosec B404
 import sys
 import json as json_module
 import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+LOG = logging.getLogger("playpalace.game_utils.duration_estimate")
 
 if TYPE_CHECKING:
     from ..games.base import Player
@@ -161,8 +164,11 @@ class DurationEstimateMixin:
             )
         else:
             if errors:
-                # Show the first error for debugging
-                self.broadcast(f"Estimation failed: {errors[0][:200]}")
+                LOG.warning(
+                    "Duration estimation failed with %d error(s): %s",
+                    len(errors), errors[0][:200],
+                )
+                self.broadcast_l("estimate-error")
             else:
                 self.broadcast_l("estimate-error")
 
