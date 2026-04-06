@@ -42,15 +42,22 @@ class Bot(User):
         """Bots always report True for is_bot."""
         return True
 
+    @property
+    def client_type(self) -> str:
+        """Return the bot's client type."""
+        return getattr(self, "_client_type", "")
+
+    def set_client_type(self, client_type: str) -> None:
+        """Set the bot's client type."""
+        self._client_type = client_type
+
     # All UI methods are no-ops for bots
 
     def speak(self, text: str, buffer: str = "misc") -> None:
         """No-op: bots do not receive speech."""
         pass
 
-    def play_sound(
-        self, name: str, volume: int = 100, pan: int = 0, pitch: int = 100
-    ) -> None:
+    def play_sound(self, name: str, volume: int = 100, pan: int = 0, pitch: int = 100) -> None:
         """No-op: bots do not play sounds."""
         pass
 
@@ -80,6 +87,7 @@ class Bot(User):
         position: int | None = None,
         grid_enabled: bool = False,
         grid_width: int = 1,
+        play_selection_sound: bool = False,
     ) -> None:
         """No-op: bots do not render menus."""
         pass
@@ -90,6 +98,7 @@ class Bot(User):
         items: list[str | MenuItem],
         position: int | None = None,
         selection_id: str | None = None,
+        play_selection_sound: bool = False,
     ) -> None:
         """No-op: bots do not update menus."""
         pass

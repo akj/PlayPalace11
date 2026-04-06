@@ -655,7 +655,9 @@ class HoldemGame(Game):
         if not self.betting:
             return
         active_ids = self._active_betting_ids()
-        next_id = self.betting.next_player(self.current_player.id if self.current_player else None, active_ids)
+        next_id = self.betting.next_player(
+            self.current_player.id if self.current_player else None, active_ids
+        )
         if next_id is None:
             return
         self.turn_index = self.turn_player_ids.index(next_id)
@@ -764,7 +766,9 @@ class HoldemGame(Game):
             return
         total = to_call + amount
         # Apply raise mode limits
-        caps = compute_pot_limit_caps(self.pot_manager.total_pot(), to_call, self.options.raise_mode)
+        caps = compute_pot_limit_caps(
+            self.pot_manager.total_pot(), to_call, self.options.raise_mode
+        )
         total = clamp_total_to_cap(total, caps)
         if total > p.chips:
             total = p.chips
@@ -791,7 +795,9 @@ class HoldemGame(Game):
         to_call = self.betting.amount_to_call(player.id)
         min_raise = max(self.betting.last_raise_size, 1)
         amount = min_raise
-        caps = compute_pot_limit_caps(self.pot_manager.total_pot(), to_call, self.options.raise_mode)
+        caps = compute_pot_limit_caps(
+            self.pot_manager.total_pot(), to_call, self.options.raise_mode
+        )
         total = clamp_total_to_cap(to_call + amount, caps)
         amount = max(min_raise, total - to_call)
         max_affordable = max(1, player.chips - to_call)
@@ -807,7 +813,10 @@ class HoldemGame(Game):
             return
         to_call = self.betting.amount_to_call(p.id)
         min_raise = max(self.betting.last_raise_size, 1)
-        pay = clamp_total_to_cap(amount, compute_pot_limit_caps(self.pot_manager.total_pot(), to_call, self.options.raise_mode))
+        pay = clamp_total_to_cap(
+            amount,
+            compute_pot_limit_caps(self.pot_manager.total_pot(), to_call, self.options.raise_mode),
+        )
         p.chips -= pay
         p.all_in = p.chips == 0
         self.play_sound("game_3cardpoker/bet.ogg")
@@ -881,7 +890,11 @@ class HoldemGame(Game):
         amount = self.pot_manager.total_pot()
         if isinstance(winner, HoldemPlayer):
             winner.chips += amount
-        self.play_sound(random.choice(["game_blackjack/win1.ogg", "game_blackjack/win2.ogg", "game_blackjack/win3.ogg"]))  # nosec B311
+        self.play_sound(
+            random.choice(
+                ["game_blackjack/win1.ogg", "game_blackjack/win2.ogg", "game_blackjack/win3.ogg"]
+            )
+        )  # nosec B311
         self.broadcast_l("poker-player-wins-pot", player=winner.name, amount=amount)
         self._sync_team_scores()
         self._advance_blind_level()
@@ -911,7 +924,15 @@ class HoldemGame(Game):
                 winner = pot_result.winners[0]
                 cards = read_cards(winner.hand, "en")
                 if pot_result.pot_index == 0 or len(pot_result.eligible_player_ids) <= 1:
-                    self.play_sound(random.choice(["game_blackjack/win1.ogg", "game_blackjack/win2.ogg", "game_blackjack/win3.ogg"]))  # nosec B311
+                    self.play_sound(
+                        random.choice(
+                            [
+                                "game_blackjack/win1.ogg",
+                                "game_blackjack/win2.ogg",
+                                "game_blackjack/win3.ogg",
+                            ]
+                        )
+                    )  # nosec B311
                     self.broadcast_l(
                         "poker-player-wins-pot-hand",
                         player=winner.name,
@@ -920,7 +941,15 @@ class HoldemGame(Game):
                         hand=desc,
                     )
                 else:
-                    self.play_sound(random.choice(["game_blackjack/win1.ogg", "game_blackjack/win2.ogg", "game_blackjack/win3.ogg"]))  # nosec B311
+                    self.play_sound(
+                        random.choice(
+                            [
+                                "game_blackjack/win1.ogg",
+                                "game_blackjack/win2.ogg",
+                                "game_blackjack/win3.ogg",
+                            ]
+                        )
+                    )  # nosec B311
                     self.broadcast_l(
                         "poker-player-wins-side-pot-hand",
                         player=winner.name,
@@ -931,7 +960,15 @@ class HoldemGame(Game):
                     )
             else:
                 names = ", ".join(w.name for w in pot_result.winners)
-                self.play_sound(random.choice(["game_blackjack/win1.ogg", "game_blackjack/win2.ogg", "game_blackjack/win3.ogg"]))  # nosec B311
+                self.play_sound(
+                    random.choice(
+                        [
+                            "game_blackjack/win1.ogg",
+                            "game_blackjack/win2.ogg",
+                            "game_blackjack/win3.ogg",
+                        ]
+                    )
+                )  # nosec B311
                 if pot_result.pot_index == 0:
                     self.broadcast_l(
                         "poker-players-split-pot",
@@ -950,7 +987,9 @@ class HoldemGame(Game):
         self._sync_team_scores()
 
     def _announce_showdown_hands(self, skip_best: bool = False) -> None:
-        active = [p for p in self.get_active_players() if isinstance(p, HoldemPlayer) and not p.folded]
+        active = [
+            p for p in self.get_active_players() if isinstance(p, HoldemPlayer) and not p.folded
+        ]
         if len(active) <= 1:
             return
         skip_ids: set[str] = set()
@@ -983,7 +1022,9 @@ class HoldemGame(Game):
         if len(winners) <= 1:
             return winners
         active_ids = [p.id for p in self.get_active_players()]
-        return order_winners_by_button(winners, active_ids, self.table_state.get_button_id(active_ids), lambda p: p.id)
+        return order_winners_by_button(
+            winners, active_ids, self.table_state.get_button_id(active_ids), lambda p: p.id
+        )
 
     # ==========================================================================
     # Status actions

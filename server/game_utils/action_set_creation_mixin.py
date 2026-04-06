@@ -229,9 +229,7 @@ class ActionSetCreationMixin:
             players=[self.host],
             include_spectators=True,
         )
-        self.define_keybind(
-            "ctrl+s", "Save table", ["save_table"], state=KeybindState.ALWAYS
-        )
+        self.define_keybind("ctrl+s", "Save table", ["save_table"], state=KeybindState.ALWAYS)
 
         # Status keybinds (during play)
         self.define_keybind(

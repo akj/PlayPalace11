@@ -112,9 +112,7 @@ class User(ABC):
         self.speak(text, buffer)
 
     @abstractmethod
-    def play_sound(
-        self, name: str, volume: int = 100, pan: int = 0, pitch: int = 100
-    ) -> None:
+    def play_sound(self, name: str, volume: int = 100, pan: int = 0, pitch: int = 100) -> None:
         """
         Play a sound effect.
 
@@ -170,6 +168,7 @@ class User(ABC):
         position: int | None = None,
         grid_enabled: bool = False,
         grid_width: int = 1,
+        play_selection_sound: bool = False,
     ) -> None:
         """
         Display a menu to the user.
@@ -182,6 +181,7 @@ class User(ABC):
             position: 1-based position to select (None for first item).
             grid_enabled: Enable grid navigation mode.
             grid_width: Number of columns in grid mode.
+            play_selection_sound: Play the selection sound for the focused item.
         """
         ...
 
@@ -192,6 +192,7 @@ class User(ABC):
         items: list[str | MenuItem],
         position: int | None = None,
         selection_id: str | None = None,
+        play_selection_sound: bool = False,
     ) -> None:
         """
         Update an existing menu's items.
@@ -201,6 +202,7 @@ class User(ABC):
             items: New list of items.
             position: Optional new position (1-based).
             selection_id: Optional item ID to focus on.
+            play_selection_sound: If True, client plays selection sound at new focus.
         """
         ...
 

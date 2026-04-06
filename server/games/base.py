@@ -1,7 +1,7 @@
 """Base game class and player dataclass."""
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, ClassVar
 from abc import ABC, abstractmethod
 import threading
 
@@ -9,6 +9,7 @@ from mashumaro.mixins.json import DataClassJSONMixin
 from mashumaro.config import BaseConfig
 
 from server.core.users.base import User
+from server.core.users.bot import Bot
 from ..game_utils.actions import ActionSet
 from ..game_utils.options import (
     GameOptions as DeclarativeGameOptions,
@@ -45,9 +46,7 @@ class ActionContext:
 
     menu_item_id: str | None = None  # ID of selected menu item when keybind pressed
     menu_index: int | None = None  # 1-based index of selected menu item
-    from_keybind: bool = (
-        False  # True if triggered by keybind, False if by menu selection
-    )
+    from_keybind: bool = False  # True if triggered by keybind, False if by menu selection
 
 
 @dataclass
@@ -76,6 +75,7 @@ class Player(DataClassJSONMixin):
     bot_think_ticks: int = 0  # Ticks until bot can act
     bot_pending_action: str | None = None  # Action to execute when ready
     bot_target: int | None = None  # Game-specific target (e.g., score to reach)
+    replaced_human: bool = False  # True if this slot was a human replaced by a bot
 
 
 # Re-export GameOptions from options module for backwards compatibility
@@ -145,9 +145,7 @@ class Game(
     round_timer_state: str = "idle"  # idle, counting, paused
     round_timer_ticks: int = 0  # Remaining ticks in countdown
     # Sound scheduler state (serialized for persistence)
-    scheduled_sounds: list = field(
-        default_factory=list
-    )  # [[tick, sound, vol, pan, pitch], ...]
+    scheduled_sounds: list = field(default_factory=list)  # [[tick, sound, vol, pan, pitch], ...]
     sound_scheduler_tick: int = 0  # Current tick counter
     # Event queue state (serialized for persistence)
     event_queue: list[tuple[int, str, dict]] = field(
@@ -167,9 +165,7 @@ class Game(
         self._keybinds: dict[
             str, list[Keybind]
         ] = {}  # key -> list of Keybinds (allows same key for different states)
-        self._pending_actions: dict[
-            str, str
-        ] = {}  # player_id -> action_id (waiting for input)
+        self._pending_actions: dict[str, str] = {}  # player_id -> action_id (waiting for input)
         self._action_context: dict[
             str, ActionContext
         ] = {}  # player_id -> context during action execution
@@ -207,6 +203,9 @@ class Game(
     def get_type(cls) -> str:
         """Return the type identifier for this game."""
         ...
+
+    #: User preferences this game is relevant to (for per-game overrides).
+    relevant_preferences: ClassVar[list[str]] = []
 
     @classmethod
     def get_name_key(cls) -> str:
@@ -297,6 +296,23 @@ class Game(
 
         return None
 
+    def _sync_table_status(self) -> None:
+        """Synchronize table status with game status."""
+        if self._table:
+            self._table.status = self.status
+
+    def _replace_with_bot(self, player: "Player") -> None:
+        """Replace a human player with a bot (shared logic)."""
+        if self.status != "playing":
+            return
+
+        player.replaced_human = True
+        player.is_bot = True
+        self._users.pop(player.id, None)
+
+        bot_user = Bot(player.name, uuid=player.id)
+        self.attach_user(player.id, bot_user)
+
     @abstractmethod
     def on_start(self) -> None:
         """Start game logic after lobby transitions to playing."""
@@ -346,13 +362,11 @@ class Game(
 
     def _reset_transcripts(self) -> None:
         """Initialize transcript storage for seated players."""
-        self._transcripts = {
-            player.id: []
-            for player in self.players
-            if not player.is_spectator
-        }
+        self._transcripts = {player.id: [] for player in self.players if not player.is_spectator}
 
-    def record_transcript_event(self, player: Player | None, text: str, buffer: str = "table") -> None:
+    def record_transcript_event(
+        self, player: Player | None, text: str, buffer: str = "table"
+    ) -> None:
         """Store a transcript entry for a player."""
         if not player or player.is_spectator:
             return

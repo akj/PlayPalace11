@@ -21,15 +21,18 @@ from certificate_prompt import CertificatePromptDialog, CertificateInfo
 
 LOG = logging.getLogger(__name__)
 
+
 class RegistrationDialog(wx.Dialog):
     """Registration dialog for creating new accounts."""
 
-    def __init__(self, parent, server_url, server_id=None):
+    def __init__(self, parent, server_url, server_id=None, config_manager=None):
         """Initialize the registration dialog."""
         super().__init__(parent, title="Create Play Palace Account", size=(500, 450))
 
         self.server_url = server_url
         self.server_id = server_id
+        self.config_manager = config_manager
+        self._registered_account_id = None
         self._create_ui()
         self.CenterOnScreen()
 
@@ -62,8 +65,7 @@ class RegistrationDialog(wx.Dialog):
 
         username_help = wx.StaticText(
             panel,
-            label="Letters, numbers, underscores, and dashes only. "
-            + USERNAME_LENGTH_HINT,
+            label="Letters, numbers, underscores, and dashes only. " + USERNAME_LENGTH_HINT,
         )
         username_help.SetForegroundColour(wx.Colour(100, 100, 100))
         sizer.Add(username_help, 0, wx.LEFT | wx.RIGHT, 10)
@@ -141,9 +143,7 @@ class RegistrationDialog(wx.Dialog):
             return
 
         if not email:
-            wx.MessageBox(
-                "Please enter an email address", "Error", wx.OK | wx.ICON_ERROR
-            )
+            wx.MessageBox("Please enter an email address", "Error", wx.OK | wx.ICON_ERROR)
             self.email_input.SetFocus()
             return
 
@@ -434,18 +434,11 @@ class RegistrationDialog(wx.Dialog):
         return ""
 
     def _format_issuer(self, issuer_entries) -> str:
-        issuer = [
-            "=".join(entry_part[1] for entry_part in entry)
-            for entry in issuer_entries
-        ]
+        issuer = ["=".join(entry_part[1] for entry_part in entry) for entry in issuer_entries]
         return ", ".join(issuer) if issuer else "(unknown)"
 
     def _extract_sans(self, cert_dict) -> list[str]:
-        return [
-            value
-            for kind, value in cert_dict.get("subjectAltName", [])
-            if kind == "DNS"
-        ]
+        return [value for kind, value in cert_dict.get("subjectAltName", []) if kind == "DNS"]
 
     def _host_matches(self, common_name: str, sans: list[str], host: str) -> bool:
         host_lower = (host or "").lower()
@@ -456,9 +449,7 @@ class RegistrationDialog(wx.Dialog):
         return any(san.lower() == host_lower for san in sans)
 
     def _format_fingerprint(self, fingerprint_hex: str) -> str:
-        return ":".join(
-            fingerprint_hex[i : i + 2] for i in range(0, len(fingerprint_hex), 2)
-        )
+        return ":".join(fingerprint_hex[i : i + 2] for i in range(0, len(fingerprint_hex), 2))
 
     def _get_server_host(self, server_url: str) -> str:
         try:
@@ -472,12 +463,22 @@ class RegistrationDialog(wx.Dialog):
 
         # Check if it was successful
         if "successfully" in message.lower() or "approval" in message.lower():
-            wx.MessageBox(
-                message, "Registration Successful", wx.OK | wx.ICON_INFORMATION
-            )
+            # Auto-save the registered account to config
+            if self.config_manager and self.server_id:
+                self._registered_account_id = self.config_manager.add_account(
+                    self.server_id,
+                    username=self.username_input.GetValue().strip(),
+                    password=self.password_input.GetValue(),
+                    email=self.email_input.GetValue().strip(),
+                )
+            wx.MessageBox(message, "Registration Successful", wx.OK | wx.ICON_INFORMATION)
             self.EndModal(wx.ID_OK)
         else:
             wx.MessageBox(message, "Registration Failed", wx.OK | wx.ICON_ERROR)
+
+    def get_registered_account_id(self):
+        """Get the account ID created by a successful registration, or None."""
+        return self._registered_account_id
 
     def on_cancel(self, event):
         """Handle cancel button click."""

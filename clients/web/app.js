@@ -256,16 +256,18 @@ const historyView = createHistoryView({
   a11y,
 });
 
+function playMenuSelectionSound(item) {
+  if (item?.sound) {
+    audio.playSound({ name: item.sound, volume: 100 });
+    return;
+  }
+  audio.playSound({ name: "menuclick.ogg", volume: 50 });
+}
+
 const menuView = createMenuView({
   store,
   listEl: elements.menuList,
-  onSelectionSound: (item) => {
-    if (item?.sound) {
-      audio.playSound({ name: item.sound, volume: 100 });
-      return;
-    }
-    audio.playSound({ name: "menuclick.ogg", volume: 50 });
-  },
+  onSelectionSound: playMenuSelectionSound,
   onBoundaryRepeat: (text) => {
     if (text) {
       a11y.announce(text, { assertive: true });
@@ -1273,6 +1275,9 @@ function handlePacket(packet) {
         gridEnabled: packet.grid_enabled ?? false,
         gridWidth: packet.grid_width ?? 1,
       });
+      if (packet.play_selection_sound && items.length > 0) {
+        playMenuSelectionSound(items[Math.max(0, Math.min(selection, items.length - 1))]);
+      }
       updateActionsButtonVisibility();
       if (focusMenuOnNextMenuPacket) {
         focusMenuOnNextMenuPacket = false;

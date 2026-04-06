@@ -4,6 +4,10 @@
 
 Implemented in `server/games/blackjack/`.
 
+## Attribution
+
+Blackjack was made by Drew Mochak (objectinspace) with OpenAI Codex.
+
 ## Overview
 
 - Type: card game

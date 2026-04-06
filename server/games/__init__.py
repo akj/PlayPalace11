@@ -34,6 +34,14 @@ from .blackjack.game import BlackjackGame
 from .twentyone import TwentyOneGame
 from .chess.game import ChessGame
 from .backgammon.game import BackgammonGame
+from .senet.game import SenetGame
+
+# PlayAural games
+from .battleship.game import BattleshipGame
+from .coup.game import CoupGame
+from .dominos.game import DominosGame
+from .lastcard.game import LastCardGame
+from .pusoydos.game import PusoyDosGame
 
 __all__ = [
     "Game",
@@ -59,7 +67,6 @@ __all__ = [
     "FiveCardDrawGame",
     "HoldemGame",
     "CrazyEightsGame",
-
     "SnakesAndLaddersGame",
     "RollingBallsGame",
     "SorryGame",
@@ -70,4 +77,10 @@ __all__ = [
     "TwentyOneGame",
     "ChessGame",
     "BackgammonGame",
+    "SenetGame",
+    "BattleshipGame",
+    "CoupGame",
+    "DominosGame",
+    "LastCardGame",
+    "PusoyDosGame",
 ]

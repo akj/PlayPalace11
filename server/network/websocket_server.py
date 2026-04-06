@@ -37,13 +37,23 @@ class ClientConnection:
             payload = packet_model.model_dump(exclude_none=True)
         except ValidationError as exc:
             identifier = self.username or self.address
-            PACKET_LOGGER.warning("Refusing to send invalid packet to %s: %s", identifier, exc)
+            PACKET_LOGGER.warning(
+                "Refusing to send invalid packet (type=%s) to %s: %s",
+                packet.get("type", "?"),
+                identifier,
+                exc,
+            )
             return
 
         try:
             await self.websocket.send(json.dumps(payload))
         except websockets.exceptions.ConnectionClosed:
-            pass
+            identifier = self.username or self.address
+            PACKET_LOGGER.debug(
+                "Dropped packet type=%s to disconnected client %s",
+                payload.get("type", "?"),
+                identifier,
+            )
 
     async def close(self) -> None:
         """Close this connection."""
@@ -162,7 +172,16 @@ class WebSocketServer:
                     if self._on_message:
                         await self._on_message(client, packet)
                 except json.JSONDecodeError:
-                    pass  # Ignore malformed messages
+                    identifier = client.username or client.address
+                    PACKET_LOGGER.warning("Malformed JSON from %s", identifier)
+                except Exception:
+                    # Safety net: log and continue so the connection survives.
+                    # The server layer should catch and handle errors before
+                    # they reach here, but this prevents silent disconnects.
+                    identifier = client.username or client.address
+                    PACKET_LOGGER.exception(
+                        "Unhandled error processing message from %s", identifier
+                    )
 
         except websockets.exceptions.ConnectionClosed:
             pass
@@ -172,9 +191,7 @@ class WebSocketServer:
             if self._on_disconnect:
                 await self._on_disconnect(client)
 
-    async def broadcast(
-        self, packet: dict, exclude: ClientConnection | None = None
-    ) -> None:
+    async def broadcast(self, packet: dict, exclude: ClientConnection | None = None) -> None:
         """Broadcast a packet to all authenticated clients."""
         for client in self._clients.values():
             if client.authenticated and client != exclude:

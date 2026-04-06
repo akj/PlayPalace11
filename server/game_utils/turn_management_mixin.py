@@ -120,15 +120,11 @@ class TurnManagementMixin:
 
         # Play turn sound to the current player (if they have it enabled)
         user = self.get_user(player)
-        if user and user.preferences.play_turn_sound:
+        if user and user.preferences.get_effective("play_turn_sound", game_type=self.get_type()):
             user.play_sound(turn_sound)
 
         # Broadcast turn announcement to all players
-        self.broadcast_personal_l(
-            player,
-            "game-your-turn",
-            "game-turn-start"
-        )
+        self.broadcast_personal_l(player, "game-your-turn", "game-turn-start")
 
     @property
     def turn_players(self) -> list["Player"]:

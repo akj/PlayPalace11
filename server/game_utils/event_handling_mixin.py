@@ -68,7 +68,7 @@ class EventHandlingMixin:
                 self.execute_action(player, "leave_game")
 
         elif menu_id == "action_input_menu":
-            self._handle_action_input_menu(player, selection_id)
+            self._handle_action_input_menu(player, event, selection_id)
         elif menu_id == "leave_game_confirm":
             self._handle_leave_game_confirm(player, event, selection_id)
 
@@ -111,9 +111,7 @@ class EventHandlingMixin:
             from_keybind=True,
         )
 
-        executed_any = self._execute_keybinds(
-            player, keybinds, is_spectator, menu_item_id, context
-        )
+        executed_any = self._execute_keybinds(player, keybinds, is_spectator, menu_item_id, context)
 
         if self._should_rebuild_after_keybind(player, executed_any):
             self.rebuild_all_menus()
@@ -132,10 +130,7 @@ class EventHandlingMixin:
             if resolved.enabled:
                 self.execute_action(player, action_id)
         # Don't rebuild if action is waiting for input or status box is open
-        if (
-            player.id not in self._pending_actions
-            and player.id not in self._status_box_open
-        ):
+        if player.id not in self._pending_actions and player.id not in self._status_box_open:
             self.rebuild_player_menu(player)
 
     def _handle_turn_menu_selection(self, player: "Player", event: dict, selection_id: str) -> None:
@@ -168,17 +163,48 @@ class EventHandlingMixin:
             if player.id not in self._pending_actions:
                 self.rebuild_all_menus()
 
-    def _handle_action_input_menu(self, player: "Player", selection_id: str) -> None:
+    def _handle_action_input_menu(self, player: "Player", event: dict, selection_id: str) -> None:
         if player.id in self._pending_actions:
             action_id = self._pending_actions.pop(player.id)
-            if selection_id != "_cancel":
-                self.execute_action(player, action_id, selection_id)
+            resolved_selection_id = selection_id or self._resolve_action_input_selection_id(
+                player, action_id, event
+            )
+            if resolved_selection_id and resolved_selection_id != "_cancel":
+                self.execute_action(player, action_id, resolved_selection_id)
         if (
             player.id not in self._pending_actions
             and player.id not in self._status_box_open
             and player.id not in self._actions_menu_open
         ):
             self.rebuild_player_menu(player)
+
+    def _resolve_action_input_selection_id(
+        self, player: "Player", action_id: str, event: dict
+    ) -> str | None:
+        action = self.find_action(player, action_id)
+        if not action:
+            return None
+        input_request = action.input_request
+        if not input_request:
+            return None
+
+        selection = event.get("selection")
+        if not isinstance(selection, int):
+            return None
+        selection_index = selection - 1
+
+        if hasattr(self, "_get_menu_options_for_action"):
+            options = self._get_menu_options_for_action(action, player)  # type: ignore[attr-defined]
+        else:
+            options = None
+
+        if options and 0 <= selection_index < len(options):
+            return options[selection_index]
+
+        include_cancel = getattr(input_request, "include_cancel", False)
+        if include_cancel and options and selection_index == len(options):
+            return "_cancel"
+        return None
 
     def _handle_leave_game_confirm(self, player: "Player", event: dict, selection_id: str) -> None:
         user = self.get_user(player)
@@ -194,7 +220,10 @@ class EventHandlingMixin:
             handler = getattr(self, "_perform_leave_game", None)
             if handler:
                 handler(player)
-        self.rebuild_player_menu(player)
+        elif self.status == "finished" and getattr(self, "_last_game_result", None):
+            self._show_end_screen(self._last_game_result)
+        else:
+            self.rebuild_player_menu(player)
 
     @staticmethod
     def _normalize_keybind(event: dict) -> str:

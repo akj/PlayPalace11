@@ -98,9 +98,10 @@ class IntOption(OptionMeta):
 
     min_val: int = 0
     max_val: int = 100
-    value_key: str = (
-        "score"  # Key used in localization (e.g., "score", "points", "sides")
-    )
+    value_key: str = "score"  # Key used in localization (e.g., "score", "points", "sides")
+
+    def get_label(self, locale: str, value: Any) -> str:
+        return Localization.get(locale, self.label, **self.get_label_kwargs(value))
 
     def get_label_kwargs(self, value: Any) -> dict[str, Any]:
         """Return label formatting kwargs for the current value."""
@@ -119,9 +120,7 @@ class IntOption(OptionMeta):
         locale: str,
     ) -> Action:
         """Create an editbox action for setting an integer option."""
-        label = Localization.get(
-            locale, self.label, **self.get_label_kwargs(current_value)
-        )
+        label = Localization.get(locale, self.label, **self.get_label_kwargs(current_value))
         return Action(
             id=f"set_{option_name}",
             label=label,
@@ -159,9 +158,7 @@ class FloatOption(OptionMeta):
     min_val: float = 0.0
     max_val: float = 100.0
     decimal_places: int = 1  # Round to this many decimal places
-    value_key: str = (
-        "value"  # Key used in localization (e.g., "value", "amount", "rate")
-    )
+    value_key: str = "value"  # Key used in localization (e.g., "value", "amount", "rate")
 
     def get_label_kwargs(self, value: Any) -> dict[str, Any]:
         """Return label formatting kwargs for the current value."""
@@ -180,9 +177,7 @@ class FloatOption(OptionMeta):
         locale: str,
     ) -> Action:
         """Create an editbox action for setting a float option."""
-        label = Localization.get(
-            locale, self.label, **self.get_label_kwargs(current_value)
-        )
+        label = Localization.get(locale, self.label, **self.get_label_kwargs(current_value))
         return Action(
             id=f"set_{option_name}",
             label=label,
@@ -217,13 +212,16 @@ class MenuOption(OptionMeta):
         choice_labels: Optional mapping of choice -> localization key.
     """
 
-    choices: list[str] | Callable[["Game", "Player"], list[str]] = field(
-        default_factory=list
-    )
+    choices: list[str] | Callable[["Game", "Player"], list[str]] = field(default_factory=list)
     value_key: str = "mode"  # Key used in localization
     # Map choice values to localization keys for display
     # If not provided, raw choice values are displayed
     choice_labels: dict[str, str] | None = None
+
+    def get_label(self, locale: str, value: Any) -> str:
+        return Localization.get(
+            locale, self.label, **self.get_label_kwargs_localized(value, locale)
+        )
 
     def get_localized_choice(self, value: str, locale: str) -> str:
         """Get the localized display text for a choice value."""
@@ -312,6 +310,11 @@ class BoolOption(OptionMeta):
     """
 
     value_key: str = "enabled"  # Key used in localization
+
+    def get_label(self, locale: str, value: Any) -> str:
+        on_off_key = "option-on" if value else "option-off"
+        on_off = Localization.get(locale, on_off_key)
+        return Localization.get(locale, self.label, **{self.value_key: on_off})
 
     def __post_init__(self):
         """Disable prompts for boolean toggles."""
@@ -453,9 +456,7 @@ class MultiSelectOption(OptionMeta):
     ) -> Action:
         """Create an action that opens the multi-select sub-menu."""
         count = len(current_value) if isinstance(current_value, list) else 0
-        label = Localization.get(
-            locale, self.label, **self.get_label_kwargs(current_value)
-        )
+        label = Localization.get(locale, self.label, **self.get_label_kwargs(current_value))
         return Action(
             id=f"multiselect_{option_name}",
             label=label,
@@ -504,9 +505,7 @@ def option_field(
     *,
     group: str | None = None,
     visible_when: (
-        tuple[str, Callable[[Any], bool]]
-        | list[tuple[str, Callable[[Any], bool]]]
-        | None
+        tuple[str, Callable[[Any], bool]] | list[tuple[str, Callable[[Any], bool]]] | None
     ) = None,
     value_when: (
         tuple[str, Callable[[Any], bool], Any, bool]
@@ -591,7 +590,6 @@ def get_visibility_conditions(
     return None
 
 
-
 @dataclass
 class GameOptions(DataClassJSONMixin):
     """Base class for declarative game options.
@@ -603,6 +601,14 @@ class GameOptions(DataClassJSONMixin):
     def get_option_metas(self) -> dict[str, OptionMeta]:
         """Get all option metadata for this options instance."""
         return get_all_option_metas(type(self))
+
+    def format_options_summary(self, locale: str) -> list[str]:
+        """Return a list of localized label strings for all current option values."""
+        lines = []
+        for name, meta in self.get_option_metas().items():
+            current_value = getattr(self, name)
+            lines.append(meta.get_label(locale, current_value))
+        return lines
 
     def get_option_group_metas(self) -> dict[str, OptionGroupMeta]:
         """Get all option group metadata for this options instance."""
@@ -692,42 +698,50 @@ class GameOptions(DataClassJSONMixin):
                             on_off = Localization.get(locale, on_off_key)
                             display = meta.get_localized_choice(choice, locale)
                             label = f"{display}: {on_off}"
-                            action_set.add(Action(
-                                id=f"mstoggle_{option_name}_{choice}",
-                                label=label,
-                                handler="_action_toggle_multiselect",
-                                is_enabled="_is_option_enabled",
-                                is_hidden="_is_option_hidden",
-                                show_in_actions_menu=False,
-                            ))
+                            action_set.add(
+                                Action(
+                                    id=f"mstoggle_{option_name}_{choice}",
+                                    label=label,
+                                    handler="_action_toggle_multiselect",
+                                    is_enabled="_is_option_enabled",
+                                    is_hidden="_is_option_hidden",
+                                    show_in_actions_menu=False,
+                                )
+                            )
                         # Bulk actions scoped to this group
                         if meta.show_bulk_actions:
-                            action_set.add(Action(
-                                id=f"mselectall_{option_name}",
-                                label=Localization.get(locale, "option-select-all"),
-                                handler="_action_select_all_multiselect",
-                                is_enabled="_is_option_enabled",
-                                is_hidden="_is_option_hidden",
-                                show_in_actions_menu=False,
-                            ))
-                            action_set.add(Action(
-                                id=f"mdeselectall_{option_name}",
-                                label=Localization.get(locale, "option-deselect-all"),
-                                handler="_action_deselect_all_multiselect",
-                                is_enabled="_is_option_enabled",
-                                is_hidden="_is_option_hidden",
-                                show_in_actions_menu=False,
-                            ))
+                            action_set.add(
+                                Action(
+                                    id=f"mselectall_{option_name}",
+                                    label=Localization.get(locale, "option-select-all"),
+                                    handler="_action_select_all_multiselect",
+                                    is_enabled="_is_option_enabled",
+                                    is_hidden="_is_option_hidden",
+                                    show_in_actions_menu=False,
+                                )
+                            )
+                            action_set.add(
+                                Action(
+                                    id=f"mdeselectall_{option_name}",
+                                    label=Localization.get(locale, "option-deselect-all"),
+                                    handler="_action_deselect_all_multiselect",
+                                    is_enabled="_is_option_enabled",
+                                    is_hidden="_is_option_hidden",
+                                    show_in_actions_menu=False,
+                                )
+                            )
                         # Back action
                         back_label = Localization.get(locale, "option-back")
-                        action_set.add(Action(
-                            id="options_back",
-                            label=back_label,
-                            handler="_action_options_back",
-                            is_enabled="_is_option_enabled",
-                            is_hidden="_is_option_hidden",
-                            show_in_actions_menu=False,
-                        ))
+                        action_set.add(
+                            Action(
+                                id="options_back",
+                                label=back_label,
+                                handler="_action_options_back",
+                                is_enabled="_is_option_enabled",
+                                is_hidden="_is_option_hidden",
+                                show_in_actions_menu=False,
+                            )
+                        )
                         return
 
             # Check if current level is a MultiSelectOption
@@ -739,19 +753,19 @@ class GameOptions(DataClassJSONMixin):
                 if groups:
                     # Show group names as navigable sub-menus
                     for group_name, group_choices in groups.items():
-                        selected_count = sum(
-                            1 for c in group_choices if c in current_selections
-                        )
+                        selected_count = sum(1 for c in group_choices if c in current_selections)
                         total_count = len(group_choices)
                         label = f"{group_name} ({selected_count} of {total_count} selected)"
-                        action_set.add(Action(
-                            id=f"msgroup_{current_level}_{group_name}",
-                            label=label,
-                            handler="_action_open_ms_group",
-                            is_enabled="_is_option_enabled",
-                            is_hidden="_is_option_hidden",
-                            show_in_actions_menu=False,
-                        ))
+                        action_set.add(
+                            Action(
+                                id=f"msgroup_{current_level}_{group_name}",
+                                label=label,
+                                handler="_action_open_ms_group",
+                                is_enabled="_is_option_enabled",
+                                is_hidden="_is_option_hidden",
+                                show_in_actions_menu=False,
+                            )
+                        )
                 else:
                     # Show toggle actions for each choice
                     choices = meta.get_choices()
@@ -761,43 +775,51 @@ class GameOptions(DataClassJSONMixin):
                         on_off = Localization.get(locale, on_off_key)
                         display = meta.get_localized_choice(choice, locale)
                         label = f"{display}: {on_off}"
-                        action_set.add(Action(
-                            id=f"mstoggle_{current_level}_{choice}",
-                            label=label,
-                            handler="_action_toggle_multiselect",
-                            is_enabled="_is_option_enabled",
-                            is_hidden="_is_option_hidden",
-                            show_in_actions_menu=False,
-                        ))
+                        action_set.add(
+                            Action(
+                                id=f"mstoggle_{current_level}_{choice}",
+                                label=label,
+                                handler="_action_toggle_multiselect",
+                                is_enabled="_is_option_enabled",
+                                is_hidden="_is_option_hidden",
+                                show_in_actions_menu=False,
+                            )
+                        )
                     # Bulk actions (non-grouped)
                     if meta.show_bulk_actions:
-                        action_set.add(Action(
-                            id=f"mselectall_{current_level}",
-                            label=Localization.get(locale, "option-select-all"),
-                            handler="_action_select_all_multiselect",
-                            is_enabled="_is_option_enabled",
-                            is_hidden="_is_option_hidden",
-                            show_in_actions_menu=False,
-                        ))
-                        action_set.add(Action(
-                            id=f"mdeselectall_{current_level}",
-                            label=Localization.get(locale, "option-deselect-all"),
-                            handler="_action_deselect_all_multiselect",
-                            is_enabled="_is_option_enabled",
-                            is_hidden="_is_option_hidden",
-                            show_in_actions_menu=False,
-                        ))
+                        action_set.add(
+                            Action(
+                                id=f"mselectall_{current_level}",
+                                label=Localization.get(locale, "option-select-all"),
+                                handler="_action_select_all_multiselect",
+                                is_enabled="_is_option_enabled",
+                                is_hidden="_is_option_hidden",
+                                show_in_actions_menu=False,
+                            )
+                        )
+                        action_set.add(
+                            Action(
+                                id=f"mdeselectall_{current_level}",
+                                label=Localization.get(locale, "option-deselect-all"),
+                                handler="_action_deselect_all_multiselect",
+                                is_enabled="_is_option_enabled",
+                                is_hidden="_is_option_hidden",
+                                show_in_actions_menu=False,
+                            )
+                        )
 
                 # Back action (with validation)
                 back_label = Localization.get(locale, "option-back")
-                action_set.add(Action(
-                    id="options_back",
-                    label=back_label,
-                    handler="_action_options_back_multiselect",
-                    is_enabled="_is_option_enabled",
-                    is_hidden="_is_option_hidden",
-                    show_in_actions_menu=False,
-                ))
+                action_set.add(
+                    Action(
+                        id="options_back",
+                        label=back_label,
+                        handler="_action_options_back_multiselect",
+                        is_enabled="_is_option_enabled",
+                        is_hidden="_is_option_hidden",
+                        show_in_actions_menu=False,
+                    )
+                )
                 return
 
             # Inside an option group — show children of this group + back
@@ -833,14 +855,16 @@ class GameOptions(DataClassJSONMixin):
         # Add back action if inside a group
         if path:
             back_label = Localization.get(locale, "option-back")
-            action_set.add(Action(
-                id="options_back",
-                label=back_label,
-                handler="_action_options_back",
-                is_enabled="_is_option_enabled",
-                is_hidden="_is_option_hidden",
-                show_in_actions_menu=False,
-            ))
+            action_set.add(
+                Action(
+                    id="options_back",
+                    label=back_label,
+                    handler="_action_options_back",
+                    is_enabled="_is_option_enabled",
+                    is_hidden="_is_option_hidden",
+                    show_in_actions_menu=False,
+                )
+            )
 
     def create_options_action_set(self, game: "Game", player: "Player") -> ActionSet:
         """Create an ActionSet with options for the player's current navigation level."""
@@ -1019,7 +1043,7 @@ class OptionsHandlerMixin:
         # Find which option this belongs to
         for name, meta in self.options.get_option_metas().items():
             if isinstance(meta, MultiSelectOption) and remainder.startswith(name + "_"):
-                group_name = remainder[len(name) + 1:]
+                group_name = remainder[len(name) + 1 :]
                 if not hasattr(self, "_options_path"):
                     self._options_path = {}
                 path = self._options_path.setdefault(player.id, [])
@@ -1152,7 +1176,7 @@ class OptionsHandlerMixin:
         for name, meta in self.options.get_option_metas().items():
             if isinstance(meta, MultiSelectOption) and remainder.startswith(name + "_"):
                 option_name = name
-                choice = remainder[len(name) + 1:]
+                choice = remainder[len(name) + 1 :]
                 break
         if not option_name or choice is None:
             return
@@ -1173,9 +1197,7 @@ class OptionsHandlerMixin:
             self.options.update_options_labels(self)
         self.rebuild_all_menus()
 
-    def _speak_option_description(
-        self, player: "Player", menu_item_id: str
-    ) -> bool:
+    def _speak_option_description(self, player: "Player", menu_item_id: str) -> bool:
         """Speak the description for an option when space is pressed.
 
         Extracts the option name from the action ID and looks up its

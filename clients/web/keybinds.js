@@ -149,24 +149,71 @@ export function installKeybinds({
     }
 
     if (menuFocused) {
-      if (event.key === "ArrowUp" || event.key === "ArrowLeft") {
-        event.preventDefault();
-        menuView.moveSelection(-1);
-        return;
+      // Alt+Arrow: jump to grid row/column edges
+      if (event.altKey && !event.ctrlKey && !event.metaKey && menu.gridEnabled && menu.gridWidth > 1) {
+        const width = menu.gridWidth;
+        const count = menu.items.length;
+        const current = menu.selection;
+        const row = Math.floor(current / width);
+        const col = current % width;
+
+        if (event.key === "ArrowLeft") {
+          event.preventDefault();
+          menuView.setSelection(row * width);
+          return;
+        }
+        if (event.key === "ArrowRight") {
+          event.preventDefault();
+          menuView.setSelection(Math.min((row + 1) * width - 1, count - 1));
+          return;
+        }
+        if (event.key === "ArrowUp") {
+          event.preventDefault();
+          menuView.setSelection(col);
+          return;
+        }
+        if (event.key === "ArrowDown") {
+          event.preventDefault();
+          let bottom = col;
+          while (bottom + width < count) {
+            bottom += width;
+          }
+          menuView.setSelection(bottom);
+          return;
+        }
       }
-      if (event.key === "ArrowDown" || event.key === "ArrowRight") {
-        event.preventDefault();
-        menuView.moveSelection(1);
-        return;
+
+      // Plain/Shift arrow: linear navigation (Ctrl+Arrow falls through to server keybinds)
+      if (!event.ctrlKey && !event.altKey) {
+        if (event.key === "ArrowUp" || event.key === "ArrowLeft") {
+          event.preventDefault();
+          menuView.moveSelection(-1);
+          return;
+        }
+        if (event.key === "ArrowDown" || event.key === "ArrowRight") {
+          event.preventDefault();
+          menuView.moveSelection(1);
+          return;
+        }
       }
       if (event.key === "Home") {
         event.preventDefault();
-        menuView.setSelection(0);
+        if (menu.gridEnabled && menu.gridWidth > 1) {
+          const row = Math.floor(menu.selection / menu.gridWidth);
+          menuView.setSelection(row * menu.gridWidth);
+        } else {
+          menuView.setSelection(0);
+        }
         return;
       }
       if (event.key === "End") {
         event.preventDefault();
-        menuView.setSelection(Math.max(0, menu.items.length - 1));
+        if (menu.gridEnabled && menu.gridWidth > 1) {
+          const row = Math.floor(menu.selection / menu.gridWidth);
+          menuView.setSelection(Math.min((row + 1) * menu.gridWidth - 1, menu.items.length - 1));
+        } else {
+          menuView.setSelection(Math.max(0, menu.items.length - 1));
+        }
         return;
       }
       if (event.key === "Enter" && !event.altKey && !event.ctrlKey && !event.shiftKey) {

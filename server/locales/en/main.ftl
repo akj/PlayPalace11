@@ -7,6 +7,7 @@ category-board-games = Board Games
 category-rb-play-center = RB Play Center
 category-poker = Poker
 category-uncategorized = Uncategorized
+category-playaural = PlayAural
 
 # Menu titles
 main-menu-title = Main Menu
@@ -102,10 +103,46 @@ language-changed = Language set to { $language }.
 
 fluent-languages-option = Fluent languages ({ $count })
 
-# Sound options
-turn-sound-option = Turn sound: { $status }
+# Preference categories
+pref-category-display = Display
+pref-category-sounds = Sounds
+pref-category-dice = Dice Behaviour
+pref-category-gameplay = Gameplay
 
-# Dice options
+# Preference labels (shown in menus)
+pref-set-play-turn-sound = Turn sound: { $status }
+pref-desc-play-turn-sound = Play a sound when it becomes your turn
+pref-changed-play-turn-sound = Turn sound { $status }.
+
+pref-set-brief-announcements = Brief announcements: { $status }
+pref-desc-brief-announcements = Use shorter announcements during gameplay instead of detailed commentary
+pref-changed-brief-announcements = Brief announcements { $status }.
+
+pref-set-clear-kept-on-roll = Clear kept dice when rolling: { $status }
+pref-desc-clear-kept-on-roll = Automatically unkeep all dice after each roll
+pref-changed-clear-kept-on-roll = Clear kept dice when rolling { $status }.
+
+pref-set-dice-keeping-style = Dice keeping style: { $choice }
+pref-desc-dice-keeping-style = How dice are selected for keeping
+pref-select-dice-keeping-style = Select dice keeping style:
+pref-changed-dice-keeping-style = Dice keeping style set to { $choice }.
+pref-dice-keeping-style-playpalace = Dice indexes
+pref-dice-keeping-style-quentin_c = Dice values
+
+pref-set-confirm-destructive-actions = Confirm destructive actions: { $status }
+pref-desc-confirm-destructive-actions = Request confirmation when performing destructive actions like passing your turn
+pref-changed-confirm-destructive-actions = Confirm destructive actions { $status }.
+
+# Preference system
+pref-back = Back
+pref-reset-all = Reset all preferences to defaults
+pref-reset-category = Reset { $category } to defaults
+pref-reset-done = Preferences reset to defaults.
+pref-per-game-for = { $game }: { $value }
+pref-default = Default
+
+# Legacy keys (kept for compatibility)
+turn-sound-option = Turn sound: { $status }
 clear-kept-option = Clear kept dice when rolling: { $status }
 dice-keeping-style-option = Dice keeping style: { $style }
 dice-keeping-style-changed = Dice keeping style set to { $style }.
@@ -165,6 +202,7 @@ table-players-many = { $count } players: { $players }.
 table-spectators = Spectators: { $spectators }.
 game-leave = Leave
 game-over = Game Over
+game-over-leave = Congratulations you did great!
 game-final-scores = Final Scores
 game-points = { $count } { $count ->
     [one] point
@@ -276,6 +314,30 @@ incorrect-username = The username you entered does not exist.
 incorrect-password = The password you entered is incorrect.
 already-logged-in = This account is already logged in.
 accounts-blocked = Sorry, registration is currently disabled. Only administrators or the server owner can create accounts at this time. Check back later!
+
+# Credential validation
+credential-username-length = Username must be between { $min } and { $max } characters.
+credential-password-length = Password must be between { $min } and { $max } characters.
+
+# Rate limiting
+rate-limit-login-ip = Too many login attempts from this address. Please wait and try again.
+rate-limit-login-user = Too many failed login attempts for this username. Please wait and try again.
+rate-limit-registration = Too many registration attempts from this address. Please wait and try again.
+rate-limit-refresh = Too many refresh attempts from this address. Please wait and try again.
+
+# Session/auth errors
+account-not-found = Account not found.
+session-expired = Session expired. Please log in again.
+session-token-mismatch = Session token does not match username.
+refresh-token-expired = Refresh token expired. Please log in again.
+refresh-token-mismatch = Refresh token does not match username.
+
+# Registration
+registration-success = Registration successful! Your account is waiting for approval.
+registration-username-taken = Username already taken. Please choose a different username.
+
+# Preference fallback
+pref-invalid-value = Invalid selection, using default.
 
 # Decline reason
 decline-reason-prompt = Enter a reason for declining (or press Escape to cancel):
@@ -416,6 +478,9 @@ documents-content-label = { $language } Contents
 # Document & category creation
 documents-new-document = New document
 documents-new-category = New category
+documents-scope-prompt = Choose the scope for this document.
+documents-scope-shared = Shared (all servers)
+documents-scope-independent = Independent (this server only)
 documents-select-categories = Select categories for the new document.
 documents-new-document-slug-prompt = Enter the sluggified title in English. This is the internal identifier for the document, for example my_game_rules:
 documents-document-created = Document created.
@@ -439,15 +504,36 @@ documents-sort-changed = Sort method updated.
 documents-delete-category-confirm = Delete this category? Documents will not be deleted, but will lose this category association.
 documents-category-deleted = Category deleted.
 
-# Document infrastructure (sync, export, promote)
+# Document infrastructure (sync, export, promote, contribution)
 documents-sync = Sync shared documents
 documents-sync-success = Shared documents synced successfully.
 documents-sync-failed = Sync failed: { $reason }
-documents-sync-pending-warning = Warning: { $count } pending changes exist. Export them before syncing to avoid losing local edits.
+documents-sync-pending-warning = Warning: { $count } uncommitted changes to shared documents exist. Export them before syncing to avoid losing local edits.
+documents-sync-local-changes = { $count } documents have local changes. Select which to discard before syncing.
+documents-sync-discard-label = { $title } (discard); ({ $description })
+documents-sync-keep-label = { $title } (keep); ({ $description })
+documents-sync-confirm = Sync now
+documents-sync-discard-all = Discard all
+documents-sync-keep-all = Keep all
+documents-sync-tag-absent = item is absent from local: keep = don't add from upstream, discard = add from upstream
+documents-sync-tag-present = item is only present on local: keep = don't delete from local, discard = delete from local
+documents-sync-tag-content = content changes
+documents-sync-tag-metadata = metadata changes
+documents-sync-tag-content-and-metadata = content and metadata changes
+documents-commit-message-prompt = Describe your changes (optional):
+documents-commit-success = Changes committed.
+documents-commit-failed = Commit failed: { $reason }
 documents-export-pending = Export pending changes ({ $count })
 documents-export-success = Exported { $count } changes to { $path }.
 documents-export-no-changes = No pending changes to export.
+documents-pending-commits-button = Pending commits ({ $count })
+documents-pending-commits-info = { $count } commits ahead of upstream. The server owner can push these changes to the repository.
+documents-pr-button = Create pull request ({ $count } commits)
+documents-pr-success = Pull request created: { $url }
+documents-pr-failed = Pull request failed: { $reason }
+documents-pr-no-commits = No commits to include in a pull request.
 documents-promote-to-shared = Promote to shared
+documents-promote-confirm = Are you sure you want to promote this document to shared scope? This makes it visible to all servers syncing from this repository.
 documents-promoted-to-shared = Document promoted to shared scope.
 documents-promote-failed = Failed to promote document. It may already be shared or a conflict exists.
 documents-based-on-stale = Upstream source changed: { $source }
@@ -480,3 +566,6 @@ transcribers-remove-all-confirm = Remove all transcriber assignments from { $use
 transcribers-removed-all = Removed all transcriber assignments from { $user }.
 
 localization-in-progress-try-again = Localization in progress. Please try again in a minute.
+
+# Errors
+internal-error = Something went wrong. Please try again.

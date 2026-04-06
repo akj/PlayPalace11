@@ -79,9 +79,7 @@ class VirtualUser(User):
         """No-op: virtual bots do not receive speech."""
         pass
 
-    def play_sound(
-        self, name: str, volume: int = 100, pan: int = 0, pitch: int = 100
-    ) -> None:
+    def play_sound(self, name: str, volume: int = 100, pan: int = 0, pitch: int = 100) -> None:
         """No-op: virtual bots do not play sounds."""
         pass
 
@@ -111,6 +109,7 @@ class VirtualUser(User):
         position: int | None = None,
         grid_enabled: bool = False,
         grid_width: int = 1,
+        play_selection_sound: bool = False,
     ) -> None:
         """Track menu state for decision-making."""
         self._current_menu_id = menu_id
@@ -122,6 +121,7 @@ class VirtualUser(User):
         items: list[str | MenuItem],
         position: int | None = None,
         selection_id: str | None = None,
+        play_selection_sound: bool = False,
     ) -> None:
         """Track menu updates."""
         if menu_id == self._current_menu_id:

@@ -1,4 +1,4 @@
-"""Server manager dialogs for managing servers and user accounts."""
+"""Server and account editor dialogs for Play Palace client."""
 
 import re
 import wx
@@ -8,11 +8,6 @@ from pathlib import Path
 # Add parent directory to path to import config_manager
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from config_manager import ConfigManager
-from ui.config_sharing import (
-    ConfigSharingDialog,
-    try_load_export_file,
-    format_export_timestamp,
-)
 
 
 class AccountEditorDialog(wx.Dialog):
@@ -24,6 +19,7 @@ class AccountEditorDialog(wx.Dialog):
         config_manager: ConfigManager,
         server_id: str,
         account_id: str = None,
+        server_name: str = "",
     ):
         """Initialize the account editor dialog.
 
@@ -32,8 +28,10 @@ class AccountEditorDialog(wx.Dialog):
             config_manager: ConfigManager instance
             server_id: Server ID this account belongs to
             account_id: Account ID to edit, or None to create new account
+            server_name: Server display name for the dialog title
         """
-        title = "Edit Account" if account_id else "Add Account"
+        base_title = "Edit Account" if account_id else "Add Account"
+        title = f"{base_title} \u2014 {server_name}" if server_name else base_title
         super().__init__(parent, title=title, size=(400, 330))
 
         self.config_manager = config_manager
@@ -116,7 +114,6 @@ class AccountEditorDialog(wx.Dialog):
         # Buttons
         button_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
-
         close_btn = wx.Button(panel, wx.ID_CANCEL, "&Close")
         button_sizer.Add(close_btn, 0)
 
@@ -194,7 +191,7 @@ class AccountEditorDialog(wx.Dialog):
             return True  # Empty is allowed
         # Lowercase and validate against pattern
         email_lower = email.lower()
-        pattern = r'^[a-z0-9_.+-]+@[a-z0-9_.-]+$'
+        pattern = r"^[a-z0-9_.+-]+@[a-z0-9_.-]+$"
         return bool(re.match(pattern, email_lower))
 
     def _validate_for_close(self) -> bool:
@@ -384,7 +381,9 @@ class TrustedCertificateDialog(wx.Dialog):
             details.append("PEM Certificate:")
             details.append(cert["pem"])
 
-        self.details_text.SetValue("\n".join(details) if details else "Certificate data unavailable.")
+        self.details_text.SetValue(
+            "\n".join(details) if details else "Certificate data unavailable."
+        )
 
     def _update_forget_button_state(self):
         """Enable/disable forget button based on certificate existence."""
@@ -421,7 +420,7 @@ class TrustedCertificateDialog(wx.Dialog):
 
 
 class ServerEditorDialog(wx.Dialog):
-    """Dialog for editing or creating a server with its accounts."""
+    """Dialog for editing or creating a server's connection properties."""
 
     def __init__(
         self,
@@ -436,8 +435,15 @@ class ServerEditorDialog(wx.Dialog):
             config_manager: ConfigManager instance
             server_id: Server ID to edit, or None to create new server
         """
-        title = "Edit Server" if server_id else "Add Server"
-        super().__init__(parent, title=title, size=(450, 450))
+        base_title = "Edit Server" if server_id else "Add Server"
+        # Include server name in title when editing
+        if server_id:
+            server_data = config_manager.get_server_by_id(server_id)
+            server_name = server_data.get("name", "") if server_data else ""
+            title = f"{base_title} \u2014 {server_name}" if server_name else base_title
+        else:
+            title = base_title
+        super().__init__(parent, title=title, size=(450, 350))
 
         self.config_manager = config_manager
         self.server_id = server_id
@@ -462,36 +468,6 @@ class ServerEditorDialog(wx.Dialog):
         self.options_profile_btn = wx.Button(panel, label="&Options Profile")
         self.options_profile_btn.Bind(wx.EVT_BUTTON, self.on_options_profile)
         sizer.Add(self.options_profile_btn, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
-
-        # User Accounts section
-        accounts_label = wx.StaticText(panel, label="&User Accounts:")
-        sizer.Add(accounts_label, 0, wx.LEFT | wx.TOP, 10)
-
-        self.accounts_list = wx.ListBox(panel, style=wx.LB_SINGLE, size=(-1, 100))
-        sizer.Add(self.accounts_list, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
-
-        # Account buttons
-        account_btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
-
-        self.edit_account_btn = wx.Button(panel, label="&Edit Account")
-        account_btn_sizer.Add(self.edit_account_btn, 0, wx.RIGHT, 5)
-
-        self.delete_account_btn = wx.Button(panel, label="&Delete Account")
-        account_btn_sizer.Add(self.delete_account_btn, 0, wx.RIGHT, 5)
-
-        self.add_account_btn = wx.Button(panel, label="&Add Account")
-        account_btn_sizer.Add(self.add_account_btn, 0)
-
-        sizer.Add(account_btn_sizer, 0, wx.ALL | wx.CENTER, 5)
-
-        # Bind account button events
-        self.edit_account_btn.Bind(wx.EVT_BUTTON, self.on_edit_account)
-        self.delete_account_btn.Bind(wx.EVT_BUTTON, self.on_delete_account)
-        self.add_account_btn.Bind(wx.EVT_BUTTON, self.on_add_account)
-
-        # Populate accounts list
-        self._account_ids = []
-        self._refresh_accounts_list()
 
         # Server Name
         name_label = wx.StaticText(panel, label="Server &Name:")
@@ -562,38 +538,8 @@ class ServerEditorDialog(wx.Dialog):
         # Set focus - options profile if editing existing server, otherwise name input
         if self.server_id:
             self.options_profile_btn.SetFocus()
-            if self.accounts_list.GetCount() > 0:
-                self.accounts_list.SetSelection(0)
         else:
             self.name_input.SetFocus()
-
-    def _refresh_accounts_list(self):
-        """Refresh the accounts list."""
-        if not hasattr(self, "accounts_list"):
-            return
-
-        self.accounts_list.Clear()
-        self._account_ids = []
-
-        if not self.server_id:
-            return
-
-        accounts = self.config_manager.get_server_accounts(self.server_id)
-
-        for account_id, account in accounts.items():
-            self.accounts_list.Append(account.get("username", "Unknown"))
-            self._account_ids.append(account_id)
-
-        # Select first item if nothing is selected
-        if self.accounts_list.GetSelection() == wx.NOT_FOUND and self.accounts_list.GetCount() > 0:
-            self.accounts_list.SetSelection(0)
-
-    def _get_selected_account_id(self) -> str:
-        """Get the currently selected account ID."""
-        selection = self.accounts_list.GetSelection()
-        if selection == wx.NOT_FOUND:
-            return None
-        return self._account_ids[selection]
 
     def on_trusted_certificate(self, event):
         """Open the trusted certificate dialog."""
@@ -730,73 +676,6 @@ class ServerEditorDialog(wx.Dialog):
             # Reload server data
             self.server_data = self.config_manager.get_server_by_id(self.server_id)
 
-    def on_edit_account(self, event):
-        """Handle edit account button click."""
-        if not self.server_id:
-            wx.MessageBox(
-                "Please save the server first", "Server Not Saved", wx.OK | wx.ICON_WARNING
-            )
-            return
-
-        account_id = self._get_selected_account_id()
-        if not account_id:
-            wx.MessageBox(
-                "Please select an account to edit", "No Selection", wx.OK | wx.ICON_WARNING
-            )
-            return
-
-        dlg = AccountEditorDialog(self, self.config_manager, self.server_id, account_id)
-        dlg.ShowModal()
-        dlg.Destroy()
-        self._refresh_accounts_list()
-
-    def on_delete_account(self, event):
-        """Handle delete account button click."""
-        if not self.server_id:
-            wx.MessageBox(
-                "Please save the server first", "Server Not Saved", wx.OK | wx.ICON_WARNING
-            )
-            return
-
-        account_id = self._get_selected_account_id()
-        if not account_id:
-            wx.MessageBox(
-                "Please select an account to delete",
-                "No Selection",
-                wx.OK | wx.ICON_WARNING,
-            )
-            return
-
-        account = self.config_manager.get_account_by_id(self.server_id, account_id)
-        username = account.get("username", "Unknown") if account else "Unknown"
-
-        result = wx.MessageBox(
-            f"Are you sure you want to delete the account '{username}'?",
-            "Confirm Delete",
-            wx.YES_NO | wx.NO_DEFAULT | wx.ICON_WARNING,
-        )
-
-        if result == wx.YES:
-            self.config_manager.delete_account(self.server_id, account_id)
-            self._refresh_accounts_list()
-
-    def on_add_account(self, event):
-        """Handle add account button click."""
-        # Save server first if needed
-        if not self.server_id:
-            self._save_if_needed()
-            if not self.server_id:
-                wx.MessageBox(
-                    "Please enter a server name first", "Server Name Required", wx.OK | wx.ICON_WARNING
-                )
-                self.name_input.SetFocus()
-                return
-
-        dlg = AccountEditorDialog(self, self.config_manager, self.server_id)
-        dlg.ShowModal()
-        dlg.Destroy()
-        self._refresh_accounts_list()
-
     def on_close(self, event):
         """Handle close button click."""
         if not self._validate_for_close():
@@ -807,290 +686,3 @@ class ServerEditorDialog(wx.Dialog):
     def get_server_id(self) -> str:
         """Get the server ID (for newly created servers)."""
         return self.server_id
-
-
-class ServerManagerDialog(wx.Dialog):
-    """Dialog for managing the list of servers."""
-
-    def __init__(self, parent, config_manager: ConfigManager, initial_server_id: str = None):
-        """Initialize the server manager dialog.
-
-        Args:
-            parent: Parent window
-            config_manager: ConfigManager instance
-            initial_server_id: Server ID to select initially
-        """
-        super().__init__(parent, title="Server Manager", size=(400, 350))
-
-        self.config_manager = config_manager
-        self._server_ids = []  # Track server IDs by index
-        self._initial_server_id = initial_server_id
-
-        self._create_ui()
-        self.CenterOnParent()
-
-        # Bind escape key to close
-        self.Bind(wx.EVT_CHAR_HOOK, self.on_key)
-
-    def _create_ui(self):
-        """Create the UI components."""
-        panel = wx.Panel(self)
-        sizer = wx.BoxSizer(wx.VERTICAL)
-
-        # Servers label
-        servers_label = wx.StaticText(panel, label="&Servers:")
-        sizer.Add(servers_label, 0, wx.LEFT | wx.TOP, 10)
-
-        # Servers list
-        self.servers_list = wx.ListBox(panel, style=wx.LB_SINGLE, size=(-1, 180))
-        sizer.Add(self.servers_list, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
-
-        # Server buttons
-        button_sizer = wx.BoxSizer(wx.HORIZONTAL)
-
-        self.edit_btn = wx.Button(panel, label="&Edit Server")
-        button_sizer.Add(self.edit_btn, 0, wx.RIGHT, 5)
-
-        self.delete_btn = wx.Button(panel, label="&Delete Server")
-        button_sizer.Add(self.delete_btn, 0, wx.RIGHT, 5)
-
-        self.add_btn = wx.Button(panel, label="&Add Server")
-        button_sizer.Add(self.add_btn, 0)
-
-        sizer.Add(button_sizer, 0, wx.ALL | wx.CENTER, 10)
-
-        # Default options profile button
-        self.default_options_btn = wx.Button(panel, label="Default &Options Profile")
-        self.default_options_btn.Bind(wx.EVT_BUTTON, self.on_default_options_profile)
-        sizer.Add(self.default_options_btn, 0, wx.LEFT | wx.RIGHT, 10)
-
-        # Import/Export buttons
-        sharing_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.import_btn = wx.Button(panel, label="&Import Server Profiles")
-        self.import_btn.Bind(wx.EVT_BUTTON, self._on_import_profiles)
-        sharing_sizer.Add(self.import_btn, 0, wx.RIGHT, 5)
-
-        self.export_btn = wx.Button(panel, label="E&xport Server Profiles")
-        self.export_btn.Bind(wx.EVT_BUTTON, self._on_export_profiles)
-        sharing_sizer.Add(self.export_btn, 0)
-        sizer.Add(sharing_sizer, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
-
-        # Close button
-        close_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        close_btn = wx.Button(panel, wx.ID_CANCEL, "&Close")
-        close_sizer.Add(close_btn, 0)
-        sizer.Add(close_sizer, 0, wx.ALL | wx.CENTER, 10)
-
-        panel.SetSizer(sizer)
-
-        # Bind events
-        self.edit_btn.Bind(wx.EVT_BUTTON, self.on_edit_server)
-        self.delete_btn.Bind(wx.EVT_BUTTON, self.on_delete_server)
-        self.add_btn.Bind(wx.EVT_BUTTON, self.on_add_server)
-        close_btn.Bind(wx.EVT_BUTTON, self.on_close)
-        self.servers_list.Bind(wx.EVT_LISTBOX_DCLICK, self.on_edit_server)
-
-        # Populate servers list
-        self._refresh_servers_list()
-
-    def _refresh_servers_list(self):
-        """Refresh the servers list."""
-        self.servers_list.Clear()
-        servers = self.config_manager.get_all_servers()
-        self._server_ids = []
-
-        for server_id, server in servers.items():
-            display_name = server.get("name", "Unknown Server")
-            self.servers_list.Append(display_name)
-            self._server_ids.append(server_id)
-
-        # Select initial server if specified
-        if self._initial_server_id and self._initial_server_id in self._server_ids:
-            idx = self._server_ids.index(self._initial_server_id)
-            self.servers_list.SetSelection(idx)
-        # Otherwise select first item if nothing is selected
-        elif self.servers_list.GetSelection() == wx.NOT_FOUND and self.servers_list.GetCount() > 0:
-            self.servers_list.SetSelection(0)
-
-    def _get_selected_server_id(self) -> str:
-        """Get the currently selected server ID."""
-        selection = self.servers_list.GetSelection()
-        if selection == wx.NOT_FOUND:
-            return None
-        return self._server_ids[selection]
-
-    def on_default_options_profile(self, event):
-        """Handle default options profile button click."""
-        wx.MessageBox(
-            "Not implemented yet.",
-            "Default Options Profile",
-            wx.OK | wx.ICON_INFORMATION,
-        )
-
-    def on_key(self, event):
-        """Handle key events."""
-        if event.GetKeyCode() == wx.WXK_ESCAPE:
-            self.EndModal(wx.ID_OK)
-        else:
-            event.Skip()
-
-    def on_edit_server(self, event):
-        """Handle edit server button click."""
-        server_id = self._get_selected_server_id()
-        if not server_id:
-            wx.MessageBox(
-                "Please select a server to edit", "No Selection", wx.OK | wx.ICON_WARNING
-            )
-            return
-
-        dlg = ServerEditorDialog(self, self.config_manager, server_id)
-        dlg.ShowModal()
-        dlg.Destroy()
-        self._refresh_servers_list()
-
-    def on_delete_server(self, event):
-        """Handle delete server button click."""
-        server_id = self._get_selected_server_id()
-        if not server_id:
-            wx.MessageBox(
-                "Please select a server to delete",
-                "No Selection",
-                wx.OK | wx.ICON_WARNING,
-            )
-            return
-
-        server = self.config_manager.get_server_by_id(server_id)
-        server_name = server.get("name", "Unknown Server") if server else "Unknown Server"
-
-        result = wx.MessageBox(
-            f"Are you sure you want to delete the server '{server_name}' and all its accounts?",
-            "Confirm Delete",
-            wx.YES_NO | wx.NO_DEFAULT | wx.ICON_WARNING,
-        )
-
-        if result == wx.YES:
-            self.config_manager.delete_server(server_id)
-            self._refresh_servers_list()
-
-    def on_add_server(self, event):
-        """Handle add server button click."""
-        dlg = ServerEditorDialog(self, self.config_manager)
-        dlg.ShowModal()
-        dlg.Destroy()
-        self._refresh_servers_list()
-
-    def _on_export_profiles(self, event):
-        """Handle export server profiles button click."""
-        servers = self.config_manager.get_all_servers()
-        if not servers:
-            wx.MessageBox(
-                "No servers to export.",
-                "Export",
-                wx.OK | wx.ICON_INFORMATION,
-            )
-            return
-
-        dlg = ConfigSharingDialog(
-            self, self.config_manager, ConfigSharingDialog.MODE_EXPORT
-        )
-        dlg.ShowModal()
-        dlg.Destroy()
-
-    def _on_import_profiles(self, event):
-        """Handle import server profiles button click."""
-        imported_data = self._load_import_file()
-        if imported_data is None:
-            return
-
-        dlg = ConfigSharingDialog(
-            self, self.config_manager, ConfigSharingDialog.MODE_IMPORT,
-            imported_data=imported_data,
-        )
-        if dlg._no_data:
-            dlg.Destroy()
-            wx.MessageBox(
-                "There is no data to import. All servers in this file either already "
-                "exist with no changes, or the file contains no servers.",
-                "Nothing to Import",
-                wx.OK | wx.ICON_INFORMATION,
-            )
-            return
-
-        result = dlg.ShowModal()
-        dlg.Destroy()
-
-        if result == wx.ID_OK:
-            # Refresh servers list, preserving selection index
-            prev_idx = self.servers_list.GetSelection()
-            self._refresh_servers_list()
-            if self.servers_list.GetCount() > 0:
-                new_idx = min(prev_idx, self.servers_list.GetCount() - 1)
-                if new_idx >= 0:
-                    self.servers_list.SetSelection(new_idx)
-
-    def _load_import_file(self):
-        """Load an import file, with auto-detection and browser fallback.
-
-        Returns:
-            Parsed dict if a valid file was loaded, or None to abort.
-        """
-        auto_path = Path.cwd() / "identities-export.json"
-
-        # Auto-detect file in cwd
-        if auto_path.exists():
-            data = try_load_export_file(str(auto_path))
-            if data:
-                desc = data.get("description", "")
-                ts = format_export_timestamp(data.get("timestamp", 0))
-                result = wx.MessageBox(
-                    f"Found export file in current directory.\n\n"
-                    f"Description: {desc}\n"
-                    f"Date: {ts}\n\n"
-                    f"Would you like to load this file?",
-                    "Import Server Profiles",
-                    wx.YES_NO | wx.ICON_QUESTION,
-                )
-                if result == wx.YES:
-                    return data
-
-        # File browser loop
-        while True:
-            file_dlg = wx.FileDialog(
-                self,
-                "Select Export File to Import",
-                defaultDir=str(Path.cwd()),
-                wildcard="JSON files (*.json)|*.json",
-                style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
-            )
-            if file_dlg.ShowModal() != wx.ID_OK:
-                file_dlg.Destroy()
-                return None
-            chosen_path = file_dlg.GetPath()
-            file_dlg.Destroy()
-
-            data = try_load_export_file(chosen_path)
-            if data is None:
-                wx.MessageBox(
-                    "The selected file is not a valid export file.",
-                    "Invalid File",
-                    wx.OK | wx.ICON_ERROR,
-                )
-                continue
-
-            # Confirm file details
-            desc = data.get("description", "")
-            ts = format_export_timestamp(data.get("timestamp", 0))
-            result = wx.MessageBox(
-                f"Description: {desc}\n"
-                f"Date: {ts}\n\n"
-                f"Would you like to import this file?",
-                "Confirm Import File",
-                wx.YES_NO | wx.ICON_QUESTION,
-            )
-            if result == wx.YES:
-                return data
-            # If No, return to file browser
-
-    def on_close(self, event):
-        """Handle close button click."""
-        self.EndModal(wx.ID_OK)

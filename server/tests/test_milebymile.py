@@ -115,7 +115,6 @@ class TestRightOfWayBehavior:
         assert race_state.can_play_distance() is False
 
 
-
 class TestMileByMileSerialization:
     """Tests for game serialization."""
 

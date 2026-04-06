@@ -177,6 +177,8 @@ def test_handle_active_tables_selection_missing_table_speaks(server):
     asyncio.run(server._handle_active_tables_selection(user, "table_missing"))
 
     assert ("table-not-exists", {}) in user.spoken
+    # No active tables left, so it speaks "no-active-tables" and falls back to main menu
+    assert ("no-active-tables", {}) in user.spoken
     assert user.menu_shown[-1] == "main_menu"
 
 
@@ -229,7 +231,13 @@ def test_handle_saved_tables_selection_routes(server):
 def test_handle_saved_table_actions_delete(server):
     user = DummyUser("alice")
     server._users = {"alice": user}
-    db = DummyDB(saved=[SimpleNamespace(id=1, save_name="Test", game_type="mock", members_json="[]", game_json="{}")])
+    db = DummyDB(
+        saved=[
+            SimpleNamespace(
+                id=1, save_name="Test", game_type="mock", members_json="[]", game_json="{}"
+            )
+        ]
+    )
     server._db = db
     state = {"save_id": 1}
 
@@ -283,7 +291,9 @@ def test_restore_saved_table_missing_players(server, monkeypatch):
     # ensure find_user_table returns something for bob to simulate missing/occupied
     server._tables.find_user_table = lambda name: SimpleNamespace() if name == "bob" else None  # type: ignore[attr-defined]
     called = {}
-    monkeypatch.setattr(server, "_show_saved_tables_menu", lambda u: called.setdefault("saved", True))
+    monkeypatch.setattr(
+        server, "_show_saved_tables_menu", lambda u: called.setdefault("saved", True)
+    )
 
     asyncio.run(server._restore_saved_table(user, 2))
 

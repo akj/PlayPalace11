@@ -42,6 +42,7 @@ class GameResultMixin:
 
         # Build and persist the game result
         result = self.build_game_result()
+        self._last_game_result = result
         self._persist_result(result)
 
         # Show end screen
@@ -49,10 +50,7 @@ class GameResultMixin:
             self._show_end_screen(result)
 
         # Auto-destroy if no humans remain (bot-only games, but not virtual bot games)
-        has_humans = any(
-            not p.is_bot or getattr(p, "is_virtual_bot", False)
-            for p in self.players
-        )
+        has_humans = any(not p.is_bot or getattr(p, "is_virtual_bot", False) for p in self.players)
         if not has_humans:
             self.destroy()
 
@@ -134,10 +132,7 @@ class GameResultMixin:
         """
         winner_name = result.custom_data.get("winner_name")
         # Include humans and virtual bots, exclude table bots
-        human_players = [
-            p for p in result.player_results
-            if not p.is_bot or p.is_virtual_bot
-        ]
+        human_players = [p for p in result.player_results if not p.is_bot or p.is_virtual_bot]
 
         if not human_players:
             return []
@@ -167,10 +162,7 @@ class GameResultMixin:
                 lines = self.format_end_screen(result, user.locale)
                 items = [MenuItem(text=line, id="score_line") for line in lines]
                 # Add Leave button at the end
-                items.append(MenuItem(
-                    text="Congratulations you did great!",
-                    id="leave_game"
-                ))
+                items.append(MenuItem(text=Localization.get(user.locale, "game-over-leave"), id="leave_game"))
                 user.show_menu("game_over", items, multiletter=False)
 
     def show_game_end_menu(self, score_lines: list[str]) -> None:

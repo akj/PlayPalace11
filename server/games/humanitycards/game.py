@@ -69,7 +69,13 @@ def get_pack_groups() -> dict[str, list[str]]:
             base_plus_expansions.append(name)
         elif "family" in lower:
             family_edition.append(name)
-        elif "holiday" in lower or "christmas" in lower or "greeting" in lower or "seasons" in lower or "hanukkah" in lower:
+        elif (
+            "holiday" in lower
+            or "christmas" in lower
+            or "greeting" in lower
+            or "seasons" in lower
+            or "hanukkah" in lower
+        ):
             holiday_packs.append(name)
         elif "nostalgia" in lower or "90s" in lower or "2000s" in lower:
             nostalgia_packs.append(name)
@@ -251,9 +257,7 @@ class HumanityCardsGame(Game):
     def get_max_players(cls) -> int:
         return 10
 
-    def create_player(
-        self, player_id: str, name: str, is_bot: bool = False
-    ) -> HumanityCardsPlayer:
+    def create_player(self, player_id: str, name: str, is_bot: bool = False) -> HumanityCardsPlayer:
         return HumanityCardsPlayer(id=player_id, name=name, is_bot=is_bot)
 
     # ==========================================================================
@@ -281,22 +285,26 @@ class HumanityCardsGame(Game):
 
             for card in pack.get("white", []):
                 text = card["text"].rstrip(".")
-                self.white_deck.append({
-                    "text": text,
-                    "pack": pack_name,
-                    "id": _make_card_id(),
-                })
+                self.white_deck.append(
+                    {
+                        "text": text,
+                        "pack": pack_name,
+                        "id": _make_card_id(),
+                    }
+                )
 
             for card in pack.get("black", []):
                 text = card["text"]
                 pick = text.count("_")
                 if pick == 0:
                     pick = 1  # Cards with no blanks get 1 pick
-                self.black_deck.append({
-                    "text": text,
-                    "pick": pick,
-                    "pack": pack_name,
-                })
+                self.black_deck.append(
+                    {
+                        "text": text,
+                        "pick": pick,
+                        "pack": pack_name,
+                    }
+                )
 
         random.shuffle(self.white_deck)  # nosec B311
         random.shuffle(self.black_deck)  # nosec B311
@@ -408,9 +416,7 @@ class HumanityCardsGame(Game):
             # Rotating (default)
             self._select_judges_rotating(active, num_judges)
 
-    def _select_judges_rotating(
-        self, active: list[HumanityCardsPlayer], num_judges: int
-    ) -> None:
+    def _select_judges_rotating(self, active: list[HumanityCardsPlayer], num_judges: int) -> None:
         """Rotating judge selection: advance from current position."""
         if not self.judge_indices:
             self.judge_indices = [0]
@@ -688,7 +694,8 @@ class HumanityCardsGame(Game):
         locale = user.locale if user else "en"
         required = self.current_black_card["pick"] if self.current_black_card else 1
         return Localization.get(
-            locale, "hc-submit-cards",
+            locale,
+            "hc-submit-cards",
             selected=len(hcp.selected_indices),
             required=required,
         )
@@ -728,9 +735,7 @@ class HumanityCardsGame(Game):
             if sub_idx < len(self.submissions):
                 sub = self.submissions[sub_idx]
                 if self.current_black_card:
-                    return self._fill_in_blanks(
-                        self.current_black_card["text"], sub["cards"]
-                    )
+                    return self._fill_in_blanks(self.current_black_card["text"], sub["cards"])
                 return ", ".join(sub["cards"])
         return f"Submission {idx + 1}"
 
@@ -766,9 +771,7 @@ class HumanityCardsGame(Game):
             if idx < len(self.submissions):
                 sub = self.submissions[idx]
                 if self.current_black_card:
-                    filled = self._fill_in_blanks(
-                        self.current_black_card["text"], sub["cards"]
-                    )
+                    filled = self._fill_in_blanks(self.current_black_card["text"], sub["cards"])
                 else:
                     filled = ", ".join(sub["cards"])
                 options.append(filled)
@@ -832,10 +835,7 @@ class HumanityCardsGame(Game):
 
         if self.phase == "submitting":
             # List who hasn't submitted
-            waiting = [
-                p.name for p in self._get_non_judges()
-                if p.submitted_cards is None
-            ]
+            waiting = [p.name for p in self._get_non_judges() if p.submitted_cards is None]
             if waiting:
                 user.speak_l("hc-waiting-for", names=", ".join(waiting))
             else:
@@ -1110,9 +1110,7 @@ class HumanityCardsGame(Game):
         # Award point
         hc_winner.score += 1
         active = self.get_active_players()
-        self.last_winner_index = next(
-            (i for i, p in enumerate(active) if p.id == winner.id), -1
-        )
+        self.last_winner_index = next((i for i, p in enumerate(active) if p.id == winner.id), -1)
 
         # Announce winner
         winning_text = self._fill_in_blanks(
@@ -1189,17 +1187,11 @@ class HumanityCardsGame(Game):
             return
 
         if hcp.submitted_cards is not None and self.current_black_card:
-            filled = self._fill_in_blanks(
-                self.current_black_card["text"], hcp.submitted_cards
-            )
+            filled = self._fill_in_blanks(self.current_black_card["text"], hcp.submitted_cards)
             user.speak_l("hc-your-submission", text=filled)
         elif hcp.selected_indices and self.current_black_card:
             # Preview current selection
-            cards = [
-                hcp.hand[i]["text"]
-                for i in hcp.selected_indices
-                if i < len(hcp.hand)
-            ]
+            cards = [hcp.hand[i]["text"] for i in hcp.selected_indices if i < len(hcp.hand)]
             filled = self._fill_in_blanks(self.current_black_card["text"], cards)
             user.speak_l("hc-preview-submission-text", text=filled)
         else:
@@ -1359,10 +1351,12 @@ class HumanityCardsGame(Game):
         self.submissions = []
         for p in self._get_non_judges():
             if p.submitted_cards is not None:
-                self.submissions.append({
-                    "player_id": p.id,
-                    "cards": list(p.submitted_cards),
-                })
+                self.submissions.append(
+                    {
+                        "player_id": p.id,
+                        "cards": list(p.submitted_cards),
+                    }
+                )
 
         # Shuffle presentation order
         self.submission_order = list(range(len(self.submissions)))
@@ -1402,10 +1396,7 @@ class HumanityCardsGame(Game):
 
             # Select random cards if not enough selected
             if len(player.selected_indices) < required:
-                available = [
-                    i for i in range(len(player.hand))
-                    if i not in player.selected_indices
-                ]
+                available = [i for i in range(len(player.hand)) if i not in player.selected_indices]
                 if available:
                     pick = random.choice(available)  # nosec B311
                     return f"toggle_card_{pick}"

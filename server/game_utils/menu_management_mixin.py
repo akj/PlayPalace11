@@ -23,9 +23,7 @@ class MenuManagementMixin:
         get_all_visible_actions(player) -> list[ResolvedAction].
     """
 
-    def rebuild_player_menu(
-        self, player: "Player", *, position: int | None = None
-    ) -> None:
+    def rebuild_player_menu(self, player: "Player", *, position: int | None = None) -> None:
         """Rebuild the turn menu for a player.
 
         Args:
@@ -72,7 +70,10 @@ class MenuManagementMixin:
             self.rebuild_player_menu(player)
 
     def update_player_menu(
-        self, player: "Player", selection_id: str | None = None
+        self,
+        player: "Player",
+        selection_id: str | None = None,
+        play_selection_sound: bool = False,
     ) -> None:
         """Update the turn menu for a player, preserving focus position."""
         if self._destroyed:
@@ -93,7 +94,9 @@ class MenuManagementMixin:
                 label = f"{label}; {unavailable}"
             items.append(MenuItem(text=label, id=resolved.action.id, sound=resolved.sound))
 
-        user.update_menu("turn_menu", items, selection_id=selection_id)
+        user.update_menu(
+            "turn_menu", items, selection_id=selection_id, play_selection_sound=play_selection_sound
+        )
 
     def update_all_menus(self) -> None:
         """Update menus for all players, preserving focus position."""

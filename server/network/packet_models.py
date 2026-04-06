@@ -285,6 +285,7 @@ class MenuPacket(BasePacket):
     selection_id: str | None = None
     grid_enabled: bool | None = None
     grid_width: MenuIndex | None = None
+    play_selection_sound: bool | None = None
 
 
 class RequestInputPacket(BasePacket):

@@ -261,6 +261,30 @@ incorrect-username = Tên đăng nhập không tồn tại.
 incorrect-password = Mật khẩu không chính xác.
 already-logged-in = Tài khoản này đang được đăng nhập ở nơi khác.
 
+# Xác thực thông tin đăng nhập
+credential-username-length = Tên đăng nhập phải có từ { $min } đến { $max } ký tự.
+credential-password-length = Mật khẩu phải có từ { $min } đến { $max } ký tự.
+
+# Giới hạn tốc độ truy cập
+rate-limit-login-ip = Quá nhiều lần thử đăng nhập từ địa chỉ này. Vui lòng chờ và thử lại.
+rate-limit-login-user = Quá nhiều lần đăng nhập thất bại cho tên đăng nhập này. Vui lòng chờ và thử lại.
+rate-limit-registration = Quá nhiều lần thử đăng ký từ địa chỉ này. Vui lòng chờ và thử lại.
+rate-limit-refresh = Quá nhiều lần thử làm mới từ địa chỉ này. Vui lòng chờ và thử lại.
+
+# Lỗi phiên/xác thực
+account-not-found = Không tìm thấy tài khoản.
+session-expired = Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.
+session-token-mismatch = Token phiên không khớp với tên đăng nhập.
+refresh-token-expired = Token làm mới đã hết hạn. Vui lòng đăng nhập lại.
+refresh-token-mismatch = Token làm mới không khớp với tên đăng nhập.
+
+# Đăng ký
+registration-success = Đăng ký thành công! Tài khoản của bạn đang chờ phê duyệt.
+registration-username-taken = Tên đăng nhập đã được sử dụng. Vui lòng chọn tên khác.
+
+# Giá trị tùy chọn mặc định
+pref-invalid-value = Lựa chọn không hợp lệ, đang dùng giá trị mặc định.
+
 # Lý do từ chối
 decline-reason-prompt = Nhập lý do từ chối (hoặc nhấn Escape để hủy):
 account-action-empty-reason = Không có lý do.

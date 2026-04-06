@@ -213,7 +213,9 @@ class LeftRightCenterGame(ActionGuardMixin, Game):
     def _get_turn_order(self) -> list[LeftRightCenterPlayer]:
         return [p for p in self.players if not p.is_spectator]
 
-    def _get_left_right(self, player: LeftRightCenterPlayer) -> tuple[LeftRightCenterPlayer, LeftRightCenterPlayer]:
+    def _get_left_right(
+        self, player: LeftRightCenterPlayer
+    ) -> tuple[LeftRightCenterPlayer, LeftRightCenterPlayer]:
         order = self._get_turn_order()
         if not order:
             return (player, player)
@@ -311,9 +313,7 @@ class LeftRightCenterGame(ActionGuardMixin, Game):
                 count=center_count,
             )
             for _ in range(center_count):
-                self.schedule_sound(
-                    "game_ninetynine/lose1_other.ogg", delay_ticks=sound_delay
-                )
+                self.schedule_sound("game_ninetynine/lose1_other.ogg", delay_ticks=sound_delay)
                 sound_delay += 10
 
         self._sync_team_scores()
@@ -421,5 +421,9 @@ class LeftRightCenterGame(ActionGuardMixin, Game):
         final_chips = result.custom_data.get("final_chips", {})
         for name, chips in final_chips.items():
             lines.append(f"{name}: {chips}")
-        lines.append(Localization.get(locale, "lrc-center-pot", count=result.custom_data.get("center_pot", 0)))
+        lines.append(
+            Localization.get(
+                locale, "lrc-center-pot", count=result.custom_data.get("center_pot", 0)
+            )
+        )
         return lines

@@ -258,6 +258,30 @@ incorrect-username = Wprowadzona nazwa użytkownika nie istnieje.
 incorrect-password = Wprowadzone hasło jest nieprawidłowe.
 already-logged-in = To konto jest już zalogowane.
 
+# Walidacja danych logowania
+credential-username-length = Nazwa użytkownika musi mieć od { $min } do { $max } znaków.
+credential-password-length = Hasło musi mieć od { $min } do { $max } znaków.
+
+# Ograniczenie liczby prób
+rate-limit-login-ip = Zbyt wiele prób logowania z tego adresu. Poczekaj chwilę i spróbuj ponownie.
+rate-limit-login-user = Zbyt wiele nieudanych prób logowania dla tej nazwy użytkownika. Poczekaj chwilę i spróbuj ponownie.
+rate-limit-registration = Zbyt wiele prób rejestracji z tego adresu. Poczekaj chwilę i spróbuj ponownie.
+rate-limit-refresh = Zbyt wiele prób odświeżenia z tego adresu. Poczekaj chwilę i spróbuj ponownie.
+
+# Błędy sesji i autoryzacji
+account-not-found = Nie znaleziono konta.
+session-expired = Sesja wygasła. Zaloguj się ponownie.
+session-token-mismatch = Token sesji nie pasuje do nazwy użytkownika.
+refresh-token-expired = Token odświeżania wygasł. Zaloguj się ponownie.
+refresh-token-mismatch = Token odświeżania nie pasuje do nazwy użytkownika.
+
+# Rejestracja
+registration-success = Rejestracja zakończona pomyślnie! Twoje konto oczekuje na zatwierdzenie.
+registration-username-taken = Ta nazwa użytkownika jest już zajęta. Wybierz inną nazwę użytkownika.
+
+# Domyślne preferencje
+pref-invalid-value = Nieprawidłowy wybór, używam wartości domyślnej.
+
 # Powód odrzucenia
 decline-reason-prompt = Podaj powód odrzucenia (lub naciśnij Escape, aby anulować):
 account-action-empty-reason = Nie podano powodu.

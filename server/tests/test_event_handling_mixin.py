@@ -58,10 +58,14 @@ class DummyGame(EventHandlingMixin):
         self.leave_requests: list[str] = []
 
     # Helpers for tests
-    def register_action(self, action_id: str, *, enabled: bool = True, disabled_reason: str | None = None) -> None:
+    def register_action(
+        self, action_id: str, *, enabled: bool = True, disabled_reason: str | None = None
+    ) -> None:
         action = DummyAction(action_id)
         self._actions[action_id] = action
-        self._resolved[action_id] = DummyResolved(action, enabled=enabled, disabled_reason=disabled_reason)
+        self._resolved[action_id] = DummyResolved(
+            action, enabled=enabled, disabled_reason=disabled_reason
+        )
 
     def set_visible_actions(self, resolved: list[DummyResolved]) -> None:
         self._visible_actions = resolved
@@ -76,7 +80,9 @@ class DummyGame(EventHandlingMixin):
     def resolve_action(self, _player: Player, action: DummyAction) -> DummyResolved:
         return self._resolved[action.id]
 
-    def execute_action(self, player: Player, action_id: str, input_value=None, context=None) -> None:
+    def execute_action(
+        self, player: Player, action_id: str, input_value=None, context=None
+    ) -> None:
         self.executed.append(
             (
                 player.id,
@@ -181,7 +187,7 @@ def test_leave_game_confirm_yes_calls_handler_and_clears_state():
     assert "leave_game_confirm" in user.removed
     assert player.id not in game._pending_actions
     assert game.leave_requests == [player.id]
-    assert game.rebuild_player_calls == 1
+    assert game.rebuild_player_calls == 0
 
 
 def test_keybind_event_executes_enabled_and_speaks_disabled():

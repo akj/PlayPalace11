@@ -227,15 +227,21 @@ def test_game_options_create_action_set_and_update_labels(monkeypatch):
 class LinkedVisibilityOptions(GameOptions):
     reshuffle_limit: int = option_field(
         IntOption(
-            default=3, min_val=0, max_val=10,
-            label="opt-limit", prompt="opt-limit-prompt",
+            default=3,
+            min_val=0,
+            max_val=10,
+            label="opt-limit",
+            prompt="opt-limit-prompt",
             change_msg="opt-limit-change",
         )
     )
     reshuffle_penalty: int = option_field(
         IntOption(
-            default=1, min_val=0, max_val=5,
-            label="opt-penalty", prompt="opt-penalty-prompt",
+            default=1,
+            min_val=0,
+            max_val=5,
+            label="opt-penalty",
+            prompt="opt-penalty-prompt",
             change_msg="opt-penalty-change",
         ),
         visible_when=("reshuffle_limit", lambda v: v > 0),
@@ -244,6 +250,7 @@ class LinkedVisibilityOptions(GameOptions):
 
 def test_visible_when_condition_true(monkeypatch):
     """Option is included when visible_when condition is true."""
+
     def fake_get(locale, key, **kwargs):
         return key
 
@@ -261,6 +268,7 @@ def test_visible_when_condition_true(monkeypatch):
 
 def test_visible_when_condition_false(monkeypatch):
     """Option is excluded when visible_when condition is false."""
+
     def fake_get(locale, key, **kwargs):
         return key
 
@@ -279,6 +287,7 @@ def test_visible_when_condition_false(monkeypatch):
 
 def test_visible_when_updates_on_label_refresh(monkeypatch):
     """Visibility changes when referenced option changes and labels update."""
+
     def fake_get(locale, key, **kwargs):
         return key
 
@@ -325,24 +334,33 @@ def test_get_visibility_conditions_helper():
 class GroupedOptions(GameOptions):
     rounds: int = option_field(
         IntOption(
-            default=3, min_val=1, max_val=10,
-            label="opt-rounds", prompt="opt-rounds-prompt",
+            default=3,
+            min_val=1,
+            max_val=10,
+            label="opt-rounds",
+            prompt="opt-rounds-prompt",
             change_msg="opt-rounds-change",
         )
     )
     bear_settings: None = option_group(label="opt-bear-settings")
     bear_speed: int = option_field(
         IntOption(
-            default=5, min_val=1, max_val=10,
-            label="opt-bear-speed", prompt="opt-bear-speed-prompt",
+            default=5,
+            min_val=1,
+            max_val=10,
+            label="opt-bear-speed",
+            prompt="opt-bear-speed-prompt",
             change_msg="opt-bear-speed-change",
         ),
         group="bear_settings",
     )
     bear_aggression: int = option_field(
         IntOption(
-            default=3, min_val=1, max_val=10,
-            label="opt-bear-aggr", prompt="opt-bear-aggr-prompt",
+            default=3,
+            min_val=1,
+            max_val=10,
+            label="opt-bear-aggr",
+            prompt="opt-bear-aggr-prompt",
             change_msg="opt-bear-aggr-change",
         ),
         group="bear_settings",
@@ -351,6 +369,7 @@ class GroupedOptions(GameOptions):
 
 def test_option_group_top_level_shows_group_header(monkeypatch):
     """At top level, group header is shown but group children are not."""
+
     def fake_get(locale, key, **kwargs):
         return key
 
@@ -372,6 +391,7 @@ def test_option_group_top_level_shows_group_header(monkeypatch):
 
 def test_option_group_navigate_into_group(monkeypatch):
     """Navigating into a group shows its children and a back action."""
+
     def fake_get(locale, key, **kwargs):
         return key
 
@@ -397,6 +417,7 @@ def test_option_group_navigate_into_group(monkeypatch):
 
 def test_option_group_back_returns_to_top(monkeypatch):
     """Navigating back from a group shows top-level options again."""
+
     def fake_get(locale, key, **kwargs):
         return key
 
@@ -444,8 +465,11 @@ def test_option_group_meta_from_class():
 class NestedGroupOptions(GameOptions):
     top_option: int = option_field(
         IntOption(
-            default=1, min_val=1, max_val=5,
-            label="opt-top", prompt="opt-top-prompt",
+            default=1,
+            min_val=1,
+            max_val=5,
+            label="opt-top",
+            prompt="opt-top-prompt",
             change_msg="opt-top-change",
         )
     )
@@ -453,16 +477,22 @@ class NestedGroupOptions(GameOptions):
     inner_group: None = option_group(label="opt-inner")
     inner_option: int = option_field(
         IntOption(
-            default=2, min_val=1, max_val=10,
-            label="opt-inner-val", prompt="opt-inner-prompt",
+            default=2,
+            min_val=1,
+            max_val=10,
+            label="opt-inner-val",
+            prompt="opt-inner-prompt",
             change_msg="opt-inner-change",
         ),
         group="inner_group",
     )
     outer_option: int = option_field(
         IntOption(
-            default=3, min_val=1, max_val=10,
-            label="opt-outer-val", prompt="opt-outer-prompt",
+            default=3,
+            min_val=1,
+            max_val=10,
+            label="opt-outer-val",
+            prompt="opt-outer-prompt",
             change_msg="opt-outer-change",
         ),
         group="outer_group",
@@ -511,8 +541,11 @@ class MultiSelectOptions(GameOptions):
     )
     other_option: int = option_field(
         IntOption(
-            default=5, min_val=1, max_val=10,
-            label="opt-other", prompt="opt-other-prompt",
+            default=5,
+            min_val=1,
+            max_val=10,
+            label="opt-other",
+            prompt="opt-other-prompt",
             change_msg="opt-other-change",
         )
     )
@@ -534,6 +567,7 @@ def test_multi_select_default_is_independent_copy():
 
 def test_multi_select_top_level_shows_parent_action(monkeypatch):
     """At top level, multi-select shows a parent action with count."""
+
     def fake_get(locale, key, **kwargs):
         if key == "opt-packs":
             return f"Packs ({kwargs.get('count', 0)} selected)"
@@ -555,6 +589,7 @@ def test_multi_select_top_level_shows_parent_action(monkeypatch):
 
 def test_multi_select_navigate_in_shows_toggles(monkeypatch):
     """Navigating into a multi-select shows toggle actions for each choice."""
+
     def fake_get(locale, key, **kwargs):
         return key
 
@@ -580,6 +615,7 @@ def test_multi_select_navigate_in_shows_toggles(monkeypatch):
 
 def test_multi_select_toggle_labels_show_on_off(monkeypatch):
     """Toggle labels show on/off state for each choice."""
+
     def fake_get(locale, key, **kwargs):
         return key
 
@@ -626,6 +662,7 @@ def test_multi_select_with_callable_choices():
 
 def test_multi_select_choice_labels(monkeypatch):
     """MultiSelectOption supports localized choice labels."""
+
     def fake_get(locale, key, **kwargs):
         mapping = {"label-std": "Standard Pack", "label-prem": "Premium Pack"}
         return mapping.get(key, key)
@@ -673,15 +710,21 @@ def test_multi_select_max_selected():
 class CombinedOptions(GameOptions):
     limit: int = option_field(
         IntOption(
-            default=3, min_val=0, max_val=10,
-            label="opt-limit", prompt="opt-limit-prompt",
+            default=3,
+            min_val=0,
+            max_val=10,
+            label="opt-limit",
+            prompt="opt-limit-prompt",
             change_msg="opt-limit-change",
         )
     )
     penalty: int = option_field(
         IntOption(
-            default=1, min_val=0, max_val=5,
-            label="opt-penalty", prompt="opt-penalty-prompt",
+            default=1,
+            min_val=0,
+            max_val=5,
+            label="opt-penalty",
+            prompt="opt-penalty-prompt",
             change_msg="opt-penalty-change",
         ),
         visible_when=("limit", lambda v: v > 0),

@@ -65,6 +65,47 @@ game-player-deals = { $player } distribue les cartes.
 card-name = { $rank } de { $suit }
 no-cards = Aucune carte
 
+# Colors (with gendered forms: m = masculine, f = feminine)
+color-black = noir
+color-black-m = noir
+color-black-f = noire
+color-blue = bleu
+color-blue-m = bleu
+color-blue-f = bleue
+color-brown = marron
+color-brown-m = marron
+color-brown-f = marron
+color-gray = gris
+color-gray-m = gris
+color-gray-f = grise
+color-green = vert
+color-green-m = vert
+color-green-f = verte
+color-indigo = indigo
+color-indigo-m = indigo
+color-indigo-f = indigo
+color-orange = orange
+color-orange-m = orange
+color-orange-f = orange
+color-pink = rose
+color-pink-m = rose
+color-pink-f = rose
+color-purple = violet
+color-purple-m = violet
+color-purple-f = violette
+color-red = rouge
+color-red-m = rouge
+color-red-f = rouge
+color-violet = violet
+color-violet-m = violet
+color-violet-f = violette
+color-white = blanc
+color-white-m = blanc
+color-white-f = blanche
+color-yellow = jaune
+color-yellow-m = jaune
+color-yellow-f = jaune
+
 # Noms de couleurs
 suit-diamonds = carreau
 suit-clubs = trèfle

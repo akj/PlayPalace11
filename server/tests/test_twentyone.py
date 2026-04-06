@@ -1,17 +1,51 @@
 import random
+from collections import defaultdict
+from pathlib import Path
 
 from server.core.users.bot import Bot
 from server.core.users.test_user import MockUser
 from server.game_utils.cards import Card, Deck
+from server.games import twentyone as twentyone_module
+from server.messages.localization import Localization
 from server.games.twentyone import (
+    DEFAULT_MODIFIER_DRAW_WEIGHT,
+    ENDGAME_MODIFIER_DRAW_WEIGHT,
+    DOUBLE_ENHANCED_MODIFIER_DRAW_WEIGHT,
+    ENHANCED_MODIFIER_DRAW_WEIGHT,
+    TRIPLE_ENHANCED_MODIFIER_DRAW_WEIGHT,
+    MODIFIER_ALL_IN_SILENCE,
+    MODIFIER_DRAW_WEIGHTS,
     MODIFIER_LABELS,
+    MODIFIER_BREAK,
+    MODIFIER_BREAK_PLUS,
+    MODIFIER_BREAK_SHIELDS,
+    MODIFIER_BREAK_SHIELDS_PLUS,
+    MODIFIER_DARK_BARGAIN,
+    MODIFIER_DRAW_SILENCE,
+    MODIFIER_EXACT_21_SURGE,
     MODIFIER_GUARD,
+    MODIFIER_GUARD_PLUS,
+    MODIFIER_HAND_TAX,
+    MODIFIER_HAND_TAX_PLUS,
+    MODIFIER_HEX_DRAW,
     MODIFIER_LOCKDOWN,
+    MODIFIER_MIND_TAX,
+    MODIFIER_MIND_TAX_PLUS,
+    MODIFIER_REDRAFT,
+    MODIFIER_REDRAFT_PLUS,
+    MODIFIER_ROUND_ERASE,
+    MODIFIER_SHARED_CACHE,
     MODIFIER_TARGET_24,
     MODIFIER_RAISE_1,
+    MODIFIER_RAISE_2,
     MODIFIER_PRECISION_DRAW,
+    MODIFIER_PRECISION_DRAW_PLUS,
+    MODIFIER_PRIME_DRAW,
+    MODIFIER_AID_RIVAL,
     MODIFIER_RAISE_2_PLUS,
     MODIFIER_SCRAP,
+    MODIFIER_RECYCLE,
+    MODIFIER_ESCAPE_ROUTE,
     MODIFIER_SWAP_DRAW,
     TwentyOneGame,
     TwentyOneOptions,
@@ -39,6 +73,313 @@ def test_twentyone_creation() -> None:
     assert game.get_type() == "twentyone"
     assert game.get_min_players() == 2
     assert game.get_max_players() == 2
+    assert Localization.get("en", MODIFIER_LABELS[MODIFIER_RAISE_1]) == "raise one"
+    assert (
+        Localization.get("en", MODIFIER_LABELS[MODIFIER_RAISE_2_PLUS]) == "withdraw and raise two"
+    )
+    assert Localization.get("en", MODIFIER_LABELS[MODIFIER_GUARD]) == "defend"
+    assert Localization.get("en", MODIFIER_LABELS[MODIFIER_LOCKDOWN]) == "delete double enhanced"
+
+
+def test_twentyone_modifier_draw_weights_apply_enhanced_tiers() -> None:
+    assert MODIFIER_DRAW_WEIGHTS[MODIFIER_RAISE_1] == DEFAULT_MODIFIER_DRAW_WEIGHT
+    assert MODIFIER_DRAW_WEIGHTS[MODIFIER_RAISE_2] == ENHANCED_MODIFIER_DRAW_WEIGHT
+    assert MODIFIER_DRAW_WEIGHTS[MODIFIER_RAISE_2_PLUS] == DOUBLE_ENHANCED_MODIFIER_DRAW_WEIGHT
+    assert MODIFIER_DRAW_WEIGHTS[MODIFIER_GUARD] == DEFAULT_MODIFIER_DRAW_WEIGHT
+    assert MODIFIER_DRAW_WEIGHTS[MODIFIER_GUARD_PLUS] == ENHANCED_MODIFIER_DRAW_WEIGHT
+    assert MODIFIER_DRAW_WEIGHTS[MODIFIER_REDRAFT] == DEFAULT_MODIFIER_DRAW_WEIGHT
+    assert MODIFIER_DRAW_WEIGHTS[MODIFIER_REDRAFT_PLUS] == ENHANCED_MODIFIER_DRAW_WEIGHT
+    assert MODIFIER_DRAW_WEIGHTS[MODIFIER_BREAK] == DEFAULT_MODIFIER_DRAW_WEIGHT
+    assert MODIFIER_DRAW_WEIGHTS[MODIFIER_BREAK_PLUS] == ENHANCED_MODIFIER_DRAW_WEIGHT
+    assert MODIFIER_DRAW_WEIGHTS[MODIFIER_LOCKDOWN] == DOUBLE_ENHANCED_MODIFIER_DRAW_WEIGHT
+    assert MODIFIER_DRAW_WEIGHTS[MODIFIER_PRECISION_DRAW] == DEFAULT_MODIFIER_DRAW_WEIGHT
+    assert (
+        MODIFIER_DRAW_WEIGHTS[MODIFIER_PRECISION_DRAW_PLUS] == DOUBLE_ENHANCED_MODIFIER_DRAW_WEIGHT
+    )
+    assert MODIFIER_DRAW_WEIGHTS[MODIFIER_PRIME_DRAW] == ENHANCED_MODIFIER_DRAW_WEIGHT
+    assert MODIFIER_DRAW_WEIGHTS[MODIFIER_BREAK_SHIELDS] == DEFAULT_MODIFIER_DRAW_WEIGHT
+    assert MODIFIER_DRAW_WEIGHTS[MODIFIER_BREAK_SHIELDS_PLUS] == ENHANCED_MODIFIER_DRAW_WEIGHT
+    assert MODIFIER_DRAW_WEIGHTS[MODIFIER_HAND_TAX] == ENHANCED_MODIFIER_DRAW_WEIGHT
+    assert MODIFIER_DRAW_WEIGHTS[MODIFIER_HAND_TAX_PLUS] == DOUBLE_ENHANCED_MODIFIER_DRAW_WEIGHT
+    assert MODIFIER_DRAW_WEIGHTS[MODIFIER_MIND_TAX] == DEFAULT_MODIFIER_DRAW_WEIGHT
+    assert MODIFIER_DRAW_WEIGHTS[MODIFIER_MIND_TAX_PLUS] == ENHANCED_MODIFIER_DRAW_WEIGHT
+    assert MODIFIER_DRAW_WEIGHTS[MODIFIER_HEX_DRAW] == ENHANCED_MODIFIER_DRAW_WEIGHT
+    assert MODIFIER_DRAW_WEIGHTS[MODIFIER_ESCAPE_ROUTE] == ENHANCED_MODIFIER_DRAW_WEIGHT
+    assert MODIFIER_DRAW_WEIGHTS[MODIFIER_EXACT_21_SURGE] == ENHANCED_MODIFIER_DRAW_WEIGHT
+    assert MODIFIER_DRAW_WEIGHTS[MODIFIER_DRAW_SILENCE] == ENHANCED_MODIFIER_DRAW_WEIGHT
+    assert MODIFIER_DRAW_WEIGHTS[MODIFIER_DARK_BARGAIN] == DOUBLE_ENHANCED_MODIFIER_DRAW_WEIGHT
+    assert MODIFIER_DRAW_WEIGHTS[MODIFIER_ROUND_ERASE] == TRIPLE_ENHANCED_MODIFIER_DRAW_WEIGHT
+    assert MODIFIER_DRAW_WEIGHTS[MODIFIER_ALL_IN_SILENCE] == ENDGAME_MODIFIER_DRAW_WEIGHT
+    assert ENDGAME_MODIFIER_DRAW_WEIGHT == 10
+    assert ENHANCED_MODIFIER_DRAW_WEIGHT * 2 == DEFAULT_MODIFIER_DRAW_WEIGHT
+    assert DOUBLE_ENHANCED_MODIFIER_DRAW_WEIGHT * 4 == DEFAULT_MODIFIER_DRAW_WEIGHT
+    assert TRIPLE_ENHANCED_MODIFIER_DRAW_WEIGHT == ENDGAME_MODIFIER_DRAW_WEIGHT
+
+
+def test_twentyone_enemy_change_cards_have_custom_labels() -> None:
+    assert Localization.get("en", MODIFIER_LABELS[MODIFIER_SHARED_CACHE]) == "change is good"
+    assert Localization.get("en", MODIFIER_LABELS[MODIFIER_ROUND_ERASE]) == "nope"
+    assert Localization.get("en", MODIFIER_LABELS[MODIFIER_DRAW_SILENCE]) == "no draw for you!"
+
+
+def test_twentyone_shared_cache_grants_both_players_a_change_card() -> None:
+    game, p1, p2 = setup_game()
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p1, p2], reset_index=True)
+    p1.hp = 10
+    p2.hp = 10
+    p1.modifiers = [MODIFIER_SHARED_CACHE]
+    p2.modifiers = []
+
+    game.execute_action(p1, "play_modifier", f"1:{MODIFIER_LABELS[MODIFIER_SHARED_CACHE]}")
+
+    assert len(p1.modifiers) == 1
+    assert len(p2.modifiers) == 1
+
+
+def test_twentyone_break_shields_requires_three_defense_effects() -> None:
+    game, p1, p2 = setup_game()
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p1, p2], reset_index=True)
+    p1.hp = 10
+    p2.hp = 10
+    p1.modifiers = [MODIFIER_BREAK_SHIELDS]
+    p1.table_modifiers = [MODIFIER_GUARD, MODIFIER_GUARD_PLUS]
+
+    assert game._is_single_modifier_playable(p1, MODIFIER_BREAK_SHIELDS) is False
+    assert game._is_play_modifier_enabled(p1) is None
+
+    p1.table_modifiers.append(MODIFIER_GUARD)
+    assert game._is_single_modifier_playable(p1, MODIFIER_BREAK_SHIELDS) is True
+
+
+def test_twentyone_break_shields_enhanced_requires_two_defense_effects() -> None:
+    game, p1, p2 = setup_game()
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p1, p2], reset_index=True)
+    p1.hp = 10
+    p2.hp = 10
+    p1.modifiers = [MODIFIER_BREAK_SHIELDS_PLUS]
+    p1.table_modifiers = [MODIFIER_GUARD]
+
+    assert game._is_single_modifier_playable(p1, MODIFIER_BREAK_SHIELDS_PLUS) is False
+    assert game._is_play_modifier_enabled(p1) is None
+
+    p1.table_modifiers.append(MODIFIER_GUARD_PLUS)
+    assert game._is_single_modifier_playable(p1, MODIFIER_BREAK_SHIELDS_PLUS) is True
+
+
+def test_twentyone_break_shields_checks_only_current_players_defense_effects() -> None:
+    game, p1, p2 = setup_game()
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p1, p2], reset_index=True)
+    p1.hp = 10
+    p2.hp = 10
+    p1.modifiers = [MODIFIER_BREAK_SHIELDS, MODIFIER_BREAK_SHIELDS_PLUS]
+    p1.table_modifiers = [MODIFIER_GUARD]
+    p2.table_modifiers = [MODIFIER_GUARD, MODIFIER_GUARD_PLUS, MODIFIER_GUARD]
+
+    # Opponent has enough defense effects, but current player does not.
+    assert game._is_single_modifier_playable(p1, MODIFIER_BREAK_SHIELDS) is False
+    assert game._is_single_modifier_playable(p1, MODIFIER_BREAK_SHIELDS_PLUS) is False
+
+    # Once current player reaches requirements, both become playable.
+    p1.table_modifiers.extend([MODIFIER_GUARD_PLUS, MODIFIER_GUARD])
+    assert game._is_single_modifier_playable(p1, MODIFIER_BREAK_SHIELDS) is True
+    assert game._is_single_modifier_playable(p1, MODIFIER_BREAK_SHIELDS_PLUS) is True
+
+
+def test_twentyone_hand_tax_and_exact_21_surge_raise_bet() -> None:
+    game, p1, p2 = setup_game()
+    p1.hp = 10
+    p2.hp = 10
+    p1.hand = [make_card(1, 10), make_card(2, 11)]
+    p1.table_modifiers = [MODIFIER_HAND_TAX, MODIFIER_EXACT_21_SURGE]
+    p2.modifiers = [MODIFIER_RAISE_1, MODIFIER_RAISE_2, MODIFIER_GUARD, MODIFIER_REDRAFT]
+
+    # Base 1 + cost-of-change (half of 4 = 2) + 21-at-21 (21) = 24
+    assert game._current_bet(p2) == 24
+
+
+def test_twentyone_draw_silence_blocks_hit_draws() -> None:
+    game, p1, p2 = setup_game()
+    host_user = game.get_user(p2)
+    assert host_user is not None
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p2, p1], reset_index=True)
+    p1.hp = 10
+    p2.hp = 10
+    p1.table_modifiers = [MODIFIER_DRAW_SILENCE]
+    p2.hand = [make_card(1, 5), make_card(2, 6)]
+    game.deck = Deck(cards=[make_card(99, 7)])
+
+    host_user.clear_messages()
+    game.execute_action(p2, "hit")
+
+    assert len(p2.hand) == 2
+    assert twentyone_module.SOUND_ACTION_FAIL in host_user.get_sounds_played()
+
+
+def test_twentyone_round_erase_cancels_current_round() -> None:
+    game, p1, p2 = setup_game()
+    game.on_start()
+    p1.modifiers = [MODIFIER_ROUND_ERASE]
+    start_round = game.round_number
+
+    game.execute_action(p1, "play_modifier", f"1:{MODIFIER_LABELS[MODIFIER_ROUND_ERASE]}")
+
+    assert game.phase == "between_rounds"
+    assert game.next_round_wait_ticks == 0
+    game.on_tick()
+    assert game.phase == "turns"
+    assert game.round_number == start_round + 1
+
+
+def test_twentyone_round_erase_plays_endgame_sound() -> None:
+    game, p1, p2 = setup_game()
+    host_user = game.get_user(p1)
+    guest_user = game.get_user(p2)
+    assert host_user is not None
+    assert guest_user is not None
+    game.on_start()
+    p1.modifiers = [MODIFIER_ROUND_ERASE]
+
+    host_user.clear_messages()
+    guest_user.clear_messages()
+    game.execute_action(p1, "play_modifier", f"1:{MODIFIER_LABELS[MODIFIER_ROUND_ERASE]}")
+
+    assert twentyone_module.SOUND_MOD_ENDGAME in host_user.get_sounds_played()
+    assert twentyone_module.SOUND_MOD_ENDGAME in guest_user.get_sounds_played()
+
+
+def test_twentyone_draw_silence_plays_enemy_sound() -> None:
+    game, p1, p2 = setup_game()
+    host_user = game.get_user(p1)
+    guest_user = game.get_user(p2)
+    assert host_user is not None
+    assert guest_user is not None
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p1, p2], reset_index=True)
+    p1.hp = 10
+    p2.hp = 10
+    p1.modifiers = [MODIFIER_DRAW_SILENCE]
+
+    host_user.clear_messages()
+    guest_user.clear_messages()
+    game.execute_action(p1, "play_modifier", f"1:{MODIFIER_LABELS[MODIFIER_DRAW_SILENCE]}")
+
+    assert twentyone_module.SOUND_MOD_ENEMY in host_user.get_sounds_played()
+    assert twentyone_module.SOUND_MOD_ENEMY in guest_user.get_sounds_played()
+
+
+def test_twentyone_game_over_plays_endgame_sound() -> None:
+    game, p1, p2 = setup_game()
+    host_user = game.get_user(p1)
+    guest_user = game.get_user(p2)
+    assert host_user is not None
+    assert guest_user is not None
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p1, p2], reset_index=True)
+    p1.hp = 10
+    p2.hp = 10
+    p1.modifiers = [MODIFIER_ALL_IN_SILENCE]
+
+    host_user.clear_messages()
+    guest_user.clear_messages()
+    game.execute_action(p1, "play_modifier", f"1:{MODIFIER_LABELS[MODIFIER_ALL_IN_SILENCE]}")
+
+    assert twentyone_module.SOUND_MOD_ENDGAME in host_user.get_sounds_played()
+    assert twentyone_module.SOUND_MOD_ENDGAME in guest_user.get_sounds_played()
+
+
+def test_twentyone_mind_tax_discards_half_at_round_end() -> None:
+    game, p1, p2 = setup_game()
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    p1.hp = 10
+    p2.hp = 10
+    p1.table_modifiers = [MODIFIER_MIND_TAX]
+    p1.hand = [make_card(1, 10), make_card(2, 9)]
+    p2.hand = [make_card(3, 8), make_card(4, 7)]
+    p2.modifiers = [MODIFIER_RAISE_1, MODIFIER_RAISE_2, MODIFIER_GUARD, MODIFIER_REDRAFT]
+
+    game._settle_round()
+    game._resolve_pending_round()
+
+    assert len(p2.modifiers) == 2
+
+
+def test_twentyone_mind_tax_break_requires_two_cards_in_one_turn() -> None:
+    game, p1, p2 = setup_game()
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p2, p1], reset_index=True)
+    p1.hp = 10
+    p2.hp = 10
+    p1.table_modifiers = [MODIFIER_MIND_TAX]
+    p1.hand = [make_card(10, 5), make_card(11, 6)]
+    p2.hand = [make_card(20, 7), make_card(21, 8)]
+    p2.modifiers = [MODIFIER_RAISE_1, MODIFIER_RAISE_2]
+    game.deck = Deck(cards=[make_card(99, 4)])
+
+    game.execute_action(p2, "play_modifier", f"1:{MODIFIER_LABELS[MODIFIER_RAISE_1]}")
+    assert MODIFIER_MIND_TAX in p1.table_modifiers
+
+    game.execute_action(p2, "stand")
+    game.execute_action(p1, "hit")
+    game.execute_action(p1, "stand")
+
+    # New turn for p2: first modifier play this turn should not break mind tax.
+    game.execute_action(p2, "play_modifier", f"1:{MODIFIER_LABELS[MODIFIER_RAISE_2]}")
+    assert MODIFIER_MIND_TAX in p1.table_modifiers
+
+
+def test_twentyone_glitched_draw_requires_one_discardable_change_card() -> None:
+    game, p1, p2 = setup_game()
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p1, p2], reset_index=True)
+    p1.hp = 10
+    p2.hp = 10
+    p1.modifiers = [MODIFIER_HEX_DRAW]
+
+    assert game._is_single_modifier_playable(p1, MODIFIER_HEX_DRAW) is False
+
+    p1.modifiers = [MODIFIER_HEX_DRAW, MODIFIER_GUARD]
+    assert game._is_single_modifier_playable(p1, MODIFIER_HEX_DRAW) is True
+
+
+def test_twentyone_dark_bargain_requires_two_discardable_change_cards() -> None:
+    game, p1, p2 = setup_game()
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p1, p2], reset_index=True)
+    p1.hp = 10
+    p2.hp = 10
+    p1.modifiers = [MODIFIER_DARK_BARGAIN, MODIFIER_GUARD]
+
+    assert game._is_single_modifier_playable(p1, MODIFIER_DARK_BARGAIN) is False
+
+    p1.modifiers = [MODIFIER_DARK_BARGAIN, MODIFIER_GUARD, MODIFIER_RAISE_1]
+    assert game._is_single_modifier_playable(p1, MODIFIER_DARK_BARGAIN) is True
 
 
 def test_twentyone_start_round_deals_number_cards() -> None:
@@ -65,9 +406,9 @@ def test_twentyone_hides_opponent_hole_card_on_round_start() -> None:
         game.deck = Deck(
             cards=[
                 make_card(1, 11),  # Host hidden
-                make_card(2, 3),   # Guest hidden
-                make_card(3, 4),   # Host shown
-                make_card(4, 5),   # Guest shown
+                make_card(2, 3),  # Guest hidden
+                make_card(3, 4),  # Host shown
+                make_card(4, 5),  # Guest shown
             ]
         )
 
@@ -91,14 +432,14 @@ def test_twentyone_modifier_gain_is_hidden_from_opponent() -> None:
     assert guest_user is not None
 
     game._give_random_modifiers(p1, 1, announce=True)
-    gained = MODIFIER_LABELS[p1.modifiers[-1]]
+    gained = Localization.get("en", MODIFIER_LABELS[p1.modifiers[-1]])
 
     host_text = " ".join(host_user.get_spoken_messages())
     guest_text = " ".join(guest_user.get_spoken_messages())
 
     assert gained in host_text
     assert gained not in guest_text
-    assert "gains a modifier card" in guest_text
+    assert "gains a change card" in guest_text
 
 
 def test_twentyone_hit_card_is_visible_to_opponent() -> None:
@@ -124,6 +465,111 @@ def test_twentyone_hit_card_is_visible_to_opponent() -> None:
     assert "(7)" in guest_text
 
 
+def test_twentyone_hit_plays_draw_sound_for_both_players() -> None:
+    game, p1, p2 = setup_game()
+    host_user = game.get_user(p1)
+    guest_user = game.get_user(p2)
+    assert host_user is not None
+    assert guest_user is not None
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p1, p2], reset_index=True)
+    p1.hp = 10
+    p2.hp = 10
+    game.deck = Deck(cards=[make_card(99, 7)])
+
+    host_user.clear_messages()
+    guest_user.clear_messages()
+    game.execute_action(p1, "hit")
+
+    assert twentyone_module.SOUND_HIT in host_user.get_sounds_played()
+    assert twentyone_module.SOUND_HIT in guest_user.get_sounds_played()
+
+
+def test_twentyone_target_proximity_sound_only_on_exact_target_for_actor() -> None:
+    game, p1, p2 = setup_game()
+    host_user = game.get_user(p1)
+    guest_user = game.get_user(p2)
+    assert host_user is not None
+    assert guest_user is not None
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p1, p2], reset_index=True)
+    p1.hp = 10
+    p2.hp = 10
+    p1.hand = [make_card(1, 10), make_card(2, 10)]
+    game.deck = Deck(cards=[make_card(99, 1)])
+
+    host_user.clear_messages()
+    guest_user.clear_messages()
+    game.execute_action(p1, "hit")
+
+    assert twentyone_module.SOUND_NEAR_BUST in host_user.get_sounds_played()
+    assert twentyone_module.SOUND_NEAR_BUST not in guest_user.get_sounds_played()
+
+
+def test_twentyone_target_proximity_sound_not_played_when_below_target() -> None:
+    game, p1, p2 = setup_game()
+    host_user = game.get_user(p1)
+    assert host_user is not None
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p1, p2], reset_index=True)
+    p1.hp = 10
+    p2.hp = 10
+    p1.hand = [make_card(1, 10), make_card(2, 9)]
+    game.deck = Deck(cards=[make_card(99, 1)])
+
+    host_user.clear_messages()
+    game.execute_action(p1, "hit")
+
+    assert twentyone_module.SOUND_NEAR_BUST not in host_user.get_sounds_played()
+
+
+def test_twentyone_hit_empty_deck_plays_fail_sound_for_actor() -> None:
+    game, p1, p2 = setup_game()
+    host_user = game.get_user(p1)
+    assert host_user is not None
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p1, p2], reset_index=True)
+    p1.hp = 10
+    p2.hp = 10
+    game.deck = Deck(cards=[])
+
+    host_user.clear_messages()
+    game.execute_action(p1, "hit")
+
+    assert twentyone_module.SOUND_ACTION_FAIL in host_user.get_sounds_played()
+
+
+def test_twentyone_stand_plays_actor_and_opponent_stand_sounds() -> None:
+    game, p1, p2 = setup_game()
+    host_user = game.get_user(p1)
+    guest_user = game.get_user(p2)
+    assert host_user is not None
+    assert guest_user is not None
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p1, p2], reset_index=True)
+    p1.hp = 10
+    p2.hp = 10
+    p1.stand_pending = False
+    p2.stand_pending = False
+
+    host_user.clear_messages()
+    guest_user.clear_messages()
+    game.execute_action(p1, "stand")
+
+    assert twentyone_module.SOUND_STAND in host_user.get_sounds_played()
+    assert twentyone_module.SOUND_OPPONENT_STAND in guest_user.get_sounds_played()
+
+
 def test_twentyone_check_status_shows_only_opponent_face_up_cards() -> None:
     game, p1, p2 = setup_game()
     host_user = game.get_user(p1)
@@ -144,7 +590,7 @@ def test_twentyone_check_status_shows_only_opponent_face_up_cards() -> None:
     assert "shown cards [4, 5]" in host_text
     assert "hole card hidden" in host_text
     assert "shown cards [11, 4, 5]" not in host_text
-    assert MODIFIER_LABELS[MODIFIER_GUARD] not in host_text
+    assert Localization.get("en", MODIFIER_LABELS[MODIFIER_GUARD]) not in host_text
 
 
 def test_twentyone_keybinds_use_numbers_and_remove_h_s_t_for_turn_actions() -> None:
@@ -158,11 +604,176 @@ def test_twentyone_keybinds_use_numbers_and_remove_h_s_t_for_turn_actions() -> N
     assert "stand" in actions_for("2")
     assert "play_modifier" in actions_for("3")
     assert "check_21_status" in actions_for("4")
+    assert actions_for("c") == ["modifier_guide"]
+    assert actions_for("m") == []
     assert "read_21_bets" in actions_for("b")
     assert "read_21_active_effects" in actions_for("e")
     assert "hit" not in actions_for("h")
     assert "stand" not in actions_for("s")
     assert "play_modifier" not in actions_for("t")
+
+
+def test_twentyone_play_modifier_options_are_one_based() -> None:
+    game, p1, _ = setup_game()
+    p1.modifiers = [MODIFIER_GUARD, MODIFIER_SCRAP]
+
+    options = game._options_for_play_modifier(p1)
+
+    assert options[0].startswith("1:")
+    assert options[1].startswith("2:")
+
+
+def test_twentyone_play_modifier_option_reads_name_once() -> None:
+    game, p1, _ = setup_game()
+    p1.modifiers = [MODIFIER_RAISE_1]
+
+    options = game._options_for_play_modifier(p1)
+    label = Localization.get("en", MODIFIER_LABELS[MODIFIER_RAISE_1])
+
+    assert len(options) == 1
+    assert f"{label.lower()} - {label.lower()}:" not in options[0].lower()
+    assert "increase opponent damage by 1" in options[0].lower()
+
+
+def test_twentyone_broadcast_formatted_uses_each_users_locale() -> None:
+    game, p1, p2 = setup_game()
+    host_user = game.get_user(p1)
+    guest_user = game.get_user(p2)
+    assert host_user is not None
+    assert guest_user is not None
+    guest_user._locale = "es"
+
+    host_user.clear_messages()
+    guest_user.clear_messages()
+    game._broadcast_formatted(lambda locale: f"locale-{locale}")
+
+    assert "locale-en" in host_user.get_spoken_messages()
+    assert "locale-es" in guest_user.get_spoken_messages()
+
+
+def test_twentyone_action_input_menu_selection_index_fallback_plays_choice() -> None:
+    game, p1, p2 = setup_game()
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p1, p2], reset_index=True)
+    p1.hp = 10
+    p2.hp = 10
+    p1.modifiers = [MODIFIER_GUARD]
+
+    game.execute_action(p1, "play_modifier")
+    assert p1.id in game._pending_actions
+
+    game.handle_event(
+        p1,
+        {
+            "type": "menu",
+            "menu_id": "action_input_menu",
+            "selection": 1,
+        },
+    )
+
+    assert p1.id not in game._pending_actions
+    assert MODIFIER_GUARD in p1.table_modifiers
+
+
+def test_twentyone_play_modifier_menu_open_plays_menu_sound() -> None:
+    game, p1, p2 = setup_game()
+    host_user = game.get_user(p1)
+    assert host_user is not None
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p1, p2], reset_index=True)
+    p1.hp = 10
+    p2.hp = 10
+    p1.modifiers = [MODIFIER_GUARD]
+
+    host_user.clear_messages()
+    game.execute_action(p1, "play_modifier")
+
+    assert p1.id in game._pending_actions
+    assert twentyone_module.SOUND_CHANGE_MENU_OPEN in host_user.get_sounds_played()
+
+
+def test_twentyone_play_modifier_invalid_selection_plays_fail_sound() -> None:
+    game, p1, p2 = setup_game()
+    host_user = game.get_user(p1)
+    assert host_user is not None
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p1, p2], reset_index=True)
+    p1.hp = 10
+    p2.hp = 10
+    p1.modifiers = [MODIFIER_GUARD]
+
+    host_user.clear_messages()
+    game.execute_action(p1, "play_modifier", "bad input")
+
+    assert twentyone_module.SOUND_ACTION_FAIL in host_user.get_sounds_played()
+
+
+def test_twentyone_read_actions_no_opponent_play_fail_sound() -> None:
+    game = TwentyOneGame()
+    user = MockUser("Host")
+    p1 = game.add_player("Host", user)
+    host_user = game.get_user(p1)
+    assert host_user is not None
+    game.host = "Host"
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    p1.hp = 10
+
+    host_user.clear_messages()
+    game.execute_action(p1, "read_21_opponent_face_up")
+    game.execute_action(p1, "read_21_bets")
+
+    sounds = host_user.get_sounds_played()
+    assert twentyone_module.SOUND_ACTION_FAIL in sounds
+
+
+def test_twentyone_round_start_plays_deal_sound() -> None:
+    game, p1, p2 = setup_game()
+    host_user = game.get_user(p1)
+    guest_user = game.get_user(p2)
+    assert host_user is not None
+    assert guest_user is not None
+
+    host_user.clear_messages()
+    guest_user.clear_messages()
+    game.on_start()
+
+    assert twentyone_module.SOUND_ROUND_DEAL in host_user.get_sounds_played()
+    assert twentyone_module.SOUND_ROUND_DEAL in guest_user.get_sounds_played()
+
+
+def test_twentyone_end_game_winner_plays_game_win_sound() -> None:
+    game, p1, _ = setup_game()
+    host_user = game.get_user(p1)
+    assert host_user is not None
+    p1.hp = 5
+
+    host_user.clear_messages()
+    game._end_game(p1)
+
+    assert twentyone_module.SOUND_GAME_WIN in host_user.get_sounds_played()
+
+
+def test_twentyone_end_game_no_winner_plays_no_win_sound() -> None:
+    game, p1, p2 = setup_game()
+    host_user = game.get_user(p1)
+    guest_user = game.get_user(p2)
+    assert host_user is not None
+    assert guest_user is not None
+
+    host_user.clear_messages()
+    guest_user.clear_messages()
+    game._end_game(None)
+
+    assert twentyone_module.SOUND_GAME_NO_WIN in host_user.get_sounds_played()
+    assert twentyone_module.SOUND_GAME_NO_WIN in guest_user.get_sounds_played()
 
 
 def test_twentyone_read_keys_announce_current_and_opponent_visible_cards() -> None:
@@ -190,7 +801,7 @@ def test_twentyone_read_keys_announce_current_and_opponent_visible_cards() -> No
     assert "Guest face-up cards [4, 5] total 9." in host_text
     assert "Hole card is hidden." in host_text
     assert "Current bets. Host: 1. Guest: 1." in host_text
-    assert "Active effects. Host: Guard. Guest: Stake Raise 1." in host_text
+    assert "Active effects. Host: defend. Guest: raise one." in host_text
     assert "face-up cards [11, 4, 5]" not in host_text
 
 
@@ -209,7 +820,7 @@ def test_twentyone_raise_two_plus_returns_last_face_up_card() -> None:
     p2.hand = [make_card(1, 6), make_card(2, 9)]
     p2.last_drawn_card_id = 2
 
-    game.execute_action(p1, "play_modifier", f"0:{MODIFIER_LABELS[MODIFIER_RAISE_2_PLUS]}")
+    game.execute_action(p1, "play_modifier", f"1:{MODIFIER_LABELS[MODIFIER_RAISE_2_PLUS]}")
 
     assert p2.last_drawn_card_id is None
     assert all(card.id != 2 for card in p2.hand)
@@ -217,6 +828,50 @@ def test_twentyone_raise_two_plus_returns_last_face_up_card() -> None:
     assert game.deck is not None
     assert game.deck.cards[0].id == 2
     assert game._current_bet(p2) >= 3
+
+
+def test_twentyone_play_modifier_guard_plays_defend_sound_for_both_players() -> None:
+    game, p1, p2 = setup_game()
+    host_user = game.get_user(p1)
+    guest_user = game.get_user(p2)
+    assert host_user is not None
+    assert guest_user is not None
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p1, p2], reset_index=True)
+    p1.hp = 10
+    p2.hp = 10
+    p1.modifiers = [MODIFIER_GUARD]
+
+    host_user.clear_messages()
+    guest_user.clear_messages()
+    game.execute_action(p1, "play_modifier", f"1:{MODIFIER_LABELS[MODIFIER_GUARD]}")
+
+    assert twentyone_module.SOUND_MOD_DEFEND in host_user.get_sounds_played()
+    assert twentyone_module.SOUND_MOD_DEFEND in guest_user.get_sounds_played()
+
+
+def test_twentyone_play_modifier_raise_plays_raise_sound_for_both_players() -> None:
+    game, p1, p2 = setup_game()
+    host_user = game.get_user(p1)
+    guest_user = game.get_user(p2)
+    assert host_user is not None
+    assert guest_user is not None
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p1, p2], reset_index=True)
+    p1.hp = 10
+    p2.hp = 10
+    p1.modifiers = [MODIFIER_RAISE_2]
+
+    host_user.clear_messages()
+    guest_user.clear_messages()
+    game.execute_action(p1, "play_modifier", f"1:{MODIFIER_LABELS[MODIFIER_RAISE_2]}")
+
+    assert twentyone_module.SOUND_MOD_RAISE in host_user.get_sounds_played()
+    assert twentyone_module.SOUND_MOD_RAISE in guest_user.get_sounds_played()
 
 
 def test_twentyone_scrap_returns_opponent_last_face_up_card_to_top_of_deck() -> None:
@@ -233,14 +888,38 @@ def test_twentyone_scrap_returns_opponent_last_face_up_card_to_top_of_deck() -> 
     p2.hand = [make_card(1, 6), make_card(2, 9)]
     p2.last_drawn_card_id = 2
 
-    game.execute_action(p1, "play_modifier", f"0:{MODIFIER_LABELS[MODIFIER_SCRAP]}")
+    game.execute_action(p1, "play_modifier", f"1:{MODIFIER_LABELS[MODIFIER_SCRAP]}")
 
     assert all(card.id != 2 for card in p2.hand)
     assert game.deck is not None
     assert game.deck.cards[0].id == 2
 
 
-def test_twentyone_swap_draw_returns_removed_cards_to_top_of_deck() -> None:
+def test_twentyone_undraw_returns_own_last_face_up_card_to_top_of_deck() -> None:
+    game, p1, p2 = setup_game()
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p1, p2], reset_index=True)
+    p1.hp = 10
+    p2.hp = 10
+    game.deck = Deck(cards=[make_card(100, 7)])
+
+    p1.modifiers = [MODIFIER_RECYCLE]
+    p1.hand = [make_card(1, 6), make_card(2, 9)]
+    p1.last_drawn_card_id = 2
+    p2.hand = [make_card(3, 5), make_card(4, 8)]
+    p2.last_drawn_card_id = 4
+
+    game.execute_action(p1, "play_modifier", f"1:{MODIFIER_LABELS[MODIFIER_RECYCLE]}")
+
+    assert all(card.id != 2 for card in p1.hand)
+    assert any(card.id == 4 for card in p2.hand)
+    assert game.deck is not None
+    assert game.deck.cards[0].id == 2
+
+
+def test_twentyone_swap_draw_exchanges_most_recent_face_up_cards() -> None:
     game, p1, p2 = setup_game()
     game.status = "playing"
     game.game_active = True
@@ -256,12 +935,16 @@ def test_twentyone_swap_draw_returns_removed_cards_to_top_of_deck() -> None:
     p1.last_drawn_card_id = 2
     p2.last_drawn_card_id = 4
 
-    game.execute_action(p1, "play_modifier", f"0:{MODIFIER_LABELS[MODIFIER_SWAP_DRAW]}")
+    game.execute_action(p1, "play_modifier", f"1:{MODIFIER_LABELS[MODIFIER_SWAP_DRAW]}")
 
     assert all(card.id != 2 for card in p1.hand)
     assert all(card.id != 4 for card in p2.hand)
+    assert any(card.id == 4 for card in p1.hand)
+    assert any(card.id == 2 for card in p2.hand)
+    assert p1.last_drawn_card_id == 4
+    assert p2.last_drawn_card_id == 2
     assert game.deck is not None
-    assert [card.id for card in game.deck.cards[:3]] == [2, 4, 102]
+    assert [card.id for card in game.deck.cards[:3]] == [100, 101, 102]
 
 
 def test_twentyone_lockdown_locks_opponent_modifiers() -> None:
@@ -277,7 +960,7 @@ def test_twentyone_lockdown_locks_opponent_modifiers() -> None:
     p2.modifiers = [MODIFIER_RAISE_1]
     p2.table_modifiers = [MODIFIER_RAISE_1]
 
-    game.execute_action(p1, "play_modifier", f"0:{MODIFIER_LABELS[MODIFIER_LOCKDOWN]}")
+    game.execute_action(p1, "play_modifier", f"1:{MODIFIER_LABELS[MODIFIER_LOCKDOWN]}")
 
     assert MODIFIER_LOCKDOWN in p1.table_modifiers
     assert game._modifiers_locked_for(p2) is True
@@ -295,9 +978,150 @@ def test_twentyone_target_card_replaces_target() -> None:
     p1.modifiers = [MODIFIER_TARGET_24]
     p2.table_modifiers = []
 
-    game.execute_action(p1, "play_modifier", f"0:{MODIFIER_LABELS[MODIFIER_TARGET_24]}")
+    game.execute_action(p1, "play_modifier", f"1:{MODIFIER_LABELS[MODIFIER_TARGET_24]}")
 
     assert game._current_target() == 24
+
+
+def test_twentyone_target_card_plays_target_specific_sound() -> None:
+    game, p1, p2 = setup_game()
+    host_user = game.get_user(p1)
+    guest_user = game.get_user(p2)
+    assert host_user is not None
+    assert guest_user is not None
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p1, p2], reset_index=True)
+    p1.hp = 10
+    p2.hp = 10
+    p1.modifiers = [MODIFIER_TARGET_24]
+    p2.table_modifiers = []
+
+    host_user.clear_messages()
+    guest_user.clear_messages()
+    game.execute_action(p1, "play_modifier", f"1:{MODIFIER_LABELS[MODIFIER_TARGET_24]}")
+
+    assert twentyone_module.SOUND_TARGET_24 in host_user.get_sounds_played()
+    assert twentyone_module.SOUND_TARGET_24 in guest_user.get_sounds_played()
+
+
+def test_twentyone_target_card_matching_current_target_is_not_playable() -> None:
+    game, p1, p2 = setup_game()
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p1, p2], reset_index=True)
+    p1.hp = 10
+    p2.hp = 10
+    p1.modifiers = [MODIFIER_TARGET_24]
+    p2.table_modifiers = [MODIFIER_TARGET_24]
+
+    assert game._current_target() == 24
+    assert game._is_single_modifier_playable(p1, MODIFIER_TARGET_24) is False
+    assert game._is_play_modifier_enabled(p1) is None
+
+
+def test_twentyone_effect_expire_plays_expire_sound() -> None:
+    game, p1, p2 = setup_game()
+    host_user = game.get_user(p1)
+    guest_user = game.get_user(p2)
+    assert host_user is not None
+    assert guest_user is not None
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p1, p2], reset_index=True)
+    p1.hp = 10
+    p2.hp = 10
+    p1.modifiers = [MODIFIER_TARGET_24]
+    p1.table_modifiers = [MODIFIER_GUARD] * 5
+
+    host_user.clear_messages()
+    guest_user.clear_messages()
+    game.execute_action(p1, "play_modifier", f"1:{MODIFIER_LABELS[MODIFIER_TARGET_24]}")
+
+    assert twentyone_module.SOUND_EFFECT_EXPIRE in host_user.get_sounds_played()
+    assert twentyone_module.SOUND_EFFECT_EXPIRE in guest_user.get_sounds_played()
+
+
+def test_twentyone_lockdown_expire_plays_end_sound() -> None:
+    game, p1, p2 = setup_game()
+    host_user = game.get_user(p1)
+    guest_user = game.get_user(p2)
+    assert host_user is not None
+    assert guest_user is not None
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p1, p2], reset_index=True)
+    p1.hp = 10
+    p2.hp = 10
+    p1.modifiers = [MODIFIER_TARGET_24]
+    p1.table_modifiers = [
+        MODIFIER_LOCKDOWN,
+        MODIFIER_GUARD,
+        MODIFIER_GUARD,
+        MODIFIER_GUARD,
+        MODIFIER_GUARD,
+    ]
+
+    host_user.clear_messages()
+    guest_user.clear_messages()
+    game.execute_action(p1, "play_modifier", f"1:{MODIFIER_LABELS[MODIFIER_TARGET_24]}")
+
+    assert twentyone_module.SOUND_LOCKDOWN_END in host_user.get_sounds_played()
+    assert twentyone_module.SOUND_LOCKDOWN_END in guest_user.get_sounds_played()
+
+
+def test_twentyone_redraft_plays_change_card_gain_and_loss_sounds() -> None:
+    random.seed(4)
+    game, p1, p2 = setup_game()
+    host_user = game.get_user(p1)
+    assert host_user is not None
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p1, p2], reset_index=True)
+    p1.hp = 10
+    p2.hp = 10
+    p1.modifiers = [MODIFIER_REDRAFT, MODIFIER_GUARD, MODIFIER_RAISE_1, MODIFIER_RAISE_2]
+
+    host_user.clear_messages()
+    game.execute_action(p1, "play_modifier", f"1:{MODIFIER_LABELS[MODIFIER_REDRAFT]}")
+
+    sounds = host_user.get_sounds_played()
+    assert twentyone_module.SOUND_LOSE_CHANGE_CARD in sounds
+    assert twentyone_module.SOUND_GAIN_CHANGE_CARD in sounds
+
+
+def test_twentyone_sound_constants_reference_existing_client_files() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+    sounds_root = repo_root / "clients" / "desktop" / "sounds"
+    sound_values = [
+        value
+        for name, value in vars(twentyone_module).items()
+        if name.startswith("SOUND_") and isinstance(value, str)
+    ]
+
+    missing = [value for value in sound_values if not (sounds_root / value).is_file()]
+    assert not missing, f"Missing sound files: {missing}"
+
+
+def test_twentyone_sound_reuse_is_limited_to_logical_cases() -> None:
+    sound_constants = {
+        name: value
+        for name, value in vars(twentyone_module).items()
+        if name.startswith("SOUND_") and isinstance(value, str)
+    }
+    by_path: dict[str, list[str]] = defaultdict(list)
+    for name, path in sound_constants.items():
+        by_path[path].append(name)
+
+    shared = {path: sorted(names) for path, names in by_path.items() if len(names) > 1}
+    assert shared == {
+        twentyone_module.SOUND_HIT: sorted(["SOUND_HIT", "SOUND_MOD_DRAW"]),
+    }
 
 
 def test_twentyone_precision_draw_picks_best_non_bust_card() -> None:
@@ -313,9 +1137,45 @@ def test_twentyone_precision_draw_picks_best_non_bust_card() -> None:
     p1.hand = [make_card(1, 10), make_card(2, 6)]  # total 16, best non-bust is +5
     game.deck = Deck(cards=[make_card(10, 11), make_card(11, 5), make_card(12, 4)])
 
-    game.execute_action(p1, "play_modifier", f"0:{MODIFIER_LABELS[MODIFIER_PRECISION_DRAW]}")
+    game.execute_action(p1, "play_modifier", f"1:{MODIFIER_LABELS[MODIFIER_PRECISION_DRAW]}")
 
     assert any(card.rank == 5 for card in p1.hand)
+
+
+def test_twentyone_precision_draw_uses_lowest_card_when_all_choices_bust() -> None:
+    game, p1, p2 = setup_game()
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p1, p2], reset_index=True)
+    p1.hp = 10
+    p2.hp = 10
+
+    p1.modifiers = [MODIFIER_PRECISION_DRAW]
+    p1.hand = [make_card(1, 10), make_card(2, 10)]  # total 20, all deck options bust
+    game.deck = Deck(cards=[make_card(10, 11), make_card(11, 3), make_card(12, 2)])
+
+    game.execute_action(p1, "play_modifier", f"1:{MODIFIER_LABELS[MODIFIER_PRECISION_DRAW]}")
+
+    assert any(card.rank == 2 for card in p1.hand)
+
+
+def test_twentyone_trojan_horse_uses_lowest_card_when_all_choices_bust() -> None:
+    game, p1, p2 = setup_game()
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p1, p2], reset_index=True)
+    p1.hp = 10
+    p2.hp = 10
+
+    p1.modifiers = [MODIFIER_AID_RIVAL]
+    p2.hand = [make_card(1, 10), make_card(2, 10)]  # total 20, all deck options bust
+    game.deck = Deck(cards=[make_card(10, 11), make_card(11, 3), make_card(12, 2)])
+
+    game.execute_action(p1, "play_modifier", f"1:{MODIFIER_LABELS[MODIFIER_AID_RIVAL]}")
+
+    assert any(card.rank == 2 for card in p2.hand)
 
 
 def test_twentyone_hit_keeps_turn_until_stand() -> None:
@@ -346,7 +1206,7 @@ def test_twentyone_play_modifier_keeps_turn_until_stand() -> None:
     p2.hp = 10
     p1.modifiers = [MODIFIER_GUARD]
 
-    game.execute_action(p1, "play_modifier", f"0:{MODIFIER_LABELS[MODIFIER_GUARD]}")
+    game.execute_action(p1, "play_modifier", f"1:{MODIFIER_LABELS[MODIFIER_GUARD]}")
 
     assert game.current_player == p1
     assert game.phase == "turns"
@@ -385,6 +1245,77 @@ def test_twentyone_round_settles_only_after_consecutive_stands() -> None:
     assert game.phase == "between_rounds"
 
 
+def test_twentyone_round_settle_transition_plays_resolve_sound() -> None:
+    game, p1, p2 = setup_game()
+    host_user = game.get_user(p1)
+    guest_user = game.get_user(p2)
+    assert host_user is not None
+    assert guest_user is not None
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p1, p2], reset_index=True)
+    p1.hp = 10
+    p2.hp = 10
+    p1.hand = [make_card(1, 10), make_card(2, 9)]
+    p2.hand = [make_card(3, 8), make_card(4, 9)]
+    game.deck = Deck(cards=[make_card(5, 1)])
+
+    host_user.clear_messages()
+    guest_user.clear_messages()
+    game.execute_action(p1, "stand")
+    game.execute_action(p2, "stand")
+
+    assert twentyone_module.SOUND_ROUND_RESOLVE in host_user.get_sounds_played()
+    assert twentyone_module.SOUND_ROUND_RESOLVE in guest_user.get_sounds_played()
+
+
+def test_twentyone_round_settle_delays_damage_within_between_round_window() -> None:
+    game, p1, p2 = setup_game()
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    p1.hp = 10
+    p2.hp = 10
+    p1.hand = [make_card(1, 10), make_card(2, 9)]  # 19
+    p2.hand = [make_card(3, 8), make_card(4, 9)]  # 17
+
+    game._settle_round()
+
+    assert game.phase == "between_rounds"
+    assert game.next_round_wait_ticks == 100
+    assert game.round_resolution_wait_ticks == twentyone_module.BETWEEN_ROUND_RESOLVE_DELAY_TICKS
+    assert p2.hp == 10
+
+    for _ in range(twentyone_module.BETWEEN_ROUND_RESOLVE_DELAY_TICKS - 1):
+        game.on_tick()
+    assert p2.hp == 10
+
+    game.on_tick()
+    assert p2.hp == 9
+
+
+def test_twentyone_between_round_pause_lasts_100_ticks() -> None:
+    game, p1, p2 = setup_game()
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    p1.hp = 10
+    p2.hp = 10
+    p1.hand = [make_card(1, 10), make_card(2, 9)]  # 19
+    p2.hand = [make_card(3, 8), make_card(4, 9)]  # 17
+
+    game._settle_round()
+
+    for _ in range(99):
+        game.on_tick()
+    assert game.phase == "between_rounds"
+
+    game.on_tick()
+    assert game.phase == "turns"
+    assert game.round_number == 1
+
+
 def test_twentyone_modifier_play_between_stands_resets_pending_stands() -> None:
     game, p1, p2 = setup_game()
     game.status = "playing"
@@ -399,7 +1330,7 @@ def test_twentyone_modifier_play_between_stands_resets_pending_stands() -> None:
     assert p1.stand_pending is True
     assert game.current_player == p2
 
-    game.execute_action(p2, "play_modifier", f"0:{MODIFIER_LABELS[MODIFIER_GUARD]}")
+    game.execute_action(p2, "play_modifier", f"1:{MODIFIER_LABELS[MODIFIER_GUARD]}")
 
     assert p1.stand_pending is False
     assert p2.stand_pending is False
@@ -418,9 +1349,326 @@ def test_twentyone_both_bust_closer_to_target_wins() -> None:
     p2.hand = [make_card(3, 11), make_card(4, 11), make_card(5, 1)]  # 23
 
     game._settle_round()
+    game._resolve_pending_round()
 
     assert p1.hp == 10
     assert p2.hp == 9
+
+
+def test_twentyone_round_outcome_plays_private_win_lose_sounds() -> None:
+    game, p1, p2 = setup_game()
+    host_user = game.get_user(p1)
+    guest_user = game.get_user(p2)
+    assert host_user is not None
+    assert guest_user is not None
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    p1.hp = 10
+    p2.hp = 10
+    p1.hand = [make_card(1, 10), make_card(2, 9)]  # 19
+    p2.hand = [make_card(3, 8), make_card(4, 9)]  # 17
+
+    host_user.clear_messages()
+    guest_user.clear_messages()
+    game._settle_round()
+    game._resolve_pending_round()
+
+    assert twentyone_module.SOUND_ROUND_WIN in host_user.get_sounds_played()
+    assert twentyone_module.SOUND_ROUND_LOSE in guest_user.get_sounds_played()
+
+
+def test_twentyone_play_modifier_available_when_change_cards_exist_but_none_playable() -> None:
+    game, p1, p2 = setup_game()
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p1, p2], reset_index=True)
+    p1.hp = 10
+    p2.hp = 10
+    p1.modifiers = [MODIFIER_GUARD]
+    p1.table_modifiers = [MODIFIER_GUARD] * 5
+
+    assert game._is_play_modifier_enabled(p1) is None
+
+
+def test_twentyone_play_modifier_unavailable_when_no_change_cards() -> None:
+    game, p1, p2 = setup_game()
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p1, p2], reset_index=True)
+    p1.hp = 10
+    p2.hp = 10
+    p1.modifiers = []
+
+    assert game._is_play_modifier_enabled(p1) == "action-not-available"
+
+
+def test_twentyone_bot_select_play_modifier_returns_none_when_none_playable() -> None:
+    game, p1, p2 = setup_game()
+    p1.hp = 10
+    p2.hp = 10
+    p1.modifiers = [MODIFIER_GUARD]
+    p1.table_modifiers = [MODIFIER_GUARD] * 5
+    options = game._options_for_play_modifier(p1)
+
+    assert game._bot_select_play_modifier(p1, options) is None
+
+
+def test_twentyone_bot_think_stands_when_change_cards_exist_but_none_playable() -> None:
+    game = TwentyOneGame()
+    human = MockUser("Host")
+    bot_user = Bot("GuestBot")
+    p1 = game.add_player("Host", human)
+    p2 = game.add_player("GuestBot", bot_user)
+    game.host = "Host"
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p2, p1], reset_index=True)
+    p1.hp = 10
+    p2.hp = 10
+    p1.hand = [make_card(1, 10), make_card(2, 10)]
+    p2.hand = [make_card(3, 10), make_card(4, 9)]
+    p2.modifiers = [MODIFIER_GUARD]
+    p2.table_modifiers = [MODIFIER_GUARD] * 5
+
+    assert game.bot_think(p2) == "stand"
+
+
+def test_twentyone_bot_think_hits_when_change_cards_unplayable_and_below_target() -> None:
+    game = TwentyOneGame()
+    human = MockUser("Host")
+    bot_user = Bot("GuestBot")
+    p1 = game.add_player("Host", human)
+    p2 = game.add_player("GuestBot", bot_user)
+    game.host = "Host"
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p2, p1], reset_index=True)
+    p1.hp = 10
+    p2.hp = 10
+    p1.hand = [make_card(1, 10), make_card(2, 7)]
+    p2.hand = [make_card(3, 8), make_card(4, 7)]
+    p2.modifiers = [MODIFIER_GUARD]
+    p2.table_modifiers = [MODIFIER_GUARD] * 5
+
+    assert game.bot_think(p2) == "hit"
+
+
+def test_twentyone_bot_think_stands_when_draws_are_locked() -> None:
+    game = TwentyOneGame()
+    human = MockUser("Host")
+    bot_user = Bot("GuestBot")
+    p1 = game.add_player("Host", human)
+    p2 = game.add_player("GuestBot", bot_user)
+    game.host = "Host"
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p2, p1], reset_index=True)
+    p1.hp = 10
+    p2.hp = 10
+    p1.table_modifiers = [MODIFIER_DRAW_SILENCE]
+    p1.hand = [make_card(1, 10), make_card(2, 7)]
+    p2.hand = [make_card(3, 8), make_card(4, 7)]
+    p2.modifiers = []
+
+    assert game.bot_think(p2) == "stand"
+
+
+def test_twentyone_bot_does_not_replay_same_target_card() -> None:
+    game = TwentyOneGame()
+    human = MockUser("Host")
+    bot_user = Bot("GuestBot")
+    p1 = game.add_player("Host", human)
+    p2 = game.add_player("GuestBot", bot_user)
+    game.host = "Host"
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p2, p1], reset_index=True)
+    p1.hp = 10
+    p2.hp = 10
+    p1.hand = [make_card(1, 7), make_card(2, 8)]
+    p2.hand = [make_card(3, 8), make_card(4, 8)]
+    p1.table_modifiers = [MODIFIER_TARGET_24]
+    p2.modifiers = [MODIFIER_TARGET_24]
+
+    assert game._current_target() == 24
+    assert game._is_single_modifier_playable(p2, MODIFIER_TARGET_24) is False
+    assert game.bot_think(p2) == "hit"
+
+
+def test_twentyone_bot_turn_advances_when_change_cards_are_unplayable() -> None:
+    game = TwentyOneGame()
+    human = MockUser("Host")
+    bot_user = Bot("GuestBot")
+    p1 = game.add_player("Host", human)
+    p2 = game.add_player("GuestBot", bot_user)
+    game.host = "Host"
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p2, p1], reset_index=True)
+    p1.hp = 10
+    p2.hp = 10
+    p1.hand = [make_card(1, 10), make_card(2, 10)]
+    p2.hand = [make_card(3, 10), make_card(4, 9)]
+    p2.modifiers = [MODIFIER_GUARD]
+    p2.table_modifiers = [MODIFIER_GUARD] * 5
+    p2.bot_think_ticks = 0
+    p2.bot_pending_action = None
+
+    for _ in range(twentyone_module.BOT_DRAW_STAND_DELAY_TICKS + 2):
+        game.on_tick()
+
+    assert game.current_player == p1
+    assert p2.stand_pending is True
+    assert game.phase == "turns"
+
+
+def test_twentyone_bot_think_plays_change_card_when_high_priority_playable() -> None:
+    game = TwentyOneGame()
+    human = MockUser("Host")
+    bot_user = Bot("GuestBot")
+    p1 = game.add_player("Host", human)
+    p2 = game.add_player("GuestBot", bot_user)
+    game.host = "Host"
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p2, p1], reset_index=True)
+    p1.hp = 10
+    p2.hp = 9
+    p1.hand = [make_card(1, 10), make_card(2, 11)]
+    p2.hand = [make_card(3, 7), make_card(4, 6)]
+    p2.modifiers = [MODIFIER_GUARD]
+    p2.table_modifiers = []
+
+    assert game.bot_think(p2) == "play_modifier"
+
+
+def test_twentyone_bot_select_prefers_defend_when_likely_losing() -> None:
+    game = TwentyOneGame()
+    human = MockUser("Host")
+    bot_user = Bot("GuestBot")
+    p1 = game.add_player("Host", human)
+    p2 = game.add_player("GuestBot", bot_user)
+    game.host = "Host"
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p2, p1], reset_index=True)
+    p1.hp = 10
+    p2.hp = 9
+    p1.hand = [make_card(1, 10), make_card(2, 11)]
+    p2.hand = [make_card(3, 7), make_card(4, 6)]
+    p2.modifiers = [MODIFIER_REDRAFT, MODIFIER_GUARD]
+    p2.table_modifiers = []
+
+    options = game._options_for_play_modifier(p2)
+    chosen = game._bot_select_play_modifier(p2, options)
+
+    assert chosen is not None
+    assert chosen.startswith(f"2:{Localization.get('en', MODIFIER_LABELS[MODIFIER_GUARD])}")
+
+
+def test_twentyone_bot_select_play_modifier_matches_by_index_not_label() -> None:
+    game = TwentyOneGame()
+    human = MockUser("Host")
+    bot_user = Bot("GuestBot")
+    p1 = game.add_player("Host", human)
+    p2 = game.add_player("GuestBot", bot_user)
+    game.host = "Host"
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p2, p1], reset_index=True)
+    p1.hp = 10
+    p2.hp = 9
+    p1.hand = [make_card(1, 10), make_card(2, 11)]
+    p2.hand = [make_card(3, 7), make_card(4, 6)]
+    p2.modifiers = [MODIFIER_REDRAFT, MODIFIER_GUARD]
+    p2.table_modifiers = []
+
+    # Bot should pick guard (index 2), regardless of localized label text.
+    options = ["1:alpha", "2:beta"]
+    assert game._bot_select_play_modifier(p2, options) == "2:beta"
+
+
+def test_twentyone_bot_select_uses_raise_when_confident_winning() -> None:
+    game = TwentyOneGame()
+    human = MockUser("Host")
+    bot_user = Bot("GuestBot")
+    p1 = game.add_player("Host", human)
+    p2 = game.add_player("GuestBot", bot_user)
+    game.host = "Host"
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p2, p1], reset_index=True)
+    p1.hp = 8
+    p2.hp = 10
+    p1.hand = [make_card(1, 2), make_card(2, 9)]
+    p2.hand = [make_card(3, 10), make_card(4, 10)]
+    p2.modifiers = [MODIFIER_RAISE_2]
+    p2.table_modifiers = []
+
+    assert game.bot_think(p2) == "play_modifier"
+    options = game._options_for_play_modifier(p2)
+    chosen = game._bot_select_play_modifier(p2, options)
+    assert chosen is not None
+    assert chosen.startswith(f"1:{Localization.get('en', MODIFIER_LABELS[MODIFIER_RAISE_2])}")
+
+
+def test_twentyone_bot_decision_does_not_depend_on_opponent_hidden_card() -> None:
+    def build_game(hidden_rank: int) -> tuple[TwentyOneGame, object, object]:
+        game = TwentyOneGame()
+        human = MockUser("Host")
+        bot_user = Bot("GuestBot")
+        p1 = game.add_player("Host", human)
+        p2 = game.add_player("GuestBot", bot_user)
+        game.host = "Host"
+        game.status = "playing"
+        game.game_active = True
+        game.phase = "turns"
+        game.set_turn_players([p2, p1], reset_index=True)
+        p1.hp = 10
+        p2.hp = 10
+        p1.hand = [make_card(1, hidden_rank), make_card(2, 10)]
+        p2.hand = [make_card(3, 10), make_card(4, 9)]
+        p2.modifiers = [MODIFIER_RAISE_1]
+        return game, p1, p2
+
+    game_low, _, bot_low = build_game(1)
+    game_high, _, bot_high = build_game(11)
+
+    assert game_low.bot_think(bot_low) == game_high.bot_think(bot_high)
+
+
+def test_twentyone_bot_holds_nonoptimal_playable_change_card_for_later() -> None:
+    game = TwentyOneGame()
+    human = MockUser("Host")
+    bot_user = Bot("GuestBot")
+    p1 = game.add_player("Host", human)
+    p2 = game.add_player("GuestBot", bot_user)
+    game.host = "Host"
+    game.status = "playing"
+    game.game_active = True
+    game.phase = "turns"
+    game.set_turn_players([p2, p1], reset_index=True)
+    p1.hp = 10
+    p2.hp = 10
+    p1.hand = [make_card(1, 3), make_card(2, 9)]
+    p2.hand = [make_card(3, 8), make_card(4, 7)]
+    p2.modifiers = [MODIFIER_LOCKDOWN]
+    p2.table_modifiers = []
+    p1.modifiers = []
+
+    assert game.bot_think(p2) == "hit"
 
 
 def test_twentyone_bot_game_completes_and_reloads() -> None:

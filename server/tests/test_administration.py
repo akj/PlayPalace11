@@ -224,7 +224,9 @@ async def test_handle_account_approval_selection_routes(monkeypatch):
     admin_user = DummyUser("admin", TrustLevel.ADMIN)
     calls = []
 
-    host._show_admin_menu = types.MethodType(lambda self, user: calls.append(("admin", user.username)), host)
+    host._show_admin_menu = types.MethodType(
+        lambda self, user: calls.append(("admin", user.username)), host
+    )
     host._show_pending_user_actions_menu = types.MethodType(
         lambda self, user, pending: calls.append(("pending", pending)), host
     )
@@ -250,7 +252,9 @@ async def test_handle_pending_user_actions_selection_paths(monkeypatch):
     host._show_decline_reason_editbox = types.MethodType(
         lambda self, user, target: declines.append(target), host
     )
-    host._show_account_approval_menu = types.MethodType(lambda self, user: backs.append(user.username), host)
+    host._show_account_approval_menu = types.MethodType(
+        lambda self, user: backs.append(user.username), host
+    )
 
     state = {"pending_username": "newbie"}
     await host._handle_pending_user_actions_selection(admin_user, "approve", state)
@@ -298,7 +302,9 @@ async def test_handle_broadcast_choice_selection_dispatches(monkeypatch):
     host._show_ban_reason_editbox = types.MethodType(
         lambda self, user, target, scope: bans.append((target, scope)), host
     )
-    host._show_admin_menu = types.MethodType(lambda self, user: fallbacks.append(user.username), host)
+    host._show_admin_menu = types.MethodType(
+        lambda self, user: fallbacks.append(user.username), host
+    )
 
     await host._handle_broadcast_choice_selection(
         owner_user,

@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import logging
 import os
 import sys
 from pathlib import Path
@@ -10,6 +11,9 @@ from babel.lists import format_list
 from fluent_compiler.bundle import FluentBundle
 from fluent_compiler.compiler import compile_messages
 from fluent_compiler.resource import FtlResource
+
+
+LOG = logging.getLogger("playpalace.localization")
 
 
 class Localization:
@@ -28,6 +32,7 @@ class Localization:
     _CACHE_VERSION = "1"
     _CACHE_DISABLE_ENV = "PLAYPALACE_DISABLE_LOCALE_CACHE"
     _CACHE_DIR_ENV = "PLAYPALACE_LOCALE_CACHE_DIR"
+    _enabled_locales: set[str] | None = None  # None = all locales
 
     @classmethod
     def set_warmup_active(cls, active: bool) -> None:
@@ -38,13 +43,23 @@ class Localization:
         return cls._warmup_active
 
     @classmethod
-    def init(cls, locales_dir: Path | str) -> None:
-        """Initialize the localization system with a locales directory."""
+    def init(cls, locales_dir: Path | str, *, enabled_locales: list[str] | None = None) -> None:
+        """Initialize the localization system with a locales directory.
+
+        Args:
+            locales_dir: Path to the locales directory.
+            enabled_locales: If set, only load these locales (plus ``en`` as
+                fallback).  ``None`` loads all locales.
+        """
         cls._locales_dir = Path(locales_dir)
         cls._bundles = {}
         disable_cache = os.environ.get(cls._CACHE_DISABLE_ENV, "").strip().lower()
         cls._cache_enabled = disable_cache not in {"1", "true", "yes", "on"}
         cls._cache_dir = None
+        if enabled_locales is not None:
+            cls._enabled_locales = {*enabled_locales, "en"}
+        else:
+            cls._enabled_locales = None
 
     @classmethod
     def preload_bundles(cls) -> None:
@@ -63,6 +78,8 @@ class Localization:
         found_locale = False
         for locale_dir in cls._locales_dir.iterdir():
             if not locale_dir.is_dir():
+                continue
+            if cls._enabled_locales is not None and locale_dir.name not in cls._enabled_locales:
                 continue
             found_locale = True
             try:
@@ -160,6 +177,7 @@ class Localization:
             if not isinstance(payloads, list):
                 raise ValueError("Cache payloads missing")
         except Exception:
+            LOG.debug("Discarding corrupt locale cache for '%s'", actual_locale, exc_info=True)
             try:
                 cache_path.unlink()
             except FileNotFoundError:
@@ -251,13 +269,21 @@ class Localization:
         try:
             bundle = cls._get_bundle(locale)
             result, errors = bundle.format(message_id, kwargs)
+            if errors:
+                LOG.warning(
+                    "Fluent formatting errors for '%s' [%s]: %s",
+                    message_id, locale, errors,
+                )
             # Strip Unicode bidi isolation characters that Fluent adds
             for char in cls._BIDI_CHARS:
                 result = result.replace(char, "")
             return result
         except Exception:
-            # Return the message ID as fallback
-            return message_id
+            LOG.exception(
+                "Failed to format message '%s' for locale '%s'",
+                message_id, locale,
+            )
+            return f"[{message_id}]"
 
     @classmethod
     def format_list_and(cls, locale: str, items: list[str]) -> str:
@@ -291,18 +317,18 @@ class Localization:
     def get_available_locale_codes(cls) -> list[str]:
         """Return sorted language codes from the locales directory.
 
+        Only returns locales that are enabled in the server configuration.
         Unlike :meth:`get_available_languages`, this only scans the
         filesystem and never triggers bundle compilation, so it is safe
         to call during warmup.
         """
         if cls._locales_dir is None:
-            raise RuntimeError(
-                "Localization not initialized. Call Localization.init() first."
-            )
+            raise RuntimeError("Localization not initialized. Call Localization.init() first.")
         return sorted(
             locale_dir.name
             for locale_dir in cls._locales_dir.iterdir()
             if locale_dir.is_dir()
+            and (cls._enabled_locales is None or locale_dir.name in cls._enabled_locales)
         )
 
     @classmethod
@@ -323,17 +349,16 @@ class Localization:
             Dictionary mapping language codes to language names.
         """
         if cls._locales_dir is None:
-            raise RuntimeError(
-                "Localization not initialized. Call Localization.init() first."
-            )
+            raise RuntimeError("Localization not initialized. Call Localization.init() first.")
 
         result = {}
 
-        # Get list of valid locale directories
+        # Get list of valid locale directories (filtered by enabled_locales)
         locales = [
             locale_dir.name
             for locale_dir in cls._locales_dir.iterdir()
             if locale_dir.is_dir()
+            and (cls._enabled_locales is None or locale_dir.name in cls._enabled_locales)
         ]
 
         for locale_code in sorted(locales):
@@ -346,11 +371,11 @@ class Localization:
                 name = cls.get(locale_code, message_id)
 
             # If translation not found, try fallback locale
-            if name == message_id  and fallback != display_language:
+            if name in (message_id, f"[{message_id}]") and fallback != display_language:
                 name = cls.get(fallback, message_id)
 
             # If fallback is not "en" and still not found, try "en"
-            if name == message_id and fallback != "en":
+            if name in (message_id, f"[{message_id}]") and fallback != "en":
                 name = cls.get("en", message_id)
 
             result[locale_code] = name

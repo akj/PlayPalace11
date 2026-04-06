@@ -12,7 +12,13 @@ from ...game_utils.options import BoolOption, GameOptions, MenuOption, option_fi
 from ...messages.localization import Localization
 from server.core.ui.keybinds import KeybindState
 from .bot import choose_move
-from .moves import CaptureEvent, SorryMove, apply_move, generate_legal_moves, generate_split_options_for_pair
+from .moves import (
+    CaptureEvent,
+    SorryMove,
+    apply_move,
+    generate_legal_moves,
+    generate_split_options_for_pair,
+)
 from .rules import (
     Classic00390Rules,
     SorryRulesProfile,
@@ -104,9 +110,7 @@ class SorryGame(Game):
     def get_max_players(cls) -> int:
         return 4
 
-    def create_player(
-        self, player_id: str, name: str, is_bot: bool = False
-    ) -> SorryPlayer:
+    def create_player(self, player_id: str, name: str, is_bot: bool = False) -> SorryPlayer:
         """Create a new Sorry player."""
         return SorryPlayer(
             id=player_id,
@@ -217,7 +221,10 @@ class SorryGame(Game):
         return move.description
 
     def _pawn_location_kwargs(
-        self, player: Player, pawn_index: int | None, prefix: str = "",
+        self,
+        player: Player,
+        pawn_index: int | None,
+        prefix: str = "",
     ) -> dict[str, object]:
         """Return zone/position/home_steps kwargs for a pawn, for localized announcements."""
         ps = self.get_player_state(player)
@@ -263,13 +270,15 @@ class SorryGame(Game):
             return
         if move.move_type == "swap":
             target_player = (
-                self.get_player_by_id(move.target_player_id)
-                if move.target_player_id else None
+                self.get_player_by_id(move.target_player_id) if move.target_player_id else None
             )
             target_kw = (
                 self._pawn_location_kwargs(target_player, move.target_pawn_index, prefix="target_")
-                if target_player else {
-                    "target_zone": "track", "target_position": 0, "target_home_steps": 0,
+                if target_player
+                else {
+                    "target_zone": "track",
+                    "target_position": 0,
+                    "target_home_steps": 0,
                 }
             )
             self.broadcast_personal_l(
@@ -308,9 +317,7 @@ class SorryGame(Game):
             )
             return
 
-    def _announce_captures(
-        self, actor: Player, captures: list[CaptureEvent]
-    ) -> None:
+    def _announce_captures(self, actor: Player, captures: list[CaptureEvent]) -> None:
         """Announce each pawn sent back to start."""
         for event in captures:
             target_player = self.get_player_by_id(event.captured_player_id)
@@ -422,6 +429,7 @@ class SorryGame(Game):
                 steps,
                 sound_template="game_squares/token{variant}.ogg",
                 variant_count=10,
+                step_interval_ticks=2,
             )
         elif move.move_type == "backward":
             steps = move.steps or 1
@@ -429,6 +437,7 @@ class SorryGame(Game):
                 steps,
                 sound_template="game_squares/token{variant}.ogg",
                 variant_count=10,
+                step_interval_ticks=2,
             )
         elif move.move_type == "start":
             self.play_sound("game_squares/token1.ogg")
@@ -579,9 +588,7 @@ class SorryGame(Game):
                 locale, "sorry-zone-track", position=(pawn.track_position or 0) + 1
             )
         if pawn.zone == "home_path":
-            return Localization.get(
-                locale, "sorry-zone-home-path", steps=pawn.home_steps + 1
-            )
+            return Localization.get(locale, "sorry-zone-home-path", steps=pawn.home_steps + 1)
         if pawn.zone == "home":
             return Localization.get(locale, "sorry-zone-home")
         return pawn.zone
@@ -858,9 +865,7 @@ class SorryGame(Game):
             player_state = self.get_player_state(player)
             if player_state is None:
                 return None
-            selected = choose_move(
-                self.game_state, player_state, options, self.get_rules_profile()
-            )
+            selected = choose_move(self.game_state, player_state, options, self.get_rules_profile())
             if selected is None:
                 return "move_slot_1"
             slot_index = next(

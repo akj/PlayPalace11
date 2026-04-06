@@ -337,7 +337,12 @@ class Database:
         return None
 
     def create_user(
-        self, username: str, password_hash: str, locale: str = "en", trust_level: TrustLevel = TrustLevel.USER, approved: bool = False
+        self,
+        username: str,
+        password_hash: str,
+        locale: str = "en",
+        trust_level: TrustLevel = TrustLevel.USER,
+        approved: bool = False,
     ) -> UserRecord:
         """Create a new user with a generated UUID.
 
@@ -352,6 +357,7 @@ class Database:
             Created UserRecord.
         """
         import uuid as uuid_module
+
         user_uuid = str(uuid_module.uuid4())
         cursor = self._conn.cursor()
         cursor.execute(
@@ -408,7 +414,9 @@ class Database:
 
     # Refresh token operations
 
-    def store_refresh_token(self, username: str, token: str, expires_at: int, created_at: int) -> None:
+    def store_refresh_token(
+        self, username: str, token: str, expires_at: int, created_at: int
+    ) -> None:
         """Store a new refresh token."""
         cursor = self._conn.cursor()
         cursor.execute(
@@ -427,7 +435,9 @@ class Database:
         )
         return cursor.fetchone()
 
-    def revoke_refresh_token(self, token: str, revoked_at: int, replaced_by: str | None = None) -> None:
+    def revoke_refresh_token(
+        self, token: str, revoked_at: int, replaced_by: str | None = None
+    ) -> None:
         """Revoke a refresh token and optionally link its replacement."""
         cursor = self._conn.cursor()
         cursor.execute(
@@ -475,7 +485,9 @@ class Database:
                 promoted_user = username
 
         # Set all remaining users without trust level to USER
-        cursor.execute("UPDATE users SET trust_level = ? WHERE trust_level IS NULL", (TrustLevel.USER.value,))
+        cursor.execute(
+            "UPDATE users SET trust_level = ? WHERE trust_level IS NULL", (TrustLevel.USER.value,)
+        )
         self._conn.commit()
 
         return promoted_user
@@ -507,9 +519,7 @@ class Database:
                 (TrustLevel.BANNED.value,),
             )
         else:
-            cursor.execute(
-                f"SELECT {self._USER_COLUMNS} FROM users WHERE approved = 0"
-            )
+            cursor.execute(f"SELECT {self._USER_COLUMNS} FROM users WHERE approved = 0")
         return [self._user_from_row(row) for row in cursor.fetchall()]
 
     def get_banned_users(self) -> list[UserRecord]:
@@ -673,9 +683,7 @@ class Database:
             True if added, False if the assignment already exists.
         """
         cursor = self._conn.cursor()
-        cursor.execute(
-            "SELECT id FROM users WHERE lower(username) = lower(?)", (username,)
-        )
+        cursor.execute("SELECT id FROM users WHERE lower(username) = lower(?)", (username,))
         row = cursor.fetchone()
         if not row:
             return False
@@ -701,9 +709,7 @@ class Database:
             True if removed, False if the assignment was not found.
         """
         cursor = self._conn.cursor()
-        cursor.execute(
-            "SELECT id FROM users WHERE lower(username) = lower(?)", (username,)
-        )
+        cursor.execute("SELECT id FROM users WHERE lower(username) = lower(?)", (username,))
         row = cursor.fetchone()
         if not row:
             return False
@@ -758,10 +764,7 @@ class Database:
 
         # Serialize members
         members_json = json.dumps(
-            [
-                {"username": m.username, "is_spectator": m.is_spectator}
-                for m in table.members
-            ]
+            [{"username": m.username, "is_spectator": m.is_spectator} for m in table.members]
         )
 
         cursor.execute(
@@ -922,7 +925,9 @@ class Database:
         game_type: str,
         timestamp: str,
         duration_ticks: int,
-        players: list[tuple[str, str, bool, bool]],  # (player_id, player_name, is_bot, is_virtual_bot)
+        players: list[
+            tuple[str, str, bool, bool]
+        ],  # (player_id, player_name, is_bot, is_virtual_bot)
         custom_data: dict | None = None,
     ) -> int:
         """
@@ -1014,13 +1019,15 @@ class Database:
 
         results = []
         for row in cursor.fetchall():
-            results.append({
-                "id": row["id"],
-                "game_type": row["game_type"],
-                "timestamp": row["timestamp"],
-                "duration_ticks": row["duration_ticks"],
-                "custom_data": json.loads(row["custom_data"]) if row["custom_data"] else {},
-            })
+            results.append(
+                {
+                    "id": row["id"],
+                    "game_type": row["game_type"],
+                    "timestamp": row["timestamp"],
+                    "duration_ticks": row["duration_ticks"],
+                    "custom_data": json.loads(row["custom_data"]) if row["custom_data"] else {},
+                }
+            )
         return results
 
     def get_game_result_players(self, result_id: int) -> list[dict]:
@@ -1039,7 +1046,9 @@ class Database:
                 "player_id": row["player_id"],
                 "player_name": row["player_name"],
                 "is_bot": bool(row["is_bot"]),
-                "is_virtual_bot": bool(row["is_virtual_bot"]) if row["is_virtual_bot"] is not None else False,
+                "is_virtual_bot": bool(row["is_virtual_bot"])
+                if row["is_virtual_bot"] is not None
+                else False,
             }
             for row in cursor.fetchall()
         ]
@@ -1080,7 +1089,13 @@ class Database:
             )
 
         return [
-            (row["id"], row["game_type"], row["timestamp"], row["duration_ticks"], row["custom_data"])
+            (
+                row["id"],
+                row["game_type"],
+                row["timestamp"],
+                row["duration_ticks"],
+                row["custom_data"],
+            )
             for row in cursor.fetchall()
         ]
 
@@ -1150,9 +1165,7 @@ class Database:
 
     # Player rating operations
 
-    def get_player_rating(
-        self, player_id: str, game_type: str
-    ) -> tuple[float, float] | None:
+    def get_player_rating(self, player_id: str, game_type: str) -> tuple[float, float] | None:
         """
         Get a player's rating for a game type.
 
@@ -1172,9 +1185,7 @@ class Database:
             return (row["mu"], row["sigma"])
         return None
 
-    def set_player_rating(
-        self, player_id: str, game_type: str, mu: float, sigma: float
-    ) -> None:
+    def set_player_rating(self, player_id: str, game_type: str, mu: float, sigma: float) -> None:
         """Set or update a player's rating for a game type."""
         cursor = self._conn.cursor()
         cursor.execute(

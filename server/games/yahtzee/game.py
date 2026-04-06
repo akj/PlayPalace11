@@ -68,6 +68,8 @@ UPPER_VALUES = {
     "fives": 5,
     "sixes": 6,
 }
+
+
 def calculate_score(dice: list[int], category: str) -> int:
     """Calculate the score for a category given the dice."""
     if not dice or len(dice) != 5:
@@ -107,9 +109,7 @@ def calculate_score(dice: list[int], category: str) -> int:
 
     # Large Straight - 5 consecutive = 40 points
     if category == "large_straight":
-        if has_consecutive_run(
-            counts, length=5, min_value=1, max_value=6, require_unique=True
-        ):
+        if has_consecutive_run(counts, length=5, min_value=1, max_value=6, require_unique=True):
             return 40
         return 0
 
@@ -209,6 +209,8 @@ class YahtzeeGame(ActionGuardMixin, Game, DiceGameMixin):
     Highest total score wins.
     """
 
+    relevant_preferences = ["clear_kept_on_roll", "dice_keeping_style"]
+
     players: list[YahtzeePlayer] = field(default_factory=list)
     options: YahtzeeOptions = field(default_factory=YahtzeeOptions)
 
@@ -236,9 +238,7 @@ class YahtzeeGame(ActionGuardMixin, Game, DiceGameMixin):
     def get_max_players(cls) -> int:
         return 4
 
-    def create_player(
-        self, player_id: str, name: str, is_bot: bool = False
-    ) -> YahtzeePlayer:
+    def create_player(self, player_id: str, name: str, is_bot: bool = False) -> YahtzeePlayer:
         """Create a new player with Yahtzee-specific state."""
         return YahtzeePlayer(id=player_id, name=name, is_bot=is_bot)
 
@@ -312,12 +312,8 @@ class YahtzeeGame(ActionGuardMixin, Game, DiceGameMixin):
         self.setup_dice_keybinds()
 
         # View actions
-        self.define_keybind(
-            "d", "View dice", ["view_dice"], state=KeybindState.ACTIVE
-        )
-        self.define_keybind(
-            "c", "View scoresheet", ["view_scoresheet"], state=KeybindState.ACTIVE
-        )
+        self.define_keybind("d", "View dice", ["view_dice"], state=KeybindState.ACTIVE)
+        self.define_keybind("c", "View scoresheet", ["view_scoresheet"], state=KeybindState.ACTIVE)
 
     # ==========================================================================
     # Declarative Action Callbacks
@@ -412,7 +408,11 @@ class YahtzeeGame(ActionGuardMixin, Game, DiceGameMixin):
         # - lock_kept=False: kept dice don't become permanently locked
         # - clear_kept: controlled by user preference (default True)
         user = self.get_user(player)
-        clear_kept = user.preferences.clear_kept_on_roll if user else True
+        clear_kept = (
+            user.preferences.get_effective("clear_kept_on_roll", game_type=self.get_type())
+            if user
+            else True
+        )
         ytz_player.dice.roll(lock_kept=False, clear_kept=clear_kept)
         self._apply_dice_values_defaults(ytz_player)
         ytz_player.rolls_left -= 1
@@ -489,16 +489,12 @@ class YahtzeeGame(ActionGuardMixin, Game, DiceGameMixin):
 
         if yahtzee_bonus:
             self.play_sound("game_farkle/6kind.ogg")
-            self.broadcast_personal_l(
-                player, "yahtzee-you-bonus", "yahtzee-player-bonus"
-            )
+            self.broadcast_personal_l(player, "yahtzee-you-bonus", "yahtzee-player-bonus")
             self._team_manager.add_to_team_round_score(player.name, 100)
 
         # Check for upper bonus (first time upper section is complete)
         if not ytz_player.upper_bonus_awarded:
-            upper_complete = all(
-                ytz_player.scores.get(cat) is not None for cat in UPPER_CATEGORIES
-            )
+            upper_complete = all(ytz_player.scores.get(cat) is not None for cat in UPPER_CATEGORIES)
             if upper_complete:
                 upper_total = ytz_player.get_upper_total()
                 if upper_total >= 63:
@@ -538,11 +534,7 @@ class YahtzeeGame(ActionGuardMixin, Game, DiceGameMixin):
             return
 
         dice_str = ytz_current.dice.format_values_only()
-        kept = [
-            str(ytz_current.dice.get_value(i))
-            for i in range(5)
-            if ytz_current.dice.is_kept(i)
-        ]
+        kept = [str(ytz_current.dice.get_value(i)) for i in range(5) if ytz_current.dice.is_kept(i)]
         if kept:
             kept_str = ", ".join(kept)
             user.speak_l("yahtzee-your-dice-kept", dice=dice_str, kept=kept_str)
@@ -577,9 +569,7 @@ class YahtzeeGame(ActionGuardMixin, Game, DiceGameMixin):
         upper_total = ytz_current.get_upper_total()
         if ytz_current.upper_bonus_awarded:
             lines.append(
-                Localization.get(
-                    locale, "yahtzee-scoresheet-upper-total-bonus", total=upper_total
-                )
+                Localization.get(locale, "yahtzee-scoresheet-upper-total-bonus", total=upper_total)
             )
         else:
             needed = max(0, 63 - upper_total)
@@ -605,7 +595,10 @@ class YahtzeeGame(ActionGuardMixin, Game, DiceGameMixin):
         yahtzee_bonus = ytz_current.yahtzee_bonus_count * 100
         lines.append(
             Localization.get(
-                locale, "yahtzee-scoresheet-yahtzee-bonus", count=ytz_current.yahtzee_bonus_count, total=yahtzee_bonus
+                locale,
+                "yahtzee-scoresheet-yahtzee-bonus",
+                count=ytz_current.yahtzee_bonus_count,
+                total=yahtzee_bonus,
             )
         )
 
@@ -733,16 +726,16 @@ class YahtzeeGame(ActionGuardMixin, Game, DiceGameMixin):
         self.play_sound("game_pig/win.ogg")
 
         if len(winners) == 1:
-            self.broadcast_l(
-                "yahtzee-winner", player=winners[0].name, score=high_score
-            )
+            self.broadcast_l("yahtzee-winner", player=winners[0].name, score=high_score)
         else:
             winner_names = [w.name for w in winners]
             for p in self.players:
                 user = self.get_user(p)
                 if user:
                     names_str = Localization.format_list_and(user.locale, winner_names)
-                    user.speak_l("yahtzee-winners-tie", players=names_str, score=high_score, buffer="table")
+                    user.speak_l(
+                        "yahtzee-winners-tie", players=names_str, score=high_score, buffer="table"
+                    )
 
         # Commit round scores to total
         self._team_manager.commit_round_scores()
@@ -835,6 +828,7 @@ class YahtzeeGame(ActionGuardMixin, Game, DiceGameMixin):
 # Create is_enabled, is_hidden, and get_label methods for each scoring category
 def _make_score_enabled(cat: str):
     """Create an is_enabled method for a scoring category."""
+
     def method(self, player: Player) -> str | None:
         error = self.guard_turn_action_enabled(player)
         if error:
@@ -844,19 +838,23 @@ def _make_score_enabled(cat: str):
         if cat not in player.get_open_categories():
             return "yahtzee-category-filled"
         return None
+
     return method
 
 
 def _make_score_hidden(cat: str):
     """Create an is_hidden method for a scoring category."""
+
     def method(self, player: Player) -> Visibility:
         extra_condition = player.dice.has_rolled and cat in player.get_open_categories()
         return self.turn_action_visibility(player, extra_condition=extra_condition)
+
     return method
 
 
 def _make_score_label(cat: str):
     """Create a get_label method for a scoring category."""
+
     def method(self, player: Player, action_id: str) -> str:
         user = self.get_user(player)
         locale = user.locale if user else "en"
@@ -865,6 +863,7 @@ def _make_score_label(cat: str):
             points = calculate_score(player.dice.values, cat)
             return f"{cat_name} for {points} points"
         return cat_name
+
     return method
 
 

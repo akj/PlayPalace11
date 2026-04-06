@@ -14,10 +14,32 @@ from ..messages.localization import Localization
 
 # Default bot names available for selection
 BOT_NAMES = [
-    "Alice", "Bob", "Charlie", "Diana", "Eve", "Frank", "Grace", "Henry",
-    "Ivy", "Jack", "Kate", "Leo", "Mia", "Noah", "Olivia", "Pete",
-    "Quinn", "Rose", "Sam", "Tina", "Uma", "Vic", "Wendy", "Xander",
-    "Yara", "Zack",
+    "Alice",
+    "Bob",
+    "Charlie",
+    "Diana",
+    "Eve",
+    "Frank",
+    "Grace",
+    "Henry",
+    "Ivy",
+    "Jack",
+    "Kate",
+    "Leo",
+    "Mia",
+    "Noah",
+    "Olivia",
+    "Pete",
+    "Quinn",
+    "Rose",
+    "Sam",
+    "Tina",
+    "Uma",
+    "Vic",
+    "Wendy",
+    "Xander",
+    "Yara",
+    "Zack",
 ]
 
 
@@ -65,11 +87,7 @@ class LobbyActionsMixin:
     def _bot_input_add_bot(self, player: "Player") -> str | None:
         """Get bot name for add_bot action."""
         return next(
-            (
-                n
-                for n in BOT_NAMES
-                if n.lower() not in {x.name.lower() for x in self.players}
-            ),
+            (n for n in BOT_NAMES if n.lower() not in {x.name.lower() for x in self.players}),
             None,
         )
 
@@ -78,11 +96,7 @@ class LobbyActionsMixin:
         # If blank, use an available name from the list
         if not bot_name.strip():
             bot_name = next(
-                (
-                    n
-                    for n in BOT_NAMES
-                    if n.lower() not in {x.name.lower() for x in self.players}
-                ),
+                (n for n in BOT_NAMES if n.lower() not in {x.name.lower() for x in self.players}),
                 None,
             )
             if not bot_name:
@@ -180,7 +194,7 @@ class LobbyActionsMixin:
                 self.destroy()
                 return
 
-            # Rebuild menus for remaining players
+                # Rebuild menus for remaining players
                 self.rebuild_all_menus()
             return
 
@@ -269,9 +283,7 @@ class LobbyActionsMixin:
         """Get the number of bot players."""
         return sum(1 for p in self.players if p.is_bot)
 
-    def create_player(
-        self, player_id: str, name: str, is_bot: bool = False
-    ) -> "Player":
+    def create_player(self, player_id: str, name: str, is_bot: bool = False) -> "Player":
         """Create a new player. Override in subclasses for custom player types."""
         # Import here to avoid circular dependency at module level
         from ..games.base import Player

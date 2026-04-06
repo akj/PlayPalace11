@@ -68,7 +68,7 @@ class MenuList(wx.ListBox):
 
         if self._handle_tab_navigation(event, key_code):
             return
-        if self._handle_arrow_navigation(key_code):
+        if self._handle_arrow_navigation(event, key_code):
             return
         if self._handle_enter_activation(event, key_code):
             return
@@ -85,10 +85,24 @@ class MenuList(wx.ListBox):
             self.Navigate(wx.NavigationKeyEvent.IsForward)
         return True
 
-    def _handle_arrow_navigation(self, key_code: int) -> bool:
+    def _handle_arrow_navigation(self, event, key_code: int) -> bool:
         if self.grid_enabled:
             if key_code in (wx.WXK_LEFT, wx.WXK_RIGHT, wx.WXK_UP, wx.WXK_DOWN):
+                # Ctrl+Arrow: pass through for server keybind handling
+                if event.ControlDown():
+                    return False
+                # Alt+Arrow: jump to grid row/column edges
+                if event.AltDown():
+                    self._handle_grid_edge_navigation(key_code)
+                    return True
                 self._handle_grid_navigation(key_code)
+                return True
+            # Home/End: jump to row edges in grid mode
+            if key_code == wx.WXK_HOME:
+                self._handle_grid_edge_navigation(wx.WXK_LEFT)
+                return True
+            if key_code == wx.WXK_END:
+                self._handle_grid_edge_navigation(wx.WXK_RIGHT)
                 return True
             return False
         if key_code in (wx.WXK_UP, wx.WXK_DOWN) and self.GetCount() == 1:
@@ -154,9 +168,7 @@ class MenuList(wx.ListBox):
 
         # Let plain Enter pass through (no modifiers)
         is_enter = (
-            key_code == wx.WXK_RETURN
-            or key_code == wx.WXK_NUMPAD_ENTER
-            or key_code == 13
+            key_code == wx.WXK_RETURN or key_code == wx.WXK_NUMPAD_ENTER or key_code == 13
         )  # 13 is carriage return
 
         if is_enter and not event.ControlDown() and not event.ShiftDown() and not event.AltDown():
@@ -315,4 +327,35 @@ class MenuList(wx.ListBox):
             self.SetSelection(new_pos)
             self.EnsureVisible(new_pos)
             # Play menuclick sound when moving
+            self._play_selection_sound(new_pos)
+
+    def _handle_grid_edge_navigation(self, key_code):
+        """Handle Alt+Arrow to jump to grid row/column edges."""
+        current_pos = self.GetSelection()
+        if current_pos == wx.NOT_FOUND:
+            current_pos = 0
+
+        count = self.GetCount()
+        if count == 0:
+            return
+
+        row = current_pos // self.grid_width
+        col = current_pos % self.grid_width
+
+        if key_code == wx.WXK_LEFT:
+            new_pos = row * self.grid_width
+        elif key_code == wx.WXK_RIGHT:
+            new_pos = min((row + 1) * self.grid_width - 1, count - 1)
+        elif key_code == wx.WXK_UP:
+            new_pos = col
+        elif key_code == wx.WXK_DOWN:
+            new_pos = col
+            while new_pos + self.grid_width < count:
+                new_pos += self.grid_width
+        else:
+            return
+
+        if new_pos != current_pos:
+            self.SetSelection(new_pos)
+            self.EnsureVisible(new_pos)
             self._play_selection_sound(new_pos)

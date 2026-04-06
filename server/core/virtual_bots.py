@@ -260,7 +260,9 @@ class VirtualBotManager:
             bot.profile = self._bot_profiles_map.get(bot.name, self._config.default_profile)
             bot.groups = tuple(sorted(self._bot_memberships.get(bot.name, set())))
 
-    def _parse_profiles(self, profiles_section: dict[str, Any]) -> dict[str, VirtualBotProfileOverride]:
+    def _parse_profiles(
+        self, profiles_section: dict[str, Any]
+    ) -> dict[str, VirtualBotProfileOverride]:
         """Parse bot profile overrides from configuration."""
         profiles: dict[str, VirtualBotProfileOverride] = {}
         for name, overrides in profiles_section.items():
@@ -308,7 +310,9 @@ class VirtualBotManager:
         for group in self._bot_groups.values():
             for bot_name in group.bots:
                 if bot_name not in memberships:
-                    raise ValueError(f"Bot '{bot_name}' referenced in group '{group.name}' is not defined in names list")
+                    raise ValueError(
+                        f"Bot '{bot_name}' referenced in group '{group.name}' is not defined in names list"
+                    )
                 memberships[bot_name].add(group.name)
         return memberships
 
@@ -327,14 +331,18 @@ class VirtualBotManager:
             }
             profile_overrides.discard(None)
             if len(profile_overrides) > 1:
-                raise ValueError(f"Conflicting profile assignments for bot '{bot_name}' via bot groups")
+                raise ValueError(
+                    f"Conflicting profile assignments for bot '{bot_name}' via bot groups"
+                )
             if profile_overrides:
                 profile_name = profile_overrides.pop()
             self._profiles.setdefault(profile_name, VirtualBotProfileOverride(name=profile_name))
             resolved[bot_name] = profile_name
         return resolved
 
-    def _parse_guided_tables(self, guided_section: list[dict[str, Any]]) -> dict[str, GuidedTableState]:
+    def _parse_guided_tables(
+        self, guided_section: list[dict[str, Any]]
+    ) -> dict[str, GuidedTableState]:
         """Parse guided table configuration into runtime state."""
         guided: dict[str, GuidedTableState] = {}
         for entry in guided_section:
@@ -355,7 +363,9 @@ class VirtualBotManager:
             if min_bots < 0:
                 raise ValueError(f"Guided table '{table_name}' min_bots cannot be negative")
             if max_bots != 0 and max_bots < min_bots:
-                raise ValueError(f"Guided table '{table_name}' max_bots must be >= min_bots or 0 for unlimited")
+                raise ValueError(
+                    f"Guided table '{table_name}' max_bots must be >= min_bots or 0 for unlimited"
+                )
 
             bot_groups = entry.get("bot_groups") or []
             if not bot_groups:
@@ -396,7 +406,9 @@ class VirtualBotManager:
         for group_name in config.bot_groups:
             group = self._bot_groups.get(group_name)
             if not group:
-                raise ValueError(f"Guided table '{config.name}' references unknown bot group '{group_name}'")
+                raise ValueError(
+                    f"Guided table '{config.name}' references unknown bot group '{group_name}'"
+                )
             eligible.update(group.bots)
         return eligible
 
@@ -408,7 +420,9 @@ class VirtualBotManager:
         for state in self._guided_tables.values():
             config = state.config
             if config.game not in available_games:
-                raise ValueError(f"Guided table '{config.name}' references unknown game '{config.game}'")
+                raise ValueError(
+                    f"Guided table '{config.name}' references unknown game '{config.game}'"
+                )
             if config.profile and config.profile not in self._profiles:
                 raise ValueError(
                     f"Guided table '{config.name}' references undefined profile '{config.profile}'"
@@ -488,7 +502,10 @@ class VirtualBotManager:
 
     def _iter_guided_states(self) -> list[GuidedTableState]:
         """Return guided table states ordered by priority and name."""
-        return sorted(self._guided_tables.values(), key=lambda state: (state.config.priority, state.config.name))
+        return sorted(
+            self._guided_tables.values(),
+            key=lambda state: (state.config.priority, state.config.name),
+        )
 
     def save_state(self) -> None:
         """Save all virtual bot state to the database for persistence."""
@@ -741,7 +758,11 @@ class VirtualBotManager:
                     tables_killed.add(bot.table_id)
 
             # Take bot offline (removes from server users)
-            if bot.state in (VirtualBotState.ONLINE_IDLE, VirtualBotState.IN_GAME, VirtualBotState.LEAVING_GAME):
+            if bot.state in (
+                VirtualBotState.ONLINE_IDLE,
+                VirtualBotState.IN_GAME,
+                VirtualBotState.LEAVING_GAME,
+            ):
                 self._take_bot_offline_silent(bot)
 
         self._bots.clear()
@@ -817,9 +838,7 @@ class VirtualBotManager:
             profile_usage[profile] = profile_usage.get(profile, 0) + 1
         return profile_usage
 
-    def _build_admin_profiles_snapshot(
-        self, profile_usage: dict[str, int]
-    ) -> list[dict[str, Any]]:
+    def _build_admin_profiles_snapshot(self, profile_usage: dict[str, int]) -> list[dict[str, Any]]:
         """Build snapshot data for configured profiles."""
         profiles_snapshot = []
         for name in sorted(self._profiles.keys()):
@@ -874,9 +893,7 @@ class VirtualBotManager:
             )
         return groups_snapshot
 
-    def _summarize_bot_group(
-        self, bot_names: list[str]
-    ) -> tuple[dict[str, int], set[str]]:
+    def _summarize_bot_group(self, bot_names: list[str]) -> tuple[dict[str, int], set[str]]:
         """Count bot states and assigned rules for a group."""
         counts = {"total": 0, "online": 0, "waiting": 0, "in_game": 0, "offline": 0}
         assigned_rules: set[str] = set()
@@ -900,10 +917,7 @@ class VirtualBotManager:
 
     def _build_admin_guided_snapshot(self) -> list[dict[str, Any]]:
         """Build snapshot data for guided table rules."""
-        return [
-            self._build_guided_state_snapshot(state)
-            for state in self._iter_guided_states()
-        ]
+        return [self._build_guided_state_snapshot(state) for state in self._iter_guided_states()]
 
     def _build_guided_state_snapshot(self, state: "GuidedTableRuleState") -> dict[str, Any]:
         """Build a snapshot for a single guided rule state."""
@@ -939,9 +953,7 @@ class VirtualBotManager:
             "unavailable_bots": unavailable,
         }
 
-    def _count_guided_availability(
-        self, state: "GuidedTableRuleState"
-    ) -> tuple[int, int]:
+    def _count_guided_availability(self, state: "GuidedTableRuleState") -> tuple[int, int]:
         """Count guided bots waiting vs unavailable for a rule."""
         waiting = 0
         unavailable = 0
@@ -1004,10 +1016,7 @@ class VirtualBotManager:
 
     def _process_offline_bot(self, bot: VirtualBot) -> None:
         """Process a bot that is currently offline - bring them online."""
-        if (
-            self._config.fallback_behavior == FallbackBehavior.DISABLED
-            and not bot.target_rule
-        ):
+        if self._config.fallback_behavior == FallbackBehavior.DISABLED and not bot.target_rule:
             # Stay offline until a guided assignment needs this bot
             bot.cooldown_ticks = random.randint(  # nosec B311
                 self._get_config_value(bot, "min_offline_ticks"),
@@ -1187,21 +1196,27 @@ class VirtualBotManager:
             if exclude and name == exclude:
                 continue
             bot = self._bots.get(name)
-            if bot and bot.table_id == state.table_id and bot.state in (
-                VirtualBotState.IN_GAME,
-                VirtualBotState.LEAVING_GAME,
+            if (
+                bot
+                and bot.table_id == state.table_id
+                and bot.state
+                in (
+                    VirtualBotState.IN_GAME,
+                    VirtualBotState.LEAVING_GAME,
+                )
             ):
                 count += 1
         return count
 
-    def _should_bot_join_rule(
-        self, bot: VirtualBot, state: GuidedTableState, table
-    ) -> bool:
+    def _should_bot_join_rule(self, bot: VirtualBot, state: GuidedTableState, table) -> bool:
         """Return True if the bot should join the guided table right now."""
         game = table.game
         if not game or game.status != "waiting":
             return False
-        if sum(1 for p in game.players if not p.is_spectator) >= game.get_max_players():
+        if (
+            sum(1 for p in game.players if not getattr(p, "is_spectator", False))
+            >= game.get_max_players()
+        ):
             return False
 
         current = self._count_rule_bots(state, exclude=bot.name)
@@ -1249,7 +1264,10 @@ class VirtualBotManager:
         game = table.game
         if not game or game.status != "waiting":
             return False
-        if sum(1 for p in game.players if not p.is_spectator) >= game.get_max_players():
+        if (
+            sum(1 for p in game.players if not getattr(p, "is_spectator", False))
+            >= game.get_max_players()
+        ):
             return False
 
         user = self._server._users.get(bot.name)
@@ -1371,7 +1389,10 @@ class VirtualBotManager:
             return False
 
         # Check if there's room
-        if sum(1 for p in game.players if not p.is_spectator) >= game.get_max_players():
+        if (
+            sum(1 for p in game.players if not getattr(p, "is_spectator", False))
+            >= game.get_max_players()
+        ):
             return False
 
         # Join the table

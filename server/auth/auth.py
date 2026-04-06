@@ -19,6 +19,7 @@ class AuthResult(Enum):
     USER_NOT_FOUND = auto()
     WRONG_PASSWORD = auto()
 
+
 if TYPE_CHECKING:
     from ..persistence.database import Database, UserRecord
 
@@ -46,7 +47,9 @@ class AuthManager:
 
     def _is_legacy_hash(self, password_hash: str) -> bool:
         """Check if a hash is a legacy SHA-256 hash (64 hex characters)."""
-        return len(password_hash) == 64 and all(c in '0123456789abcdef' for c in password_hash.lower())
+        return len(password_hash) == 64 and all(
+            c in "0123456789abcdef" for c in password_hash.lower()
+        )
 
     def verify_password(self, password: str, password_hash: str) -> bool:
         """Verify a password against its hash (supports both Argon2 and legacy SHA-256)."""

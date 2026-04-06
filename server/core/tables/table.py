@@ -65,9 +65,7 @@ class Table(DataClassJSONMixin):
         if value:
             self.game_json = value.to_json()
 
-    def add_member(
-        self, username: str, user: "User", as_spectator: bool = False
-    ) -> None:
+    def add_member(self, username: str, user: "User", as_spectator: bool = False) -> None:
         """Add a member to the table.
 
         Args:

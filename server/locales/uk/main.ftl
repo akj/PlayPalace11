@@ -261,6 +261,30 @@ incorrect-username = Введене вами ім'я користувача не
 incorrect-password = Введений вами пароль неправильний.
 already-logged-in = Цей обліковий запис вже увійшов в систему.
 
+# Credential validation
+credential-username-length = Ім'я користувача повинно містити від { $min } до { $max } символів.
+credential-password-length = Пароль повинен містити від { $min } до { $max } символів.
+
+# Rate limiting
+rate-limit-login-ip = Забагато спроб входу з цієї адреси. Будь ласка, зачекайте і спробуйте знову.
+rate-limit-login-user = Забагато невдалих спроб входу для цього імені користувача. Будь ласка, зачекайте і спробуйте знову.
+rate-limit-registration = Забагато спроб реєстрації з цієї адреси. Будь ласка, зачекайте і спробуйте знову.
+rate-limit-refresh = Забагато спроб оновлення з цієї адреси. Будь ласка, зачекайте і спробуйте знову.
+
+# Session/auth errors
+account-not-found = Обліковий запис не знайдено.
+session-expired = Сесія закінчилась. Будь ласка, увійдіть знову.
+session-token-mismatch = Токен сесії не відповідає імені користувача.
+refresh-token-expired = Токен оновлення закінчився. Будь ласка, увійдіть знову.
+refresh-token-mismatch = Токен оновлення не відповідає імені користувача.
+
+# Registration
+registration-success = Реєстрація успішна! Ваш обліковий запис очікує схвалення.
+registration-username-taken = Це ім'я користувача вже зайняте. Будь ласка, оберіть інше.
+
+# Preference fallback
+pref-invalid-value = Невірний вибір, використовується стандартне значення.
+
 # Decline reason
 decline-reason-prompt = Введіть причину відхилення (або натисніть Escape для скасування):
 account-action-empty-reason = Причину не вказано.

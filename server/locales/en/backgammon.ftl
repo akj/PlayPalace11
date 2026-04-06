@@ -2,10 +2,6 @@
 
 game-name-backgammon = Backgammon
 
-# Colors
-backgammon-color-red = red
-backgammon-color-white = white
-
 # Game start
 backgammon-game-started = { $red } plays Red, { $white } plays White.
 backgammon-opening-roll = Opening roll: { $red } rolls { $red_die }, { $white } rolls { $white_die }.
@@ -27,6 +23,39 @@ backgammon-move-bar = Bar to { $dest }, { $count }.
 backgammon-move-bar-hit = Bar to capture on { $dest }, { $count }.
 backgammon-move-bearoff = Bearing off from { $src }, { $remain }.
 
+# Verbose move commentary
+backgammon-verbose-move-normal = { $is_self ->
+    [yes] You move a checker from point { $src } to point { $dest }.
+    *[no] { $player } moves a checker from point { $src } to point { $dest }.
+} { $src_count ->
+    [0] Point { $src } is now empty, { $dest_count } on point { $dest }.
+    *[other] { $src_count } now on point { $src }, { $dest_count } on point { $dest }.
+}
+backgammon-verbose-move-hit = { $is_self ->
+    [yes] You move a checker from point { $src } to capture { $opponent }'s checker on point { $dest }.
+    [spectator] { $player } moves a checker from point { $src } to capture { $opponent }'s checker on point { $dest }.
+    *[no] { $player } moves a checker from point { $src } to capture your checker on point { $dest }.
+} { $src_count ->
+    [0] Point { $src } is now empty.
+    *[other] { $src_count } remaining on point { $src }.
+}
+backgammon-verbose-move-bar = { $is_self ->
+    [yes] You enter from the bar to point { $dest }.
+    *[no] { $player } enters from the bar to point { $dest }.
+} { $dest_count } now on point { $dest }.
+backgammon-verbose-move-bar-hit = { $is_self ->
+    [yes] You enter from the bar to capture { $opponent }'s checker on point { $dest }.
+    [spectator] { $player } enters from the bar to capture { $opponent }'s checker on point { $dest }.
+    *[no] { $player } enters from the bar to capture your checker on point { $dest }.
+}
+backgammon-verbose-move-bearoff = { $is_self ->
+    [yes] You bear off from point { $src }.
+    *[no] { $player } bears off from point { $src }.
+} { $src_count ->
+    [0] Point { $src } is now empty.
+    *[other] { $src_count } remaining on point { $src }.
+}
+
 # Doubling
 backgammon-doubles = { $player } doubles to { $value }.
 backgammon-accepts = { $player } accepts.
@@ -35,8 +64,8 @@ backgammon-accept = Accept
 backgammon-drop = Drop
 
 # Point labels
-backgammon-point-empty = { $point } empty
-backgammon-point-empty-selected = { $point } empty selected
+backgammon-point-empty = { $point }
+backgammon-point-empty-selected = { $point } selected
 backgammon-point-occupied = { $point } { $color }, { $count }
 backgammon-point-occupied-selected = { $point } { $color }, { $count } selected
 
@@ -55,6 +84,7 @@ backgammon-selected-point = Selected point { $point }, { $count } checkers.
 backgammon-selected-bar = Selected bar.
 backgammon-deselected = Deselected.
 backgammon-no-checkers-there = No checkers there.
+backgammon-not-your-checkers = Those are not your checkers.
 backgammon-no-moves-from-here = No legal moves from here.
 backgammon-must-enter-from-bar = Must enter from bar first.
 backgammon-illegal-move = Illegal move.
@@ -72,6 +102,10 @@ backgammon-hint-not-now = Hints are only available during the moving phase.
 backgammon-hints-disabled = Hints are disabled. Enable them in game options.
 backgammon-hint-unavailable = Hint engine not available.
 backgammon-cube-hint = { $player } asks for cube advice: { $hint }
+backgammon-cube-hint-response = { $player } asks for cube advice: { $advice ->
+    [take] Take.
+   *[drop] Drop.
+}
 backgammon-cube-hint-not-now = Cube hints are only available before rolling or when facing a double.
 backgammon-cube-hints-disabled = Cube hints are disabled. Enable them in game options.
 backgammon-gnubg-fallback = GNUBG engine unavailable. Bot is using simple fallback.
@@ -121,8 +155,6 @@ backgammon-option-changed-match-length = Match length set to { $match_length }.
 backgammon-option-bot-difficulty = Bot difficulty: { $bot_difficulty }
 backgammon-option-select-bot-difficulty = Select bot difficulty
 backgammon-option-changed-bot-difficulty = Bot difficulty set to { $bot_difficulty }.
-backgammon-option-verbose-commentary = Verbose commentary: { $verbose_commentary }
-backgammon-option-changed-verbose-commentary = Verbose commentary set to { $verbose_commentary }.
 backgammon-option-hints = Hints: { $hints_enabled }
 backgammon-option-changed-hints = Hints set to { $hints_enabled }.
 backgammon-option-cube-hints = Cube hints: { $cube_hints_enabled }

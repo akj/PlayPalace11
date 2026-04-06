@@ -20,6 +20,7 @@ def _speak_activity(user, message_id: str, **kwargs) -> None:
 
 def require_admin(func):
     """Decorator that checks if the user is still an admin before executing an admin action."""
+
     @functools.wraps(func)
     async def wrapper(self, admin, *args, **kwargs):
         """Run the wrapped action if the user still has admin privileges."""
@@ -28,11 +29,13 @@ def require_admin(func):
             self._show_main_menu(admin)
             return
         return await func(self, admin, *args, **kwargs)
+
     return wrapper
 
 
 def require_server_owner(func):
     """Decorator that checks if the user is the server owner before executing a server owner action."""
+
     @functools.wraps(func)
     async def wrapper(self, owner, *args, **kwargs):
         """Run the wrapped action if the user is still the server owner."""
@@ -41,6 +44,7 @@ def require_server_owner(func):
             self._show_main_menu(owner)
             return
         return await func(self, owner, *args, **kwargs)
+
     return wrapper
 
 
@@ -138,7 +142,9 @@ class AdministrationMixin:
 
         items = []
         for pending_user in pending:
-            items.append(MenuItem(text=pending_user.username, id=f"pending_{pending_user.username}"))
+            items.append(
+                MenuItem(text=pending_user.username, id=f"pending_{pending_user.username}")
+            )
         items.append(MenuItem(text=Localization.get(user.locale, "back"), id="back"))
 
         user.show_menu(
@@ -233,7 +239,9 @@ class AdministrationMixin:
             "target_username": target_username,
         }
 
-    def _show_broadcast_choice_menu(self, user: NetworkUser, action: str, target_username: str) -> None:
+    def _show_broadcast_choice_menu(
+        self, user: NetworkUser, action: str, target_username: str
+    ) -> None:
         """Show menu to choose broadcast audience (all users, admins only, or nobody/silent)."""
         items = [
             MenuItem(text=Localization.get(user.locale, "broadcast-to-all"), id="all"),
@@ -275,9 +283,13 @@ class AdministrationMixin:
         )
         self._user_states[user.username] = {"menu": "transfer_ownership_menu"}
 
-    def _show_transfer_ownership_confirm_menu(self, user: NetworkUser, target_username: str) -> None:
+    def _show_transfer_ownership_confirm_menu(
+        self, user: NetworkUser, target_username: str
+    ) -> None:
         """Show confirmation menu for transferring ownership."""
-        question = Localization.get(user.locale, "confirm-transfer-ownership", player=target_username)
+        question = Localization.get(
+            user.locale, "confirm-transfer-ownership", player=target_username
+        )
         show_yes_no_menu(user, "transfer_ownership_confirm_menu", question)
         self._user_states[user.username] = {
             "menu": "transfer_ownership_confirm_menu",
@@ -452,9 +464,7 @@ class AdministrationMixin:
 
     # ==================== Menu Selection Handlers ====================
 
-    async def _handle_admin_menu_selection(
-        self, user: NetworkUser, selection_id: str
-    ) -> None:
+    async def _handle_admin_menu_selection(self, user: NetworkUser, selection_id: str) -> None:
         """Handle admin menu selection."""
         if selection_id == "account_approval":
             self._show_account_approval_menu(user)
@@ -526,9 +536,7 @@ class AdministrationMixin:
         # Proceed with decline, passing the reason (empty text uses fallback)
         await self._decline_user(admin, pending_username, reason=text)
 
-    async def _handle_promote_admin_selection(
-        self, user: NetworkUser, selection_id: str
-    ) -> None:
+    async def _handle_promote_admin_selection(self, user: NetworkUser, selection_id: str) -> None:
         """Handle promote admin menu selection."""
         if selection_id == "back":
             self._show_admin_menu(user)
@@ -536,9 +544,7 @@ class AdministrationMixin:
             target_username = selection_id[8:]  # Remove "promote_" prefix
             self._show_promote_confirm_menu(user, target_username)
 
-    async def _handle_demote_admin_selection(
-        self, user: NetworkUser, selection_id: str
-    ) -> None:
+    async def _handle_demote_admin_selection(self, user: NetworkUser, selection_id: str) -> None:
         """Handle demote admin menu selection."""
         if selection_id == "back":
             self._show_admin_menu(user)
@@ -642,9 +648,7 @@ class AdministrationMixin:
 
         await self._transfer_ownership(user, target_username, broadcast_scope)
 
-    async def _handle_ban_user_selection(
-        self, user: NetworkUser, selection_id: str
-    ) -> None:
+    async def _handle_ban_user_selection(self, user: NetworkUser, selection_id: str) -> None:
         """Handle ban user menu selection."""
         if selection_id == "back":
             self._show_admin_menu(user)
@@ -652,9 +656,7 @@ class AdministrationMixin:
             target_username = selection_id[4:]  # Remove "ban_" prefix
             self._show_ban_confirm_menu(user, target_username)
 
-    async def _handle_unban_user_selection(
-        self, user: NetworkUser, selection_id: str
-    ) -> None:
+    async def _handle_unban_user_selection(self, user: NetworkUser, selection_id: str) -> None:
         """Handle unban user menu selection."""
         if selection_id == "back":
             self._show_admin_menu(user)
@@ -694,9 +696,7 @@ class AdministrationMixin:
             # No or back - return to unban user menu
             self._show_unban_user_menu(user)
 
-    async def _handle_ban_reason_editbox(
-        self, admin: NetworkUser, text: str, state: dict
-    ) -> None:
+    async def _handle_ban_reason_editbox(self, admin: NetworkUser, text: str, state: dict) -> None:
         """Handle ban reason editbox submission."""
         target_username = state.get("target_username")
         broadcast_scope = state.get("broadcast_scope", "nobody")
@@ -720,9 +720,7 @@ class AdministrationMixin:
         # Proceed with unban, passing the reason and broadcast scope
         await self._unban_user(admin, target_username, reason=text, broadcast_scope=broadcast_scope)
 
-    async def _handle_virtual_bots_selection(
-        self, user: NetworkUser, selection_id: str
-    ) -> None:
+    async def _handle_virtual_bots_selection(self, user: NetworkUser, selection_id: str) -> None:
         """Handle virtual bots menu selection."""
         if selection_id == "fill":
             await self._fill_virtual_bots(user)
@@ -796,9 +794,7 @@ class AdministrationMixin:
             # If user is online, disconnect them with the reason
             if waiting_user:
                 # Build the full decline message with reason
-                decline_message = Localization.get(
-                    waiting_user.locale, "account-declined-goodbye"
-                )
+                decline_message = Localization.get(waiting_user.locale, "account-declined-goodbye")
                 display_reason = reason.strip() if reason else ""
                 if not display_reason:
                     display_reason = Localization.get(
@@ -811,13 +807,15 @@ class AdministrationMixin:
                 # Flush queued messages before disconnect so client receives them
                 for msg in waiting_user.get_queued_messages():
                     await waiting_user.connection.send(msg)
-                await waiting_user.connection.send({
-                    "type": "disconnect",
-                    "reconnect": False,
-                    "show_message": True,
-                    "return_to_login": True,
-                    "message": full_message,
-                })
+                await waiting_user.connection.send(
+                    {
+                        "type": "disconnect",
+                        "reconnect": False,
+                        "show_message": True,
+                        "return_to_login": True,
+                        "message": full_message,
+                    }
+                )
 
         self._show_account_approval_menu(admin)
 
@@ -993,12 +991,14 @@ class AdministrationMixin:
             # Flush queued messages before disconnect so client receives them
             for msg in target_user.get_queued_messages():
                 await target_user.connection.send(msg)
-            await target_user.connection.send({
-                "type": "disconnect",
-                "reconnect": False,
-                "show_message": True,
-                "message": full_message,
-            })
+            await target_user.connection.send(
+                {
+                    "type": "disconnect",
+                    "reconnect": False,
+                    "show_message": True,
+                    "message": full_message,
+                }
+            )
 
         self._show_ban_user_menu(admin)
 
@@ -1135,9 +1135,7 @@ class AdministrationMixin:
                     humans=entry.get("human_players", 0),
                 )
                 if entry["ticks_until_next_change"] is None:
-                    next_change_text = Localization.get(
-                        locale, "virtual-bots-guided-no-schedule"
-                    )
+                    next_change_text = Localization.get(locale, "virtual-bots-guided-no-schedule")
                 else:
                     next_change_text = Localization.get(
                         locale,
@@ -1266,9 +1264,7 @@ class AdministrationMixin:
                 if overrides:
                     formatted = ", ".join(f"{key}={value}" for key, value in overrides.items())
                 else:
-                    formatted = Localization.get(
-                        locale, "virtual-bots-profiles-no-overrides"
-                    )
+                    formatted = Localization.get(locale, "virtual-bots-profiles-no-overrides")
                 lines.append(
                     Localization.get(
                         locale,

@@ -33,9 +33,7 @@ class DiceSet(DataClassJSONMixin):
     sides: int = 6
     values: list[int] = field(default_factory=list)
     kept: list[int] = field(default_factory=list)  # Indices marked to keep
-    locked: list[int] = field(
-        default_factory=list
-    )  # Indices that are locked (can't change)
+    locked: list[int] = field(default_factory=list)  # Indices that are locked (can't change)
 
     def __post_init__(self):
         """Initialize empty values if needed."""
