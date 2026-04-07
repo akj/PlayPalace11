@@ -90,12 +90,13 @@ class AuthManager:
 
         return AuthResult.SUCCESS
 
-    def register(self, username: str, password: str, locale: str = "en") -> bool:
+    def register(self, username: str, password: str, *, approved: bool = False, locale: str = "en") -> bool:
         """Register a new user.
 
         Args:
             username: Username to create.
             password: Plaintext password.
+            approved: Whether the account is pre-approved (skips admin approval).
             locale: Preferred locale.
 
         Returns:
@@ -105,7 +106,6 @@ class AuthManager:
             return False
 
         trust_level = TrustLevel.USER
-        approved = False
 
         password_hash = self.hash_password(password)
         self._db.create_user(username, password_hash, locale, trust_level, approved)

@@ -2,6 +2,10 @@
 # Important: Copy this file to config.toml first. Ccustomize as needed.
 
 [auth]
+# Auto-approve new accounts (skip admin approval step)
+auto_approve_new_accounts = false
+# Block new accounts from being registered
+block_new_accounts = false
 # These limits are enforced during both login and registration.
 username_min_length = 3
 username_max_length = 32

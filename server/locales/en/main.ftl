@@ -313,6 +313,7 @@ account-banned = Your account is banned and cannot be accessed.
 incorrect-username = The username you entered does not exist.
 incorrect-password = The password you entered is incorrect.
 already-logged-in = This account is already logged in.
+accounts-blocked = Sorry, registration is currently disabled. Only administrators or the server owner can create accounts at this time. Check back later!
 
 # Credential validation
 credential-username-length = Username must be between { $min } and { $max } characters.

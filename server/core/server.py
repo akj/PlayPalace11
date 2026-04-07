@@ -183,6 +183,8 @@ class Server(AdministrationMixin, DocumentBrowsingMixin, TranscriberRoleMixin):
         self._ws_max_message_size = DEFAULT_WS_MAX_MESSAGE_BYTES
         self._config_path = Path(config_path) if config_path else get_default_config_path()
         self._allow_insecure_ws = False
+        self._block_new_accounts = False
+        self._auto_approve_new_accounts = False
         self._preload_locales = preload_locales
         self._login_ip_limit = DEFAULT_LOGIN_ATTEMPTS_PER_MINUTE
         self._login_user_limit = DEFAULT_LOGIN_FAILURES_PER_MINUTE
@@ -372,6 +374,12 @@ class Server(AdministrationMixin, DocumentBrowsingMixin, TranscriberRoleMixin):
             return max(minimum, value_int)
 
         if auth_cfg:
+            self._auto_approve_new_accounts = _coerce_bool(
+                auth_cfg.get("auto_approve_new_accounts"), self._auto_approve_new_accounts
+            )
+            self._block_new_accounts = _coerce_bool(
+                auth_cfg.get("block_new_accounts"), self._block_new_accounts
+            )
             self._username_min_length = _read_limit(
                 auth_cfg, "username_min_length", self._username_min_length
             )
@@ -1362,10 +1370,12 @@ class Server(AdministrationMixin, DocumentBrowsingMixin, TranscriberRoleMixin):
                     return
 
                 # User not found - check if this will be a new user that needs approval
-                needs_approval = self._db.get_user_count() > 0
-
-                # Try to register
-                if not self._auth.register(username, password, locale=locale):
+                needs_approval = not self._auto_approve_new_accounts and self._db.get_user_count() > 0
+                # Try to register if accounts are not blocked
+                if self._block_new_accounts:
+                    await self._send_accounts_blocked(client, locale)
+                    return
+                if not self._auth.register(username, password, approved=self._auto_approve_new_accounts, locale=locale):
                     self._record_login_failure(username)
                     # Registration failed (shouldn't happen if user not found, but handle anyway)
                     error_message = Localization.get(locale, "incorrect-username")
@@ -1431,18 +1441,19 @@ class Server(AdministrationMixin, DocumentBrowsingMixin, TranscriberRoleMixin):
             await client.send({"type": "speak", "text": throttle_message, "buffer": "activity"})
             return
 
-        # All self-registered users require approval.
-        needs_approval = True
 
+        # All self-registered users require approval.
+        needs_approval = not self._auto_approve_new_accounts and self._db.get_user_count() > 0
         # Try to register the user
-        if self._auth.register(username, password, locale=locale):
-            await client.send(
-                {
-                    "type": "speak",
-                    "text": Localization.get(locale, "registration-success"),
-                    "buffer": "activity",
-                }
-            )
+        if self._block_new_accounts:
+            await self._send_accounts_blocked(client, locale)
+            return
+        if self._auth.register(username, password, approved=self._auto_approve_new_accounts, locale=locale):
+            await client.send({
+                "type": "speak",
+                "text": Localization.get(locale, "registration-success"),
+                "buffer": "activity",
+            })
             # Notify admins of new account request (only if user needs approval)
             if needs_approval:
                 self._notify_admins("account-request", "accountrequest.ogg")
@@ -1454,6 +1465,20 @@ class Server(AdministrationMixin, DocumentBrowsingMixin, TranscriberRoleMixin):
                     "buffer": "activity",
                 }
             )
+
+    @staticmethod
+    async def _send_accounts_blocked(client: ClientConnection, locale: str) -> None:
+        """Inform the client that new account registration is disabled and disconnect."""
+        error_message = Localization.get(locale, "accounts-blocked")
+        await client.send({"type": "play_sound", "name": "accounterror.ogg"})
+        await client.send({"type": "speak", "text": error_message, "buffer": "activity"})
+        await client.send({
+            "type": "disconnect",
+            "reconnect": False,
+            "show_message": True,
+            "return_to_login": True,
+            "message": error_message,
+        })
 
     @staticmethod
     async def _send_refresh_failure(client: ClientConnection, reason: str, locale: str) -> None:
