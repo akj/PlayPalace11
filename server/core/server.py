@@ -1393,6 +1393,7 @@ class Server(AdministrationMixin, DocumentBrowsingMixin, TranscriberRoleMixin):
                         "return_to_login": True,
                         "message": error_message,
                     })
+                    return
                 if not self._auth.register(username, password, block_new_accounts=self._block_new_accounts, approval=self._auto_approve_new_accounts, locale=locale):
                     self._record_login_failure(username)
                     # Registration failed (shouldn't happen if user not found, but handle anyway)
