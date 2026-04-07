@@ -1374,13 +1374,7 @@ class Server(AdministrationMixin, DocumentBrowsingMixin, TranscriberRoleMixin):
                     return
 
                 # User not found - check if this will be a new user that needs approval
-                tmpuser=self._db.get_user(username=username)
-                if(tmpuser is None):
-                    needs_approval = not self._auto_approve_new_accounts 
-                else:
-                    needs_approval = tmpuser.approved
-                tmpuser=None
-
+                needs_approval = not self._auto_approve_new_accounts
                 # Try to register if accounts are not blocked
                 if self._block_new_accounts:
                     error_message = Localization.get(locale, "accounts-blocked")
