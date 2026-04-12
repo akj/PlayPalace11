@@ -114,8 +114,10 @@ class AccountEditorDialog(wx.Dialog):
         # Buttons
         button_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
-        close_btn = wx.Button(panel, wx.ID_CANCEL, "&Close")
-        button_sizer.Add(close_btn, 0)
+        save_btn = wx.Button(panel, wx.ID_OK, "&Save")
+        cancel_btn = wx.Button(panel, wx.ID_CANCEL, "&Cancel")
+        button_sizer.Add(save_btn, 0, wx.RIGHT, 5)
+        button_sizer.Add(cancel_btn, 0)
 
         sizer.Add(button_sizer, 0, wx.ALL | wx.CENTER, 10)
 
@@ -123,14 +125,8 @@ class AccountEditorDialog(wx.Dialog):
 
         # Bind events
         self.show_password_btn.Bind(wx.EVT_BUTTON, self.on_show_password)
-        close_btn.Bind(wx.EVT_BUTTON, self.on_close)
-
-        # Auto-save on field changes
-        self.username_input.Bind(wx.EVT_KILL_FOCUS, self.on_field_change)
-        self.password_input.Bind(wx.EVT_KILL_FOCUS, self.on_field_change)
-        self.password_plain.Bind(wx.EVT_KILL_FOCUS, self.on_field_change)
-        self.email_input.Bind(wx.EVT_KILL_FOCUS, self.on_field_change)
-        self.notes_input.Bind(wx.EVT_KILL_FOCUS, self.on_field_change)
+        save_btn.Bind(wx.EVT_BUTTON, self.on_save)
+        cancel_btn.Bind(wx.EVT_BUTTON, self.on_cancel)
 
         # Set focus
         self.username_input.SetFocus()
@@ -162,11 +158,6 @@ class AccountEditorDialog(wx.Dialog):
             self.password_input.SetFocus()
 
         self.password_input.GetParent().Layout()
-
-    def on_field_change(self, event):
-        """Handle field change - auto-save."""
-        self._save_if_needed()
-        event.Skip()
 
     def _get_password_value(self) -> str:
         """Get the current password value from whichever control is visible."""
@@ -277,17 +268,16 @@ class AccountEditorDialog(wx.Dialog):
             )
         return True
 
-    def on_close(self, event):
-        """Handle close button click."""
-        username = self.username_input.GetValue().strip()
-        if not username:
-            self.EndModal(wx.ID_CANCEL)
-            return
-
+    def on_save(self, event):
+        """Handle save button click."""
         if not self._validate_for_close():
             return
-        self._save_if_needed()
-        self.EndModal(wx.ID_OK)
+        if self._save_if_needed():
+            self.EndModal(wx.ID_OK)
+
+    def on_cancel(self, event):
+        """Handle cancel button click."""
+        self.EndModal(wx.ID_CANCEL)
 
     def get_account_id(self) -> str:
         """Get the account ID (for newly created accounts)."""
@@ -518,24 +508,21 @@ class ServerEditorDialog(wx.Dialog):
         )
         sizer.Add(self.notes_input, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
 
-        # Close button
+        # Buttons
         button_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
-        close_btn = wx.Button(panel, wx.ID_CANCEL, "&Close")
-        button_sizer.Add(close_btn, 0)
+        save_btn = wx.Button(panel, wx.ID_OK, "&Save")
+        cancel_btn = wx.Button(panel, wx.ID_CANCEL, "&Cancel")
+        button_sizer.Add(save_btn, 0, wx.RIGHT, 5)
+        button_sizer.Add(cancel_btn, 0)
 
         sizer.Add(button_sizer, 0, wx.ALL | wx.CENTER, 10)
 
         panel.SetSizer(sizer)
 
         # Bind events
-        close_btn.Bind(wx.EVT_BUTTON, self.on_close)
-
-        # Auto-save on field changes
-        self.name_input.Bind(wx.EVT_KILL_FOCUS, self.on_field_change)
-        self.host_input.Bind(wx.EVT_KILL_FOCUS, self.on_field_change)
-        self.port_input.Bind(wx.EVT_KILL_FOCUS, self.on_field_change)
-        self.notes_input.Bind(wx.EVT_KILL_FOCUS, self.on_field_change)
+        save_btn.Bind(wx.EVT_BUTTON, self.on_save)
+        cancel_btn.Bind(wx.EVT_BUTTON, self.on_cancel)
 
         # Set focus - options profile if editing existing server, otherwise name input
         if self.server_id:
@@ -546,16 +533,12 @@ class ServerEditorDialog(wx.Dialog):
     def on_trusted_certificate(self, event):
         """Open the trusted certificate dialog."""
         if not self.server_id:
-            # Save server first if needed
-            self._save_if_needed()
-            if not self.server_id:
-                wx.MessageBox(
-                    "Please enter a server name first.",
-                    "Server Name Required",
-                    wx.OK | wx.ICON_WARNING,
-                )
-                self.name_input.SetFocus()
-                return
+            wx.MessageBox(
+                "Please save the new server first before managing its trusted certificates.",
+                "Save Required",
+                wx.OK | wx.ICON_INFORMATION,
+            )
+            return
 
         dlg = TrustedCertificateDialog(self, self.config_manager, self.server_id)
         dlg.ShowModal()
@@ -575,11 +558,6 @@ class ServerEditorDialog(wx.Dialog):
             self.EndModal(wx.ID_CANCEL)
         else:
             event.Skip()
-
-    def on_field_change(self, event):
-        """Handle field change - auto-save."""
-        self._save_if_needed()
-        event.Skip()
 
     def _validate_for_close(self) -> bool:
         """Validate all fields before closing.
@@ -680,17 +658,16 @@ class ServerEditorDialog(wx.Dialog):
             # Reload server data
             self.server_data = self.config_manager.get_server_by_id(self.server_id)
 
-    def on_close(self, event):
-        """Handle close button click."""
-        name = self.name_input.GetValue().strip()
-        if not name:
-            self.EndModal(wx.ID_CANCEL)
-            return
-
+    def on_save(self, event):
+        """Handle save button click."""
         if not self._validate_for_close():
             return
         self._save_if_needed()
         self.EndModal(wx.ID_OK)
+
+    def on_cancel(self, event):
+        """Handle cancel button click."""
+        self.EndModal(wx.ID_CANCEL)
 
     def get_server_id(self) -> str:
         """Get the server ID (for newly created servers)."""
