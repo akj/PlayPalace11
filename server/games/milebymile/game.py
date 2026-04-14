@@ -12,7 +12,7 @@ import random
 from ..base import Game, Player
 from ..registry import register_game
 from ...game_utils.actions import Action, ActionSet, MenuInput, Visibility
-from server.core.users.base import MenuItem, EscapeBehavior
+from ...core.users.base import MenuItem, EscapeBehavior
 from ...game_utils.bot_helper import BotHelper
 from ...game_utils.game_result import GameResult, PlayerResult
 from ...game_utils.round_timer import RoundTransitionTimer
@@ -48,6 +48,8 @@ class MileByMileGame(Game):
     Hazards slow opponents, remedies fix problems, and safeties provide
     permanent protection. First team to reach the winning score wins.
     """
+
+    relevant_preferences = ["confirm_destructive_actions"]
 
     players: list[MileByMilePlayer] = field(default_factory=list)
     options: MileByMileOptions = field(default_factory=MileByMileOptions)
@@ -938,16 +940,24 @@ class MileByMileGame(Game):
         if self._can_play_card(player, card):
             self._play_card(player, slot, card, input_value)
         else:
-            # Can't play - bots auto-discard, humans get a yes/no prompt
+            # Can't play - bots auto-discard; humans get a yes/no prompt if
+            # they've enabled confirm_destructive_actions for this game.
             if player.is_bot:
                 self._discard_card(player, slot, card)
+                return
+            user = self.get_user(player)
+            if not user:
+                return
+            reason = self._get_unplayable_reason(player, card, user.locale)
+            card_name = self._get_localized_card_name(card, user.locale)
+            user.speak_l("milebymile-cant-play", card=card_name, reason=reason)
+            wants_confirm = user.preferences.get_effective(
+                "confirm_destructive_actions", game_type=self.get_type()
+            )
+            if wants_confirm:
+                self._show_discard_confirm(player, slot, user)
             else:
-                user = self.get_user(player)
-                if user:
-                    reason = self._get_unplayable_reason(player, card, user.locale)
-                    card_name = self._get_localized_card_name(card, user.locale)
-                    user.speak_l("milebymile-cant-play", card=card_name, reason=reason)
-                    self._show_discard_confirm(player, slot, user)
+                self._discard_card(player, slot, card)
 
     def _action_junk_card(self, player: Player, action_id: str) -> None:
         """Handle discarding the currently selected card (shift+enter or backspace keybind)."""
@@ -991,7 +1001,7 @@ class MileByMileGame(Game):
 
     def rebuild_player_menu(self, player, *, position: int | None = None) -> None:
         """Skip rebuilding if this player has a pending discard confirmation."""
-        if player.id in self._pending_actions:
+        if self._pending_actions.get(player.id) == "discard_confirm":
             return
         super().rebuild_player_menu(player, position=position)
 
