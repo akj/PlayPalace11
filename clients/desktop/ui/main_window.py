@@ -2186,6 +2186,18 @@ class MainWindow(wx.Frame):
                 event_packet["input_id"] = input_id
             self.network.send_packet(event_packet)
 
+        # Read-only multiline content is likely markdown (e.g. documents).
+        # Render it in the markdown viewer instead of a plain text control.
+        if read_only and multiline and default_value:
+            from .markdown_viewer_dialog import MarkdownViewerDialog
+
+            dlg = MarkdownViewerDialog(self, prompt, default_value)
+            dlg.ShowModal()
+            dlg.Destroy()
+            # Send empty response so the server navigates back
+            on_submit("")
+            return
+
         self.switch_to_edit_mode(prompt, on_submit, default_value, multiline, read_only)
 
     def on_server_document_editor(self, packet):
