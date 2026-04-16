@@ -265,9 +265,7 @@ class DocumentBrowsingMixin:
                 return title
         return folder_name
 
-    def _get_title_candidate_locales(
-        self, user: NetworkUser, folder_name: str, meta: dict | None = None
-    ) -> list[str]:
+    def _get_title_candidate_locales(self, user: NetworkUser) -> list[str]:
         """Return locales this user may target for title edits."""
         if self._is_admin(user):
             return sorted(Localization.get_available_locale_codes())
@@ -1023,7 +1021,7 @@ class DocumentBrowsingMixin:
             return
 
         # Titles are transcribable even without an existing translation.
-        title_locales = self._get_title_candidate_locales(user, folder_name, meta)
+        title_locales = self._get_title_candidate_locales(user)
 
         if not title_locales:
             user.speak_l("documents-no-permission")
