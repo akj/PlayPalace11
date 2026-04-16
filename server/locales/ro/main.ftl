@@ -35,6 +35,7 @@ whose-turn = Al cui e rândul
 whos-at-table = Cine e la masă
 check-scores = Verifică scorurile
 check-scores-detailed = Scoruri detaliate
+check-game-options = Check Game Options
 
 # Turn messages
 game-player-skipped = { $player } este sărit.

@@ -35,6 +35,7 @@ whose-turn = Ko je na potezu
 whos-at-table = Ko je za stolom
 check-scores = Proveri rezultat
 check-scores-detailed = Detaljni rezultati
+check-game-options = Check Game Options
 
 # Poruke o redu igranja
 game-player-skipped = { $player } se preskače.

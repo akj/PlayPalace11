@@ -35,6 +35,7 @@ whose-turn = Čiji je red
 whos-at-table = Tko je za stolom
 check-scores = Provjeri rezultate
 check-scores-detailed = Detaljni rezultati
+check-game-options = Check Game Options
 
 # Turn messages
 game-player-skipped = { $player } je preskočen.

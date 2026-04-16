@@ -180,6 +180,7 @@ class Game(
         self._estimate_lock: threading.Lock = threading.Lock()  # Protect results list
         self._transcripts: dict[str, list[dict[str, str]]] = {}
         self._options_path: dict[str, list[str]] = {}  # player_id -> options nav stack
+        self._game_options_view_path: dict[str, list[str]] = {}  # player_id -> readonly options nav stack
 
     def rebuild_runtime_state(self) -> None:
         """Rebuild runtime-only state after deserialization.

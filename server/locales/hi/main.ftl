@@ -35,6 +35,7 @@ whose-turn = किसकी बारी है
 whos-at-table = टेबल पर कौन है
 check-scores = स्कोर देखें
 check-scores-detailed = विस्तृत स्कोर
+check-game-options = Check Game Options
 
 # Turn messages
 game-player-skipped = { $player } को छोड़ दिया गया है।

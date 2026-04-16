@@ -35,6 +35,7 @@ whose-turn = Čí je tah
 whos-at-table = Kdo je u stolu
 check-scores = Zkontrolovat skóre
 check-scores-detailed = Podrobné skóre
+check-game-options = Check Game Options
 
 # Zprávy o tahu
 game-player-skipped = { $player } je přeskočen.

@@ -35,6 +35,7 @@ whose-turn = Di chi è il turno
 whos-at-table = Chi c'è al tavolo
 check-scores = Controlla punteggi
 check-scores-detailed = Punteggi dettagliati
+check-game-options = Check Game Options
 
 # Turn messages
 game-player-skipped = { $player } viene saltato.

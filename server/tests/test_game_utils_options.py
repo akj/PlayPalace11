@@ -17,6 +17,7 @@ from server.game_utils.options import (
     option_field,
     option_group,
 )
+from server.game_utils.options import OptionsHandlerMixin
 from server.games.base import Player
 from server.messages.localization import Localization
 
@@ -25,9 +26,17 @@ class OptionsUser:
     def __init__(self, locale: str = "en"):
         self.locale = locale
         self._last_speak = None
+        self.menus: list[tuple[str, list]] = []
+        self.removed_menus: list[str] = []
 
     def speak_l(self, key, **kwargs):
         self._last_speak = (key, kwargs)
+
+    def show_menu(self, menu_id, items, **kwargs):
+        self.menus.append((menu_id, items))
+
+    def remove_menu(self, menu_id):
+        self.removed_menus.append(menu_id)
 
 
 class OptionsGame:
@@ -45,6 +54,21 @@ class OptionsGame:
 
     def set_action_set(self, player: Player, action_set: ActionSet) -> None:
         self._action_sets[(player.id, action_set.name)] = action_set
+
+
+class ReadonlyOptionsGame(OptionsHandlerMixin):
+    def __init__(self, user: OptionsUser, options: GameOptions):
+        self._user = user
+        self.options = options
+        self.players: list[Player] = []
+        self._game_options_view_path: dict[str, list[str]] = {}
+        self.rebuilt_players: list[str] = []
+
+    def get_user(self, player: Player) -> OptionsUser | None:
+        return self._user
+
+    def rebuild_player_menu(self, player: Player) -> None:
+        self.rebuilt_players.append(player.id)
 
 
 @dataclass
@@ -789,3 +813,85 @@ def test_combined_visibility_hides_when_condition_false(monkeypatch):
     action_set = options.create_options_action_set(game, player)
     assert action_set.get_action("set_penalty") is None
     assert action_set.get_action("set_limit") is not None
+
+
+def test_game_options_view_top_level_shows_groups_readonly_items_and_back(monkeypatch):
+    monkeypatch.setattr(
+        "server.game_utils.options.Localization.get",
+        lambda locale, key, **kw: key,
+    )
+
+    options = GroupedOptions()
+    game = OptionsGame(OptionsUser())
+    player = Player(id="p1", name="Alice")
+    game.players = [player]
+
+    items = options.build_game_options_view_items(game, player)
+    item_ids = [item.id for item in items]
+
+    assert "readonly_rounds" in item_ids
+    assert "group_bear_settings" in item_ids
+    assert "readonly_bear_speed" not in item_ids
+    assert item_ids[-1] == "game_options_back"
+
+
+def test_game_options_view_multiselect_submenu_shows_readonly_entries(monkeypatch):
+    monkeypatch.setattr(
+        "server.game_utils.options.Localization.get",
+        lambda locale, key, **kw: key,
+    )
+
+    options = MultiSelectOptions()
+    options.packs = ["standard", "premium"]
+    game = OptionsGame(OptionsUser())
+    player = Player(id="p1", name="Alice")
+    game.players = [player]
+    game._game_options_view_path = {player.id: ["packs"]}
+
+    items = options.build_game_options_view_items(game, player)
+    item_ids = [item.id for item in items]
+
+    assert "readonly_packs_standard" in item_ids
+    assert "readonly_packs_premium" in item_ids
+    assert "readonly_packs_classic" in item_ids
+    assert item_ids[-1] == "game_options_back"
+
+
+def test_game_options_view_leaf_selection_is_ignored(monkeypatch):
+    monkeypatch.setattr(
+        "server.game_utils.options.Localization.get",
+        lambda locale, key, **kw: key,
+    )
+
+    user = OptionsUser()
+    game = ReadonlyOptionsGame(user, GroupedOptions())
+    player = Player(id="p1", name="Alice")
+    game.players = [player]
+
+    game._action_check_game_options(player, "check_game_options")
+    assert user.menus[-1][0] == "game_options_view"
+
+    game._handle_game_options_view_selection(player, "readonly_rounds")
+
+    assert game._game_options_view_path[player.id] == []
+    assert user.removed_menus == []
+    assert game.rebuilt_players == []
+
+
+def test_game_options_view_back_closes_at_root(monkeypatch):
+    monkeypatch.setattr(
+        "server.game_utils.options.Localization.get",
+        lambda locale, key, **kw: key,
+    )
+
+    user = OptionsUser()
+    game = ReadonlyOptionsGame(user, GroupedOptions())
+    player = Player(id="p1", name="Alice")
+    game.players = [player]
+
+    game._action_check_game_options(player, "check_game_options")
+    game._handle_game_options_view_selection(player, "game_options_back")
+
+    assert user.removed_menus == ["game_options_view"]
+    assert player.id not in game._game_options_view_path
+    assert game.rebuilt_players == [player.id]

@@ -35,6 +35,7 @@ whose-turn = Kimin turu
 whos-at-table = Masada kim var
 check-scores = Skorları kontrol et
 check-scores-detailed = Detaylı skorlar
+check-game-options = Check Game Options
 
 # Tur mesajları
 game-player-skipped = { $player } atlanıyor.

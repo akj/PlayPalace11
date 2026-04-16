@@ -35,6 +35,7 @@ whose-turn = Giliran siapa
 whos-at-table = Siapa yang di meja
 check-scores = Periksa skor
 check-scores-detailed = Skor detail
+check-game-options = Check Game Options
 
 # Turn messages
 game-player-skipped = { $player } dilewati.

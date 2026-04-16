@@ -35,6 +35,7 @@ whose-turn = Чий хід
 whos-at-table = Хто за столом
 check-scores = Перевірити рахунок
 check-scores-detailed = Детальний рахунок
+check-game-options = Check Game Options
 
 # Turn messages
 game-player-skipped = { $player } пропущений.

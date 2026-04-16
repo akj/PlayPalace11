@@ -58,6 +58,11 @@ class EventHandlingMixin:
                 self._status_box_open.discard(player.id)
                 self.rebuild_player_menu(player)
 
+        elif menu_id == "game_options_view":
+            handler = getattr(self, "_handle_game_options_view_selection", None)
+            if handler:
+                handler(player, selection_id)
+
         elif menu_id == "game_over":
             # Handle game over menu - leave_game is the only selectable action
             # It's always the last item

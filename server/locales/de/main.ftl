@@ -35,6 +35,7 @@ whose-turn = Wer ist am Zug
 whos-at-table = Wer ist am Tisch
 check-scores = Punktzahlen prüfen
 check-scores-detailed = Detaillierte Punktzahlen
+check-game-options = Check Game Options
 
 # Zugnachrichten
 game-player-skipped = { $player } wird übersprungen.

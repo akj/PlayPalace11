@@ -35,6 +35,7 @@ whose-turn = Đến lượt ai?
 whos-at-table = Ai đang ở trong bàn
 check-scores = Xem điểm
 check-scores-detailed = Chi tiết điểm số
+check-game-options = Check Game Options
 
 # Thông báo lượt
 game-player-skipped = { $player } bị bỏ qua.

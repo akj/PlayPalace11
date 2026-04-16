@@ -35,6 +35,7 @@ whose-turn = 誰のターン
 whos-at-table = テーブルにいる人
 check-scores = スコアを確認
 check-scores-detailed = 詳細スコア
+check-game-options = Check Game Options
 
 # ターンメッセージ
 game-player-skipped = { $player }はスキップされました。
