@@ -35,8 +35,8 @@ whose-turn = Tour de qui
 whos-at-table = Qui est à la table
 check-scores = Vérifier les scores
 check-scores-detailed = Scores détaillés
-check-game-options = Check Game Options
-no-game-options = No Game Options
+check-game-options = Vérifier les options de jeu
+no-game-options = Aucune option de jeu.
 
 # Messages de tour
 game-player-skipped = { $player } est passé.

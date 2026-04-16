@@ -35,8 +35,8 @@ whose-turn = Wie is aan de beurt
 whos-at-table = Wie is er aan tafel
 check-scores = Bekijk scores
 check-scores-detailed = Gedetailleerde scores
-check-game-options = Check Game Options
-no-game-options = No Game Options
+check-game-options = Spelopties bekijken
+no-game-options = Geen spelopties beschikbaar.
 
 # Turn messages
 game-player-skipped = { $player } wordt overgeslagen.

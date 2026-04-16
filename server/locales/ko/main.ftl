@@ -35,8 +35,8 @@ whose-turn = 누구 차례인지
 whos-at-table = 누가 테이블에 있는지
 check-scores = 점수 확인
 check-scores-detailed = 세부 점수
-check-game-options = Check Game Options
-no-game-options = No Game Options
+check-game-options = 게임 옵션 확인
+no-game-options = 게임 옵션이 없습니다.
 
 # Turn messages
 game-player-skipped = { $player }님은 건너뛰었습니다.

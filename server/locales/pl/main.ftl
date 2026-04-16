@@ -33,8 +33,8 @@ whose-turn = Czyja tura?
 whos-at-table = Kto jest przy stole?
 check-scores = Sprawdź wyniki
 check-scores-detailed = Szczegółowe wyniki
-check-game-options = Check Game Options
-no-game-options = No Game Options
+check-game-options = Sprawdź opcje gry
+no-game-options = Brak opcji gry.
 
 # Turn messages
 game-player-skipped = { $player } został pominięty.

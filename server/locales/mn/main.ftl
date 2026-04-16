@@ -35,8 +35,8 @@ whose-turn = Хэний ээлж
 whos-at-table = Ширээнд хэн байна
 check-scores = Оноо шалгах
 check-scores-detailed = Дэлгэрэнгүй оноо
-check-game-options = Check Game Options
-no-game-options = No Game Options
+check-game-options = Тоглоомын тохиргоог шалгах
+no-game-options = Тоглоомын тохиргоо алга.
 
 # Turn messages
 game-player-skipped = { $player } алгасав.

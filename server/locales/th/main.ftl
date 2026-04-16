@@ -35,8 +35,8 @@ whose-turn = ตาของใคร
 whos-at-table = ใครอยู่ที่โต๊ะ
 check-scores = ตรวจสอบคะแนน
 check-scores-detailed = คะแนนโดยละเอียด
-check-game-options = Check Game Options
-no-game-options = No Game Options
+check-game-options = ตรวจสอบตัวเลือกเกม
+no-game-options = ไม่มีตัวเลือกเกม
 
 # Turn messages
 game-player-skipped = { $player } ถูกข้าม
