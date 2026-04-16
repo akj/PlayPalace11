@@ -50,6 +50,14 @@ class ActionContext:
 
 
 @dataclass
+class TransientDisplayState:
+    """Runtime-only state for an in-game transient display."""
+
+    kind: str
+    path: list[str] = field(default_factory=list)
+
+
+@dataclass
 class Player(DataClassJSONMixin):
     """A player in a game (serialized with game state).
 
@@ -169,7 +177,7 @@ class Game(
         self._action_context: dict[
             str, ActionContext
         ] = {}  # player_id -> context during action execution
-        self._status_box_open: set[str] = set()  # player_ids with status box open
+        self._transient_display_state: dict[str, TransientDisplayState] = {}
         self._actions_menu_open: set[str] = set()  # player_ids with actions menu open
         self._destroyed: bool = False  # Whether game has been destroyed
         # Duration estimation state
@@ -180,7 +188,6 @@ class Game(
         self._estimate_lock: threading.Lock = threading.Lock()  # Protect results list
         self._transcripts: dict[str, list[dict[str, str]]] = {}
         self._options_path: dict[str, list[str]] = {}  # player_id -> options nav stack
-        self._game_options_view_path: dict[str, list[str]] = {}  # player_id -> readonly options nav stack
 
     def rebuild_runtime_state(self) -> None:
         """Rebuild runtime-only state after deserialization.

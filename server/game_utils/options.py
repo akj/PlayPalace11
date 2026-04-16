@@ -30,7 +30,7 @@ from typing import Any, Callable, TYPE_CHECKING
 from mashumaro.mixins.json import DataClassJSONMixin
 
 from .actions import Action, ActionSet, EditboxInput, MenuInput
-from server.core.users.base import MenuItem, EscapeBehavior
+from server.core.users.base import MenuItem
 from ..messages.localization import Localization
 
 if TYPE_CHECKING:
@@ -617,8 +617,9 @@ class GameOptions(DataClassJSONMixin):
 
     def _get_game_options_view_path(self, game: "Game", player: "Player") -> list[str]:
         """Get the current read-only game-options navigation path for a player."""
-        if hasattr(game, "_game_options_view_path"):
-            return game._game_options_view_path.get(player.id, [])
+        state = game._get_transient_display_state(player)
+        if state and state.kind == "game_options":
+            return state.path
         return []
 
     def _create_readonly_option_item(
@@ -669,7 +670,7 @@ class GameOptions(DataClassJSONMixin):
                                     id=f"readonly_{option_name}_{choice}",
                                 )
                             )
-                        items.append(MenuItem(text=back_label, id="game_options_back"))
+                        items.append(MenuItem(text=back_label, id="transient_display_back"))
                         return items
 
             meta = get_option_meta(options_class, current_level)
@@ -700,7 +701,7 @@ class GameOptions(DataClassJSONMixin):
                             )
                         )
 
-                items.append(MenuItem(text=back_label, id="game_options_back"))
+                items.append(MenuItem(text=back_label, id="transient_display_back"))
                 return items
 
             target_group = current_level
@@ -725,7 +726,7 @@ class GameOptions(DataClassJSONMixin):
                 continue
             items.append(self._create_readonly_option_item(name, meta, game, player, locale))
 
-        items.append(MenuItem(text=back_label, id="game_options_back"))
+        items.append(MenuItem(text=back_label, id="transient_display_back"))
         return items
 
     def _is_option_visible(self, name: str) -> bool:
@@ -1024,25 +1025,21 @@ class OptionsHandlerMixin:
 
     def _show_game_options_view(self, player: "Player") -> None:
         """Show the read-only in-game options viewer."""
-        user = self.get_user(player)
-        if not user or not hasattr(self, "options"):
+        if not self.get_user(player) or not hasattr(self, "options"):
             return
         items = self.options.build_game_options_view_items(self, player)
-        user.show_menu(
-            "game_options_view",
-            items,
+        path = self.options._get_game_options_view_path(self, player)
+        self._show_transient_display(
+            player,
+            kind="game_options",
+            items=items,
             multiletter=True,
-            escape_behavior=EscapeBehavior.SELECT_LAST,
+            path=path,
         )
 
     def _close_game_options_view(self, player: "Player") -> None:
         """Close the read-only in-game options viewer and restore the turn menu."""
-        user = self.get_user(player)
-        if user:
-            user.remove_menu("game_options_view")
-        if hasattr(self, "_game_options_view_path"):
-            self._game_options_view_path.pop(player.id, None)
-        self.rebuild_player_menu(player)
+        self._close_transient_display(player)
 
     def _action_check_game_options(self, player: "Player", action_id: str) -> None:
         """Open the read-only in-game game options viewer."""
@@ -1051,20 +1048,18 @@ class OptionsHandlerMixin:
             if user:
                 user.speak_l("no-game-options")
             return
-        if not hasattr(self, "_game_options_view_path"):
-            self._game_options_view_path = {}
-        self._game_options_view_path[player.id] = []
         self._show_game_options_view(player)
 
-    def _handle_game_options_view_selection(self, player: "Player", selection_id: str) -> None:
+    def _handle_game_options_display_selection(self, player: "Player", selection_id: str) -> None:
         """Handle navigation in the read-only in-game options viewer."""
         if not hasattr(self, "options"):
             return
-        if not hasattr(self, "_game_options_view_path"):
-            self._game_options_view_path = {}
+        state = self._get_transient_display_state(player)
+        if not state or state.kind != "game_options":
+            return
 
-        if selection_id == "game_options_back":
-            path = self._game_options_view_path.get(player.id, [])
+        if selection_id == "transient_display_back":
+            path = state.path
             if path:
                 path.pop()
                 self._show_game_options_view(player)
@@ -1074,15 +1069,13 @@ class OptionsHandlerMixin:
 
         if selection_id.startswith("group_"):
             group_name = selection_id.removeprefix("group_")
-            path = self._game_options_view_path.setdefault(player.id, [])
-            path.append(group_name)
+            state.path.append(group_name)
             self._show_game_options_view(player)
             return
 
         if selection_id.startswith("multiselect_"):
             option_name = selection_id.removeprefix("multiselect_")
-            path = self._game_options_view_path.setdefault(player.id, [])
-            path.append(option_name)
+            state.path.append(option_name)
             self._show_game_options_view(player)
             return
 
@@ -1091,10 +1084,9 @@ class OptionsHandlerMixin:
             for name, meta in self.options.get_option_metas().items():
                 if isinstance(meta, MultiSelectOption) and remainder.startswith(name + "_"):
                     group_name = remainder[len(name) + 1 :]
-                    path = self._game_options_view_path.setdefault(player.id, [])
-                    if not path or path[-1] != name:
-                        path.append(name)
-                    path.append(f"group:{group_name}")
+                    if not state.path or state.path[-1] != name:
+                        state.path.append(name)
+                    state.path.append(f"group:{group_name}")
                     self._show_game_options_view(player)
                     return
 

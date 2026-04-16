@@ -2,9 +2,10 @@
 
 from dataclasses import dataclass
 
-from server.games.base import Player, ActionContext
+from server.games.base import Player, ActionContext, TransientDisplayState
 
 from server.game_utils.event_handling_mixin import EventHandlingMixin
+from server.game_utils.menu_management_mixin import TRANSIENT_DISPLAY_MENU_ID
 
 
 @dataclass
@@ -46,7 +47,7 @@ class DummyGame(EventHandlingMixin):
     def __init__(self):
         self._actions_menu_open: set[str] = set()
         self._pending_actions: dict[str, str] = {}
-        self._status_box_open: set[str] = set()
+        self._transient_display_state: dict[str, TransientDisplayState] = {}
         self._keybinds: dict[str, list[DummyKeybind]] = {}
         self._visible_actions: list[DummyResolved] = []
         self._actions: dict[str, DummyAction] = {}
@@ -108,6 +109,12 @@ class DummyGame(EventHandlingMixin):
 
     def _perform_leave_game(self, player: Player) -> None:
         self.leave_requests.append(player.id)
+
+    def _get_transient_display_state(self, player: Player) -> TransientDisplayState | None:
+        return self._transient_display_state.get(player.id)
+
+    def _is_transient_display_open(self, player: Player) -> bool:
+        return player.id in self._transient_display_state
 
 
 def make_player(player_id: str = "p1") -> Player:
@@ -211,3 +218,50 @@ def test_keybind_event_executes_enabled_and_speaks_disabled():
     assert isinstance(context, ActionContext)
     assert context.from_keybind
     assert game.rebuild_all_calls == 1
+
+
+def test_transient_display_blocks_unrelated_keybinds():
+    game = DummyGame()
+    player = make_player()
+    game.register_action("jump", enabled=True)
+    game._keybinds["space"] = [DummyKeybind(["jump"])]
+    game._transient_display_state[player.id] = TransientDisplayState(kind="status_box")
+
+    game.handle_event(player, {"type": "keybind", "key": "SPACE"})
+
+    assert game.executed == []
+    assert game.rebuild_all_calls == 0
+
+
+def test_transient_display_blocks_unrelated_menu_events():
+    game = DummyGame()
+    player = make_player()
+    game.register_action("attack")
+    game._transient_display_state[player.id] = TransientDisplayState(kind="status_box")
+
+    game.handle_event(
+        player,
+        {"type": "menu", "menu_id": "turn_menu", "selection_id": "attack"},
+    )
+
+    assert game.executed == []
+    assert game.rebuild_all_calls == 0
+
+
+def test_transient_display_menu_routes_to_shared_handler():
+    game = DummyGame()
+    player = make_player()
+    handled: list[tuple[str, str]] = []
+
+    def handle_transient(target: Player, selection_id: str) -> None:
+        handled.append((target.id, selection_id))
+
+    game._handle_transient_display_selection = handle_transient  # type: ignore[attr-defined]
+    game._transient_display_state[player.id] = TransientDisplayState(kind="game_options")
+
+    game.handle_event(
+        player,
+        {"type": "menu", "menu_id": TRANSIENT_DISPLAY_MENU_ID, "selection_id": "readonly_rounds"},
+    )
+
+    assert handled == [(player.id, "readonly_rounds")]
