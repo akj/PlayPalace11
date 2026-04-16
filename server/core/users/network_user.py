@@ -283,6 +283,11 @@ class NetworkUser(User):
             self._current_menus[menu_id]["items"] = converted_items
             if position is not None:
                 self._current_menus[menu_id]["position"] = position
+            elif selection_id is not None:
+                for i, item in enumerate(items, 1):
+                    if isinstance(item, MenuItem) and item.id == selection_id:
+                        self._current_menus[menu_id]["position"] = i
+                        break
 
         packet: dict[str, Any] = {
             "type": "menu",
