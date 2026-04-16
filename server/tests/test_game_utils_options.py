@@ -29,6 +29,7 @@ class OptionsUser:
         self.locale = locale
         self._last_speak = None
         self.menus: list[tuple[str, list]] = []
+        self.menu_kwargs: list[dict] = []
         self.removed_menus: list[str] = []
 
     def speak_l(self, key, **kwargs):
@@ -36,6 +37,7 @@ class OptionsUser:
 
     def show_menu(self, menu_id, items, **kwargs):
         self.menus.append((menu_id, items))
+        self.menu_kwargs.append(kwargs)
 
     def remove_menu(self, menu_id):
         self.removed_menus.append(menu_id)
@@ -958,6 +960,22 @@ def test_game_options_view_leaf_selection_is_ignored(monkeypatch):
     assert game._transient_display_state[player.id].path == []
     assert user.removed_menus == []
     assert game.rebuilt_players == []
+
+
+def test_game_options_view_uses_non_multiletter_menu(monkeypatch):
+    monkeypatch.setattr(
+        "server.game_utils.options.Localization.get",
+        lambda locale, key, **kw: key,
+    )
+
+    user = OptionsUser()
+    game = ReadonlyOptionsGame(user, GroupedOptions())
+    player = Player(id="p1", name="Alice")
+    game.players = [player]
+
+    game._action_check_game_options(player, "check_game_options")
+
+    assert user.menu_kwargs[-1]["multiletter"] is False
 
 
 def test_game_options_view_back_closes_at_root(monkeypatch):

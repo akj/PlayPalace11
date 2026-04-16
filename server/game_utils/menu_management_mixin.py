@@ -84,7 +84,7 @@ class MenuManagementMixin:
             return
 
         if state.kind == "status_box":
-            self._close_transient_display(player, speak_key="status-box-closed")
+            self._close_transient_display(player)
             return
 
         if state.kind == "game_options":

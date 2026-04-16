@@ -116,6 +116,15 @@ class DummyGame(EventHandlingMixin):
     def _is_transient_display_open(self, player: Player) -> bool:
         return player.id in self._transient_display_state
 
+    def _handle_transient_display_selection(self, player: Player, selection_id: str) -> None:
+        state = self._get_transient_display_state(player)
+        if state and state.kind == "status_box":
+            user = self.get_user(player)
+            if user:
+                user.remove_menu(TRANSIENT_DISPLAY_MENU_ID)
+            self._transient_display_state.pop(player.id, None)
+            self.rebuild_player_menu(player)
+
 
 def make_player(player_id: str = "p1") -> Player:
     return Player(id=player_id, name=f"Player-{player_id}")
@@ -265,3 +274,20 @@ def test_transient_display_menu_routes_to_shared_handler():
     )
 
     assert handled == [(player.id, "readonly_rounds")]
+
+
+def test_status_box_close_does_not_speak_closed_message():
+    game = DummyGame()
+    player = make_player()
+    user = DummyUser()
+    game._users[player.id] = user
+    game._transient_display_state[player.id] = TransientDisplayState(kind="status_box")
+
+    game.handle_event(
+        player,
+        {"type": "menu", "menu_id": TRANSIENT_DISPLAY_MENU_ID, "selection_id": "status_line"},
+    )
+
+    assert user.removed == [TRANSIENT_DISPLAY_MENU_ID]
+    assert user.spoken == []
+    assert game.rebuild_player_calls == 1

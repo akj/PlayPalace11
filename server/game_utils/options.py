@@ -1033,7 +1033,7 @@ class OptionsHandlerMixin:
             player,
             kind="game_options",
             items=items,
-            multiletter=True,
+            multiletter=False,
             path=path,
         )
 
