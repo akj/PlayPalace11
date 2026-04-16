@@ -31,6 +31,7 @@ class OptionsUser:
         self.menus: list[tuple[str, list]] = []
         self.menu_kwargs: list[dict] = []
         self.removed_menus: list[str] = []
+        self._current_menus: dict[str, dict] = {}
 
     def speak_l(self, key, **kwargs):
         self._last_speak = (key, kwargs)
@@ -38,9 +39,11 @@ class OptionsUser:
     def show_menu(self, menu_id, items, **kwargs):
         self.menus.append((menu_id, items))
         self.menu_kwargs.append(kwargs)
+        self._current_menus[menu_id] = {"items": items, **kwargs}
 
     def remove_menu(self, menu_id):
         self.removed_menus.append(menu_id)
+        self._current_menus.pop(menu_id, None)
 
 
 class OptionsGame:
@@ -89,12 +92,20 @@ class ReadonlyOptionsGame(OptionsHandlerMixin):
         items: list,
         multiletter: bool,
         path: list[str] | None = None,
+        position: int | None = None,
     ) -> None:
+        existing = self._transient_display_state.get(player.id)
         self._transient_display_state[player.id] = TransientDisplayState(
             kind=kind,
             path=list(path or []),
+            positions=existing.positions if existing else {},
         )
-        self._user.show_menu(TRANSIENT_DISPLAY_MENU_ID, items, multiletter=multiletter)
+        self._user.show_menu(
+            TRANSIENT_DISPLAY_MENU_ID,
+            items,
+            multiletter=multiletter,
+            position=position,
+        )
 
     def _close_transient_display(
         self,
@@ -135,12 +146,20 @@ class ViewerRebuildGuardGame(EventHandlingMixin, OptionsHandlerMixin):
         items: list,
         multiletter: bool,
         path: list[str] | None = None,
+        position: int | None = None,
     ) -> None:
+        existing = self._transient_display_state.get(player.id)
         self._transient_display_state[player.id] = TransientDisplayState(
             kind=kind,
             path=list(path or []),
+            positions=existing.positions if existing else {},
         )
-        self._user.show_menu(TRANSIENT_DISPLAY_MENU_ID, items, multiletter=multiletter)
+        self._user.show_menu(
+            TRANSIENT_DISPLAY_MENU_ID,
+            items,
+            multiletter=multiletter,
+            position=position,
+        )
 
     def _close_transient_display(
         self,
@@ -976,6 +995,42 @@ def test_game_options_view_uses_non_multiletter_menu(monkeypatch):
     game._action_check_game_options(player, "check_game_options")
 
     assert user.menu_kwargs[-1]["multiletter"] is False
+
+
+def test_game_options_submenu_opens_with_first_item_focused(monkeypatch):
+    monkeypatch.setattr(
+        "server.game_utils.options.Localization.get",
+        lambda locale, key, **kw: key,
+    )
+
+    user = OptionsUser()
+    game = ReadonlyOptionsGame(user, GroupedOptions())
+    player = Player(id="p1", name="Alice")
+    game.players = [player]
+
+    game._action_check_game_options(player, "check_game_options")
+    game._handle_game_options_display_selection(player, "group_bear_settings")
+
+    assert user.menu_kwargs[-1]["position"] == 1
+
+
+def test_game_options_back_restores_previous_focus_position(monkeypatch):
+    monkeypatch.setattr(
+        "server.game_utils.options.Localization.get",
+        lambda locale, key, **kw: key,
+    )
+
+    user = OptionsUser()
+    game = ReadonlyOptionsGame(user, GroupedOptions())
+    player = Player(id="p1", name="Alice")
+    game.players = [player]
+
+    game._action_check_game_options(player, "check_game_options")
+    user._current_menus[TRANSIENT_DISPLAY_MENU_ID]["position"] = 2
+    game._handle_game_options_display_selection(player, "group_bear_settings")
+    game._handle_game_options_display_selection(player, "transient_display_back")
+
+    assert user.menu_kwargs[-1]["position"] == 2
 
 
 def test_game_options_view_back_closes_at_root(monkeypatch):

@@ -41,6 +41,7 @@ class MenuManagementMixin:
         items: list[MenuItem],
         multiletter: bool,
         path: list[str] | None = None,
+        position: int | None = None,
     ) -> None:
         """Show a transient display menu and store its runtime state."""
         user = self.get_user(player)
@@ -49,15 +50,19 @@ class MenuManagementMixin:
 
         from ..games.base import TransientDisplayState
 
+        existing_state = self._transient_display_state.get(player.id)
+        positions = existing_state.positions if existing_state else {}
         self._transient_display_state[player.id] = TransientDisplayState(
             kind=kind,
             path=list(path or []),
+            positions=positions,
         )
         user.show_menu(
             TRANSIENT_DISPLAY_MENU_ID,
             items,
             multiletter=multiletter,
             escape_behavior=EscapeBehavior.SELECT_LAST,
+            position=position,
         )
 
     def _close_transient_display(

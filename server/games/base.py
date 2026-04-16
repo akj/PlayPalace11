@@ -55,6 +55,7 @@ class TransientDisplayState:
 
     kind: str
     path: list[str] = field(default_factory=list)
+    positions: dict[tuple[str, ...], int] = field(default_factory=dict)
 
 
 @dataclass

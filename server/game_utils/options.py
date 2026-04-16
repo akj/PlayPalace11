@@ -1029,12 +1029,20 @@ class OptionsHandlerMixin:
             return
         items = self.options.build_game_options_view_items(self, player)
         path = self.options._get_game_options_view_path(self, player)
+        state = self._get_transient_display_state(player)
+        path_key = tuple(path)
+        position = 1
+        if state:
+            saved_position = state.positions.get(path_key)
+            if isinstance(saved_position, int) and saved_position > 0:
+                position = saved_position
         self._show_transient_display(
             player,
             kind="game_options",
             items=items,
             multiletter=False,
             path=path,
+            position=position,
         )
 
     def _close_game_options_view(self, player: "Player") -> None:
@@ -1057,6 +1065,19 @@ class OptionsHandlerMixin:
         state = self._get_transient_display_state(player)
         if not state or state.kind != "game_options":
             return
+        current_path_key = tuple(state.path)
+        user = self.get_user(player)
+        if user:
+            current_menus = getattr(user, "_current_menus", None)
+            if isinstance(current_menus, dict):
+                current_menu = current_menus.get("transient_display")
+            else:
+                menus = getattr(user, "menus", None)
+                current_menu = menus.get("transient_display") if isinstance(menus, dict) else None
+            if isinstance(current_menu, dict):
+                current_position = current_menu.get("position")
+                if isinstance(current_position, int) and current_position > 0:
+                    state.positions[current_path_key] = current_position
 
         if selection_id == "transient_display_back":
             path = state.path
@@ -1070,12 +1091,14 @@ class OptionsHandlerMixin:
         if selection_id.startswith("group_"):
             group_name = selection_id.removeprefix("group_")
             state.path.append(group_name)
+            state.positions[tuple(state.path)] = 1
             self._show_game_options_view(player)
             return
 
         if selection_id.startswith("multiselect_"):
             option_name = selection_id.removeprefix("multiselect_")
             state.path.append(option_name)
+            state.positions[tuple(state.path)] = 1
             self._show_game_options_view(player)
             return
 
@@ -1086,7 +1109,9 @@ class OptionsHandlerMixin:
                     group_name = remainder[len(name) + 1 :]
                     if not state.path or state.path[-1] != name:
                         state.path.append(name)
+                        state.positions[tuple(state.path)] = 1
                     state.path.append(f"group:{group_name}")
+                    state.positions[tuple(state.path)] = 1
                     self._show_game_options_view(player)
                     return
 
