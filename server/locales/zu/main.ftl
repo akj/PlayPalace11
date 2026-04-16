@@ -158,7 +158,6 @@ game-points = { $count } { $count ->
     [one] iphuzu
    *[other] amaphuzu
 }
-status-box-closed = Kuvalwe.
 play = Dlala
 
 # Leaderboards

@@ -190,7 +190,6 @@ game-points = { $count } { $count ->
     [many] bodu
    *[other] bodů
 }
-status-box-closed = Zavřeno.
 play = Hrát
 
 # Žebříčky

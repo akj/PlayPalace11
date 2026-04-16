@@ -155,7 +155,6 @@ game-leave = 退出
 game-over = ゲームオーバー
 game-final-scores = 最終スコア
 game-points = { $count }点
-status-box-closed = 閉じられました。
 play = プレイ
 
 # リーダーボード

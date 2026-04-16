@@ -158,7 +158,6 @@ game-points = { $count } { $count ->
     [one] оноо
    *[other] оноо
 }
-status-box-closed = Хаагдсан.
 play = Тоглох
 
 # Leaderboards

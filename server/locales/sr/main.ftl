@@ -158,7 +158,6 @@ game-points = { $count } { $count ->
     [one] poen
     *[other] poena
 }
-status-box-closed = Zatvoreno.
 play = Igraj
 
 # Rang liste

@@ -158,7 +158,6 @@ game-points = { $count } { $count ->
     [one] điểm
    *[other] điểm
 }
-status-box-closed = Đã đóng.
 play = Chơi
 
 # Bảng xếp hạng

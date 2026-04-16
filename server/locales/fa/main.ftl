@@ -158,7 +158,6 @@ game-points = { $count } { $count ->
     [one] امتیاز
    *[other] امتیاز
 }
-status-box-closed = بسته شد.
 play = بازی
 
 # Leaderboards

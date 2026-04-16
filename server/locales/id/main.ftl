@@ -158,7 +158,6 @@ game-points = { $count } { $count ->
     [one] poin
    *[other] poin
 }
-status-box-closed = Ditutup.
 play = Main
 
 # Leaderboards

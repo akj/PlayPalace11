@@ -159,7 +159,6 @@ game-points = { $count } { $count ->
     [1] point
    *[other] points
 }
-status-box-closed = Fermé.
 play = Jouer
 
 # Classements

@@ -156,7 +156,6 @@ game-points = { $count } { $count ->
     [one] punkt
    *[other] punktów
 }
-status-box-closed = Zamknięty.
 play = Graj
 
 # Leaderboards

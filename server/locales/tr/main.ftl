@@ -158,7 +158,6 @@ game-points = { $count } { $count ->
     [one] puan
    *[other] puan
 }
-status-box-closed = Kapatıldı.
 play = Oyna
 
 # Lider tabloları

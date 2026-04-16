@@ -204,7 +204,6 @@ game-points = { $count } { $count ->
     [many] نقطة
    *[other] نقطة
 }
-status-box-closed = مغلق.
 play = العب
 
 # لوحات الصدارة

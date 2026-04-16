@@ -160,7 +160,6 @@ game-points = { $count } { $count ->
     [many] bodov
    *[other] bodov
 }
-status-box-closed = Zatvorené.
 play = Hraj
 
 # Leaderboards

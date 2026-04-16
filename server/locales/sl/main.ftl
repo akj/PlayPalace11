@@ -158,7 +158,6 @@ game-points = { $count } { $count ->
     [one] točka
    *[other] točk
 }
-status-box-closed = Zaprto.
 play = Igraj
 
 # Leaderboards

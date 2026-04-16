@@ -155,7 +155,6 @@ game-leave = ออก
 game-over = จบเกม
 game-final-scores = คะแนนสุดท้าย
 game-points = { $count } คะแนน
-status-box-closed = ปิดแล้ว
 play = เล่น
 
 # Leaderboards
