@@ -534,7 +534,7 @@ class ServerEditorDialog(wx.Dialog):
         """Open the trusted certificate dialog."""
         if not self.server_id:
             wx.MessageBox(
-                "Please save the new server first before managing its trusted certificates.",
+                "Please click Save to create the server first, then open Trusted Certificate again.",
                 "Save Required",
                 wx.OK | wx.ICON_INFORMATION,
             )
