@@ -43,6 +43,8 @@ from .dominos.game import DominosGame
 from .lastcard.game import LastCardGame
 from .pusoydos.game import PusoyDosGame
 
+from .secrethitler.game import SecretHitler
+
 __all__ = [
     "Game",
     "GameRegistry",
@@ -83,4 +85,5 @@ __all__ = [
     "DominosGame",
     "LastCardGame",
     "PusoyDosGame",
+    "SecretHitler",
 ]
