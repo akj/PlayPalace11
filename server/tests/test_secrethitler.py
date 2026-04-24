@@ -719,3 +719,38 @@ def test_phase_transition_rebuilds_on_turn_menu_at_position_1(monkeypatch):
     g._action_discard_policy(pres, "discard_0")
     chancellor = g._player_at_seat(g.current_chancellor_seat)
     assert (chancellor.id, 1) in calls
+
+
+# ---------------------------------------------------------------------------
+# Regression: action_id suffix is a seat number, not a list index
+# ---------------------------------------------------------------------------
+
+def test_nominate_action_id_is_seat_number():
+    """Regression: action_id suffix must be parsed as seat, not list index."""
+    import random
+    from server.games.secrethitler.game import Phase
+    from server.game_utils.actions import Visibility
+    random.seed(801)
+    g = _make_game(7)
+    g.on_start()
+    for p in g.players:
+        g._action_acknowledge_role(p, "acknowledge_role")
+    pres = g._player_at_seat(g.current_president_seat)
+    # Arrange term limits so that only seats 2, 5, and 6 are eligible (example).
+    g.last_elected_president_seat = 1
+    g.last_elected_chancellor_seat = 4
+    g.current_president_seat = 0
+    eligible = g._eligible_chancellor_seats()
+    # Any seat in the eligible list must render VISIBLE when queried by its seat id.
+    for seat in eligible:
+        assert g._is_nominate_hidden(pres, f"nominate_{seat}") == Visibility.VISIBLE
+    # A seat NOT in eligible must be hidden.
+    all_seats = {p.seat for p in g.players if p.is_alive}
+    ineligible = all_seats - set(eligible) - {pres.seat}
+    for seat in ineligible:
+        assert g._is_nominate_hidden(pres, f"nominate_{seat}") == Visibility.HIDDEN
+    # And the label for an eligible seat must reference that player's actual name.
+    target_seat = eligible[0]
+    target_name = g._player_at_seat(target_seat).name
+    label = g._get_nominate_label(pres, f"nominate_{target_seat}")
+    assert target_name in label

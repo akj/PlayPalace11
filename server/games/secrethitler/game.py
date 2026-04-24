@@ -856,11 +856,11 @@ class SecretHitler(Game):
         if action_id is None:
             return Visibility.VISIBLE
         try:
-            idx = int(action_id.rsplit("_", 1)[-1])
+            seat = int(action_id.rsplit("_", 1)[-1])
         except ValueError:
             return Visibility.HIDDEN
         eligible = self._eligible_chancellor_seats()
-        if idx >= len(eligible):
+        if seat not in eligible:
             return Visibility.HIDDEN
         return Visibility.VISIBLE
 
@@ -874,11 +874,11 @@ class SecretHitler(Game):
         if action_id is None:
             return None
         try:
-            idx = int(action_id.rsplit("_", 1)[-1])
+            seat = int(action_id.rsplit("_", 1)[-1])
         except ValueError:
             return "action-not-available"
         eligible = self._eligible_chancellor_seats()
-        if idx >= len(eligible):
+        if seat not in eligible:
             return "action-not-available"
         return None
 
@@ -886,13 +886,13 @@ class SecretHitler(Game):
         user = self.get_user(player)
         locale = user.locale if user else "en"
         try:
-            idx = int(action_id.rsplit("_", 1)[-1])
+            seat = int(action_id.rsplit("_", 1)[-1])
         except ValueError:
             return Localization.get(locale, "sh-nominate", player="?")
-        eligible = self._eligible_chancellor_seats()
-        if idx >= len(eligible):
+        try:
+            target = self._player_at_seat(seat)
+        except KeyError:
             return Localization.get(locale, "sh-nominate", player="?")
-        target = self._player_at_seat(eligible[idx])
         return Localization.get(locale, "sh-nominate", player=target.name)
 
     # -- Call vote / cancel nomination -------------------------------------
@@ -1121,11 +1121,11 @@ class SecretHitler(Game):
         if action_id is None:
             return Visibility.VISIBLE
         try:
-            idx = int(action_id.rsplit("_", 1)[-1])
+            seat = int(action_id.rsplit("_", 1)[-1])
         except ValueError:
             return Visibility.HIDDEN
-        targets = self._investigate_targets()
-        if idx >= len(targets):
+        target_seats = {p.seat for p in self._investigate_targets()}
+        if seat not in target_seats:
             return Visibility.HIDDEN
         return Visibility.VISIBLE
 
@@ -1141,10 +1141,11 @@ class SecretHitler(Game):
         if action_id is None:
             return None
         try:
-            idx = int(action_id.rsplit("_", 1)[-1])
+            seat = int(action_id.rsplit("_", 1)[-1])
         except ValueError:
             return "action-not-available"
-        if idx >= len(self._investigate_targets()):
+        target_seats = {p.seat for p in self._investigate_targets()}
+        if seat not in target_seats:
             return "action-not-available"
         return None
 
@@ -1152,13 +1153,14 @@ class SecretHitler(Game):
         user = self.get_user(player)
         locale = user.locale if user else "en"
         try:
-            idx = int(action_id.rsplit("_", 1)[-1])
+            seat = int(action_id.rsplit("_", 1)[-1])
         except ValueError:
             return Localization.get(locale, "sh-investigate-target", player="?")
-        targets = self._investigate_targets()
-        if idx >= len(targets):
+        try:
+            target = self._player_at_seat(seat)
+        except KeyError:
             return Localization.get(locale, "sh-investigate-target", player="?")
-        return Localization.get(locale, "sh-investigate-target", player=targets[idx].name)
+        return Localization.get(locale, "sh-investigate-target", player=target.name)
 
     def _investigate_targets(self) -> list[SecretHitlerPlayer]:
         pres_seat = self.current_president_seat
@@ -1184,11 +1186,11 @@ class SecretHitler(Game):
         if action_id is None:
             return Visibility.VISIBLE
         try:
-            idx = int(action_id.rsplit("_", 1)[-1])
+            seat = int(action_id.rsplit("_", 1)[-1])
         except ValueError:
             return Visibility.HIDDEN
-        targets = self._special_election_targets()
-        if idx >= len(targets):
+        target_seats = {p.seat for p in self._special_election_targets()}
+        if seat not in target_seats:
             return Visibility.HIDDEN
         return Visibility.VISIBLE
 
@@ -1204,10 +1206,11 @@ class SecretHitler(Game):
         if action_id is None:
             return None
         try:
-            idx = int(action_id.rsplit("_", 1)[-1])
+            seat = int(action_id.rsplit("_", 1)[-1])
         except ValueError:
             return "action-not-available"
-        if idx >= len(self._special_election_targets()):
+        target_seats = {p.seat for p in self._special_election_targets()}
+        if seat not in target_seats:
             return "action-not-available"
         return None
 
@@ -1215,13 +1218,14 @@ class SecretHitler(Game):
         user = self.get_user(player)
         locale = user.locale if user else "en"
         try:
-            idx = int(action_id.rsplit("_", 1)[-1])
+            seat = int(action_id.rsplit("_", 1)[-1])
         except ValueError:
             return Localization.get(locale, "sh-choose-president-target", player="?")
-        targets = self._special_election_targets()
-        if idx >= len(targets):
+        try:
+            target = self._player_at_seat(seat)
+        except KeyError:
             return Localization.get(locale, "sh-choose-president-target", player="?")
-        return Localization.get(locale, "sh-choose-president-target", player=targets[idx].name)
+        return Localization.get(locale, "sh-choose-president-target", player=target.name)
 
     def _special_election_targets(self) -> list[SecretHitlerPlayer]:
         pres_seat = self.current_president_seat
@@ -1242,11 +1246,11 @@ class SecretHitler(Game):
         if action_id is None:
             return Visibility.VISIBLE
         try:
-            idx = int(action_id.rsplit("_", 1)[-1])
+            seat = int(action_id.rsplit("_", 1)[-1])
         except ValueError:
             return Visibility.HIDDEN
-        targets = self._execution_targets()
-        if idx >= len(targets):
+        target_seats = {p.seat for p in self._execution_targets()}
+        if seat not in target_seats:
             return Visibility.HIDDEN
         return Visibility.VISIBLE
 
@@ -1260,10 +1264,11 @@ class SecretHitler(Game):
         if action_id is None:
             return None
         try:
-            idx = int(action_id.rsplit("_", 1)[-1])
+            seat = int(action_id.rsplit("_", 1)[-1])
         except ValueError:
             return "action-not-available"
-        if idx >= len(self._execution_targets()):
+        target_seats = {p.seat for p in self._execution_targets()}
+        if seat not in target_seats:
             return "action-not-available"
         return None
 
@@ -1271,13 +1276,14 @@ class SecretHitler(Game):
         user = self.get_user(player)
         locale = user.locale if user else "en"
         try:
-            idx = int(action_id.rsplit("_", 1)[-1])
+            seat = int(action_id.rsplit("_", 1)[-1])
         except ValueError:
             return Localization.get(locale, "sh-execute-target", player="?")
-        targets = self._execution_targets()
-        if idx >= len(targets):
+        try:
+            target = self._player_at_seat(seat)
+        except KeyError:
             return Localization.get(locale, "sh-execute-target", player="?")
-        return Localization.get(locale, "sh-execute-target", player=targets[idx].name)
+        return Localization.get(locale, "sh-execute-target", player=target.name)
 
     def _execution_targets(self) -> list[SecretHitlerPlayer]:
         pres_seat = self.current_president_seat
