@@ -686,3 +686,51 @@ class SecretHitler(Game):
         self.pending_power = Power.NONE
         self.power_target_seat = None
         self._begin_nomination()
+
+    # ------------------------------------------------------------------
+    # Task 17 — Veto
+    # ------------------------------------------------------------------
+
+    def _action_propose_veto(self, player, action_id: str) -> None:
+        if self.phase != Phase.CHAN_LEGISLATION:
+            return
+        if self.fascist_policies < 5:
+            return
+        if self.veto_blocked_this_turn:
+            return
+        if not isinstance(player, SecretHitlerPlayer):
+            return
+        if player.seat != self.current_chancellor_seat:
+            return
+        self.veto_proposed = True
+        self.broadcast_l("sh-chancellor-proposes-veto")
+
+    def _action_veto_accept(self, player, action_id: str) -> None:
+        if self.phase != Phase.CHAN_LEGISLATION or not self.veto_proposed:
+            return
+        if not isinstance(player, SecretHitlerPlayer):
+            return
+        if player.seat != self.current_president_seat:
+            return
+        for p in self.chancellor_received_policies or []:
+            self.discard.append(p)
+        self.chancellor_received_policies = None
+        self.veto_proposed = False
+        self.broadcast_l("sh-president-accepts-veto")
+        self.election_tracker += 1
+        self.broadcast_l("sh-tracker-advances", count=self.election_tracker)
+        if self.election_tracker >= 3:
+            self._chaos_enact()
+            return
+        self._begin_nomination()
+
+    def _action_veto_reject(self, player, action_id: str) -> None:
+        if self.phase != Phase.CHAN_LEGISLATION or not self.veto_proposed:
+            return
+        if not isinstance(player, SecretHitlerPlayer):
+            return
+        if player.seat != self.current_president_seat:
+            return
+        self.veto_proposed = False
+        self.veto_blocked_this_turn = True
+        self.broadcast_l("sh-president-rejects-veto")

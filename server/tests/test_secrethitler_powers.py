@@ -239,3 +239,68 @@ def test_special_election_rotation_resumes_from_original():
     idx = alive_seats.index(original_pres_seat)
     expected_next = alive_seats[(idx + 1) % len(alive_seats)]
     assert g.current_president_seat == expected_next
+
+
+def _run_to_chan_legislation_with_fascist_policies(g: SecretHitler, f_count: int) -> None:
+    g.on_start()
+    for p in g.players:
+        g._action_acknowledge_role(p, "acknowledge_role")
+    g.fascist_policies = f_count
+    pres = g._player_at_seat(g.current_president_seat)
+    chan = next(p for p in g.players if p is not pres and p.is_alive)
+    g._action_nominate(pres, f"nominate_{chan.seat}")
+    g._action_call_vote(pres, "call_vote")
+    for p in g.players:
+        if p.is_alive:
+            g._action_vote_ja(p, "vote_ja")
+    g.president_drawn_policies = [Policy.FASCIST, Policy.FASCIST, Policy.FASCIST]
+    g._action_discard_policy(pres, "discard_2")
+
+
+def test_veto_locked_before_5_fascist():
+    random.seed(141)
+    g = _make_game(5)
+    _run_to_chan_legislation_with_fascist_policies(g, 4)
+    chancellor = g._player_at_seat(g.current_chancellor_seat)
+    g._action_propose_veto(chancellor, "propose_veto")
+    assert g.veto_proposed is False
+
+
+def test_veto_unlocked_at_5_fascist():
+    random.seed(142)
+    g = _make_game(5)
+    _run_to_chan_legislation_with_fascist_policies(g, 5)
+    chancellor = g._player_at_seat(g.current_chancellor_seat)
+    g._action_propose_veto(chancellor, "propose_veto")
+    assert g.veto_proposed is True
+
+
+def test_veto_accept_discards_and_advances_tracker():
+    random.seed(143)
+    g = _make_game(5)
+    _run_to_chan_legislation_with_fascist_policies(g, 5)
+    chancellor = g._player_at_seat(g.current_chancellor_seat)
+    g._action_propose_veto(chancellor, "propose_veto")
+    pres = g._player_at_seat(g.current_president_seat)
+    discard_before = len(g.discard)
+    g._action_veto_accept(pres, "veto_accept")
+    assert g.veto_proposed is False
+    assert g.chancellor_received_policies is None
+    assert len(g.discard) == discard_before + 2
+    assert g.election_tracker == 1
+    assert g.phase == Phase.NOMINATION
+
+
+def test_veto_reject_reopens_chancellor_menu_no_reveto():
+    random.seed(106)  # seed 144 hits Hitler-elected; 106 avoids it
+    g = _make_game(5)
+    _run_to_chan_legislation_with_fascist_policies(g, 5)
+    chancellor = g._player_at_seat(g.current_chancellor_seat)
+    g._action_propose_veto(chancellor, "propose_veto")
+    pres = g._player_at_seat(g.current_president_seat)
+    g._action_veto_reject(pres, "veto_reject")
+    assert g.veto_proposed is False
+    g._action_propose_veto(chancellor, "propose_veto")
+    assert g.veto_proposed is False
+    g._action_enact_policy(chancellor, "enact_0")
+    assert g.phase in (Phase.POWER_RESOLUTION, Phase.NOMINATION, Phase.GAME_OVER)
