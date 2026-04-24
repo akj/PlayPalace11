@@ -223,6 +223,30 @@ class SecretHitler(Game):
         if all(p.seat in self.role_ack_seats for p in active):
             self._begin_nomination()
 
+    def _on_phase_transition(self) -> None:
+        """Reset the on-turn player's menu focus to position 1.
+
+        Called after every `self.phase = ...` assignment. Without this,
+        persistent items like `view_tracks` shift position as phase-specific
+        actions appear and disappear, stranding focus at the bottom.
+        """
+        target_seat: int | None = None
+        if self.phase == Phase.NOMINATION:
+            target_seat = self.current_president_seat
+        elif self.phase == Phase.PRES_LEGISLATION:
+            target_seat = self.current_president_seat
+        elif self.phase == Phase.CHAN_LEGISLATION:
+            target_seat = self.current_chancellor_seat
+        elif self.phase == Phase.POWER_RESOLUTION:
+            target_seat = self.current_president_seat
+        if target_seat is None:
+            return
+        try:
+            player = self._player_at_seat(target_seat)
+        except KeyError:
+            return
+        self.rebuild_player_menu(player, position=1)
+
     def _begin_nomination(self) -> None:
         self.phase = Phase.NOMINATION
         self.current_president_seat = self._next_president_seat()
@@ -232,6 +256,7 @@ class SecretHitler(Game):
         self.vote_call_deadline_tick = None
         pres = self._player_at_seat(self.current_president_seat)
         self.broadcast_l("sh-president-is", player=pres.name)
+        self._on_phase_transition()
 
     def _next_president_seat(self) -> int:
         """Compute the next president seat, consuming special-election override if set."""
@@ -390,6 +415,7 @@ class SecretHitler(Game):
         self._ensure_deck_has(3)
         self.president_drawn_policies = [self.deck.pop(0) for _ in range(3)]
         self.phase = Phase.PRES_LEGISLATION
+        self._on_phase_transition()
         self.broadcast_l("sh-president-draws")
         pres = self._player_at_seat(self.current_president_seat)
         self._send_policies_private(pres, self.president_drawn_policies, "sh-your-policies")
@@ -500,6 +526,7 @@ class SecretHitler(Game):
         self.chancellor_received_policies = drawn
         self.president_drawn_policies = None
         self.phase = Phase.CHAN_LEGISLATION
+        self._on_phase_transition()
         chancellor = self._player_at_seat(self.current_chancellor_seat)
         self.broadcast_l("sh-chancellor-receives")
         self._send_policies_private(
@@ -550,6 +577,7 @@ class SecretHitler(Game):
                 power = FASCIST_TRACK_POWERS[bucket][slot - 1]
                 if power != Power.NONE:
                     self.phase = Phase.POWER_RESOLUTION
+                    self._on_phase_transition()
                     self.pending_power = power
                     self.power_target_seat = None
                     self._announce_power_start(power)
