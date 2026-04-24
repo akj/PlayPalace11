@@ -80,3 +80,49 @@ def test_party_of_role():
     assert Role.LIBERAL.party is Party.LIBERAL
     assert Role.FASCIST.party is Party.FASCIST
     assert Role.HITLER.party is Party.FASCIST
+
+
+from server.games.secrethitler.player import (
+    SecretHitlerPlayer,
+    SecretHitlerOptions,
+)
+from server.games.secrethitler.game import SecretHitler
+
+
+def test_player_defaults():
+    p = SecretHitlerPlayer(id="x", name="Alice")
+    assert p.seat == 0
+    assert p.role == Role.LIBERAL
+    assert p.is_alive is True
+    assert p.has_been_investigated is False
+    assert p.connected is True
+
+
+def test_options_defaults():
+    o = SecretHitlerOptions()
+    assert o.president_vote_timeout_seconds == 180
+    assert o.bot_think_seconds == 2
+
+
+def test_game_creates_typed_players_and_options():
+    g = SecretHitler()
+    p = g.create_player("player1", "Alice")
+    assert isinstance(p, SecretHitlerPlayer)
+    assert isinstance(g.options, SecretHitlerOptions)
+
+
+from pathlib import Path
+
+
+def test_locale_file_exists_and_has_game_name_key():
+    locale_path = Path(__file__).parent.parent / "locales" / "en" / "secrethitler.ftl"
+    assert locale_path.exists(), f"Missing locale file: {locale_path}"
+    text = locale_path.read_text(encoding="utf-8")
+    assert "game-name-secrethitler = Secret Hitler" in text
+    for key in (
+        "sh-you-are-liberal",
+        "sh-you-are-fascist",
+        "sh-you-are-hitler",
+        "sh-fascist-teammates",
+    ):
+        assert key in text, f"Missing key {key} in locale file"
