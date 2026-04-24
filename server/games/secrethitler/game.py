@@ -17,6 +17,7 @@ from .cards import (
     track_bucket_for,
 )
 from .player import SecretHitlerPlayer, SecretHitlerOptions
+from . import powers
 
 
 class Phase(str, Enum):
@@ -76,6 +77,7 @@ class SecretHitler(Game):
 
     # Flow control
     paused_for_reconnect: bool = False
+    veto_blocked_this_turn: bool = False
     _first_nomination: bool = True
     tick: int = 0
     game_over: bool = False
@@ -164,6 +166,7 @@ class SecretHitler(Game):
         self.policy_peek_cards = None
 
         self.paused_for_reconnect = False
+        self.veto_blocked_this_turn = False
         self._first_nomination = True
         self.game_over = False
         self.winner = None
@@ -375,6 +378,7 @@ class SecretHitler(Game):
             self._on_vote_failed()
 
     def _on_vote_passed(self) -> None:
+        self.veto_blocked_this_turn = False
         chancellor = self._player_at_seat(self.nominee_chancellor_seat)
         if self.fascist_policies >= 3 and chancellor.role == Role.HITLER:
             self._end_game(Party.FASCIST, "sh-fascists-win-hitler-elected")
@@ -563,3 +567,36 @@ class SecretHitler(Game):
             Power.EXECUTION: "sh-power-execution",
         }[power]
         self.broadcast_l(key)
+
+    # ------------------------------------------------------------------
+    # Task 13 — Investigate loyalty
+    # ------------------------------------------------------------------
+
+    def _action_investigate(self, player, action_id: str) -> None:
+        if self.phase != Phase.POWER_RESOLUTION or self.pending_power != Power.INVESTIGATE:
+            return
+        if not isinstance(player, SecretHitlerPlayer):
+            return
+        if player.seat != self.current_president_seat:
+            return
+        try:
+            target_seat = int(action_id.rsplit("_", 1)[-1])
+        except ValueError:
+            return
+        target = next(
+            (
+                p for p in self.players
+                if isinstance(p, SecretHitlerPlayer)
+                and p.seat == target_seat
+                and p.is_alive
+                and not p.has_been_investigated
+                and p is not player
+            ),
+            None,
+        )
+        if target is None:
+            return
+        powers.resolve_investigate(self, player, target)
+        self.pending_power = Power.NONE
+        self.power_target_seat = None
+        self._begin_nomination()
