@@ -754,3 +754,28 @@ def test_nominate_action_id_is_seat_number():
     target_name = g._player_at_seat(target_seat).name
     label = g._get_nominate_label(pres, f"nominate_{target_seat}")
     assert target_name in label
+
+
+# ---------------------------------------------------------------------------
+# Task 23 — Bot smoke test
+# ---------------------------------------------------------------------------
+
+def test_cli_smoke_5_bots_completes():
+    """Bot-only 5-player game must play to GAME_OVER within a tick budget."""
+    import random
+    from server.games.secrethitler.cards import Party
+    random.seed(201)
+    g = SecretHitler()
+    for i in range(5):
+        pid = f"bot{i}"
+        name = f"Bot{i}"
+        g.players.append(g.create_player(pid, name, is_bot=True))
+        g.attach_user(pid, MockUser(name))
+    g.on_start()
+    max_ticks = 50_000
+    for _ in range(max_ticks):
+        g.on_tick()
+        if g.phase == Phase.GAME_OVER:
+            break
+    assert g.phase == Phase.GAME_OVER
+    assert g.winner in (Party.LIBERAL, Party.FASCIST)

@@ -21,6 +21,7 @@ from .cards import (
 )
 from .player import SecretHitlerPlayer, SecretHitlerOptions
 from . import powers
+from .bot import SecretHitlerBot
 
 
 class Phase(str, Enum):
@@ -493,9 +494,10 @@ class SecretHitler(Game):
 
     def on_tick(self) -> None:
         super().on_tick()
-        if self.paused_for_reconnect:
+        if self.paused_for_reconnect or self.phase == Phase.GAME_OVER:
             return
         self.tick += 1
+
         if (
             self.phase == Phase.NOMINATION
             and self.nominee_chancellor_seat is not None
@@ -504,6 +506,23 @@ class SecretHitler(Game):
         ):
             pres = self._player_at_seat(self.current_president_seat)
             self._action_call_vote(pres, "call_vote")
+
+        # Bot decisions — one bot acts per tick to avoid stale-state cascades.
+        if self.phase == Phase.GAME_OVER:
+            return
+        for p in list(self.players):
+            if not isinstance(p, SecretHitlerPlayer):
+                continue
+            if not p.is_bot or p.is_spectator:
+                continue
+            # Lazily initialize action sets for bots that bypassed the lobby join.
+            if not self.player_action_sets.get(p.id):
+                self.setup_player_actions(p)
+            action_id = SecretHitlerBot.bot_think(self, p)
+            if action_id:
+                self.execute_action(p, action_id)
+                p.bot_think_ticks = max(0, self.options.bot_think_seconds * 20)
+                break
 
     # ------------------------------------------------------------------
     # Task 11 — President discards → chancellor receives
