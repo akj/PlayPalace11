@@ -48,3 +48,16 @@ def resolve_policy_peek(game: "SecretHitler", president: "SecretHitlerPlayer") -
             p2=top3[1].value,
             p3=top3[2].value,
         )
+
+
+def resolve_execution(
+    game: "SecretHitler",
+    president: "SecretHitlerPlayer",
+    target: "SecretHitlerPlayer",
+) -> bool:
+    """Execute target. Returns True if this ends the game (Hitler was killed)."""
+    target.is_alive = False
+    game.broadcast_l("sh-player-executed", player=target.name)
+    if target.role == Role.HITLER:
+        return True
+    return False

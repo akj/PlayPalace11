@@ -148,3 +148,56 @@ def test_policy_peek_reveals_top_three_only_to_president():
             f"{p.name} should not see the peek; got {msgs!r}"
         )
     assert g.phase == Phase.NOMINATION
+
+
+def test_execution_kills_target_and_advances_to_nomination():
+    random.seed(100)  # seed 121 hits Hitler-elected; 100 avoids it
+    g = _make_game(7)
+    _run_to_power(g, enacted_fascist=4)
+    assert g.pending_power == Power.EXECUTION
+    pres = g._player_at_seat(g.current_president_seat)
+    target = next(
+        p for p in g.players
+        if p is not pres and p.is_alive and p.role == Role.LIBERAL
+    )
+    g._action_execute(pres, f"execute_{target.seat}")
+    assert target.is_alive is False
+    assert g.phase == Phase.NOMINATION
+
+
+def test_execution_of_hitler_liberals_win():
+    random.seed(122)
+    g = _make_game(7)
+    _run_to_power(g, enacted_fascist=4)
+    pres = g._player_at_seat(g.current_president_seat)
+    hitler = next(p for p in g.players if p.role == Role.HITLER)
+    if hitler is pres:
+        other = next(p for p in g.players if p is not pres)
+        other.role, pres.role = pres.role, other.role
+        hitler = other
+    g._action_execute(pres, f"execute_{hitler.seat}")
+    assert hitler.is_alive is False
+    assert g.phase == Phase.GAME_OVER
+    assert g.winner == Party.LIBERAL
+    assert g.win_reason == "sh-liberals-win-execution"
+
+
+def test_executed_player_cannot_vote_or_nominate():
+    random.seed(123)
+    g = _make_game(7)
+    _run_to_power(g, enacted_fascist=4)
+    pres = g._player_at_seat(g.current_president_seat)
+    target = next(
+        p for p in g.players
+        if p is not pres and p.is_alive and p.role == Role.LIBERAL
+    )
+    g._action_execute(pres, f"execute_{target.seat}")
+    assert target.seat not in g._eligible_chancellor_seats()
+    pres2 = g._player_at_seat(g.current_president_seat)
+    nominee = next(p for p in g.players if p.is_alive and p is not pres2)
+    g._action_nominate(pres2, f"nominate_{nominee.seat}")
+    g._action_call_vote(pres2, "call_vote")
+    alive = [p for p in g.players if p.is_alive]
+    for p in alive:
+        g._action_vote_ja(p, "vote_ja")
+    assert g.phase != Phase.VOTING
