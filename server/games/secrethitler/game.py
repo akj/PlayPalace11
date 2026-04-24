@@ -170,5 +170,33 @@ class SecretHitler(Game):
         self._deliver_role_reveals()
 
     def _deliver_role_reveals(self) -> None:
-        """Placeholder; implemented in Task 6."""
-        pass
+        """Send each player a personal message about their role and, if applicable, teammates."""
+        active = [p for p in self.players if not p.is_spectator]
+        n = len(active)
+        fascists = [p for p in active if p.role == Role.FASCIST]
+        hitler = next(p for p in active if p.role == Role.HITLER)
+
+        for p in active:
+            user = self.get_user(p)
+            if not user:
+                continue
+            if p.role == Role.LIBERAL:
+                user.speak_l("sh-you-are-liberal", "table")
+            elif p.role == Role.FASCIST:
+                teammate_names = ", ".join(f.name for f in fascists if f is not p)
+                user.speak_l("sh-you-are-fascist", "table")
+                user.speak_l(
+                    "sh-fascist-teammates",
+                    "table",
+                    names=teammate_names,
+                    hitler=hitler.name,
+                )
+            elif p.role == Role.HITLER:
+                user.speak_l("sh-you-are-hitler", "table")
+                if n <= 6:
+                    teammate_names = ", ".join(f.name for f in fascists)
+                    user.speak_l(
+                        "sh-hitler-knows-teammates",
+                        "table",
+                        names=teammate_names,
+                    )

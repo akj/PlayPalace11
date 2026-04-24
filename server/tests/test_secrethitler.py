@@ -193,3 +193,64 @@ def test_on_start_refuses_bad_player_count():
         or (isinstance(e, tuple) and e[0] == "sh-error-need-5-players")
         for e in errors
     )
+
+
+def _spoken(g: SecretHitler, player_name: str) -> list[str]:
+    """Return rendered speech text delivered to the given player."""
+    p = g.get_player_by_name(player_name)
+    u = g.get_user(p)
+    return u.get_spoken_messages() if u else []
+
+
+@pytest.mark.parametrize("n", [5, 6])
+def test_role_reveal_hitler_knows_fascists_at_5_6(n):
+    import random
+    random.seed(7)
+    g = _make_game(n)
+    g.on_start()
+    hitler = next(p for p in g.players if p.role == Role.HITLER)
+    msgs = _spoken(g, hitler.name)
+    # Hitler gets both "You are Hitler." and the teammates line.
+    assert any("You are Hitler" in m for m in msgs)
+    assert any(m.startswith("The Fascists are:") for m in msgs), (
+        f"Hitler at n={n} should see teammates; got {msgs!r}"
+    )
+
+
+@pytest.mark.parametrize("n", [7, 8, 9, 10])
+def test_role_reveal_hitler_blind_at_7_plus(n):
+    import random
+    random.seed(11)
+    g = _make_game(n)
+    g.on_start()
+    hitler = next(p for p in g.players if p.role == Role.HITLER)
+    msgs = _spoken(g, hitler.name)
+    assert any("You are Hitler" in m for m in msgs)
+    # No teammates disclosure for Hitler at 7+.
+    assert not any(m.startswith("The Fascists are:") for m in msgs), (
+        f"Hitler at n={n} must not see teammates; got {msgs!r}"
+    )
+
+
+def test_fascists_always_see_teammates():
+    import random
+    random.seed(5)
+    g = _make_game(7)
+    g.on_start()
+    for f in [p for p in g.players if p.role == Role.FASCIST]:
+        msgs = _spoken(g, f.name)
+        assert any("You are a Fascist" in m for m in msgs)
+        assert any(m.startswith("The Fascists are:") for m in msgs)
+
+
+def test_liberals_see_only_self_role():
+    import random
+    random.seed(13)
+    g = _make_game(5)
+    g.on_start()
+    for lib in [p for p in g.players if p.role == Role.LIBERAL]:
+        msgs = _spoken(g, lib.name)
+        assert any("You are a Liberal" in m for m in msgs)
+        assert not any(m.startswith("The Fascists are:") for m in msgs)
+        assert not any("You are Hitler" in m for m in msgs)
+        assert not any("You are a Fascist" in m for m in msgs)
