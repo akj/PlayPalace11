@@ -12,7 +12,9 @@ from .cards import (
     Power,
     Role,
     ROLE_COUNTS,
+    FASCIST_TRACK_POWERS,
     build_policy_deck,
+    track_bucket_for,
 )
 from .player import SecretHitlerPlayer, SecretHitlerOptions
 
@@ -469,3 +471,33 @@ class SecretHitler(Game):
         ):
             pres = self._player_at_seat(self.current_president_seat)
             self._action_call_vote(pres, "call_vote")
+
+    # ------------------------------------------------------------------
+    # Task 11 — President discards → chancellor receives
+    # ------------------------------------------------------------------
+
+    def _action_discard_policy(self, player, action_id: str) -> None:
+        if self.phase != Phase.PRES_LEGISLATION:
+            return
+        if not isinstance(player, SecretHitlerPlayer):
+            return
+        if player.seat != self.current_president_seat:
+            return
+        try:
+            idx = int(action_id.rsplit("_", 1)[-1])
+        except ValueError:
+            return
+        if idx < 0 or idx >= len(self.president_drawn_policies or []):
+            return
+        drawn = list(self.president_drawn_policies or [])
+        discarded = drawn.pop(idx)
+        self.discard.append(discarded)
+        self.broadcast_l("sh-president-discards")
+        self.chancellor_received_policies = drawn
+        self.president_drawn_policies = None
+        self.phase = Phase.CHAN_LEGISLATION
+        chancellor = self._player_at_seat(self.current_chancellor_seat)
+        self.broadcast_l("sh-chancellor-receives")
+        self._send_policies_private(
+            chancellor, self.chancellor_received_policies, "sh-your-policies-chancellor"
+        )

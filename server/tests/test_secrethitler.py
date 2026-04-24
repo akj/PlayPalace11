@@ -445,3 +445,37 @@ def test_vote_timer_respects_pause():
     for _ in range(g.options.president_vote_timeout_seconds * 20 + 10):
         g.on_tick()
     assert g.phase == Phase.NOMINATION
+
+
+# ---------------------------------------------------------------------------
+# Task 11 — President discards → chancellor receives
+# ---------------------------------------------------------------------------
+
+def _run_to_pres_legislation(g: SecretHitler) -> None:
+    for p in g.players:
+        g._action_acknowledge_role(p, "acknowledge_role")
+    pres = g._player_at_seat(g.current_president_seat)
+    other = next(p for p in g.players if p is not pres and p.is_alive)
+    g._action_nominate(pres, f"nominate_{other.seat}")
+    g._action_call_vote(pres, "call_vote")
+    for p in g.players:
+        if p.is_alive:
+            g._action_vote_ja(p, "vote_ja")
+
+
+def test_president_discard_moves_to_chan_legislation():
+    import random
+    random.seed(51)
+    g = _make_game(5)
+    g.on_start()
+    _run_to_pres_legislation(g)
+    assert g.phase == Phase.PRES_LEGISLATION
+    assert len(g.president_drawn_policies) == 3
+
+    pres = g._player_at_seat(g.current_president_seat)
+    g._action_discard_policy(pres, "discard_0")
+    assert g.phase == Phase.CHAN_LEGISLATION
+    assert g.president_drawn_policies is None
+    assert g.chancellor_received_policies is not None
+    assert len(g.chancellor_received_policies) == 2
+    assert len(g.discard) == 1
