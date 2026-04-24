@@ -61,3 +61,12 @@ def resolve_execution(
     if target.role == Role.HITLER:
         return True
     return False
+
+
+def resolve_special_election(
+    game: "SecretHitler",
+    president: "SecretHitlerPlayer",
+    target: "SecretHitlerPlayer",
+) -> None:
+    """Set the special-election override so target becomes next president."""
+    game.special_election_override = target.seat

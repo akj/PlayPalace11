@@ -654,3 +654,35 @@ class SecretHitler(Game):
             self._end_game(Party.LIBERAL, "sh-liberals-win-execution")
             return
         self._begin_nomination()
+
+    # ------------------------------------------------------------------
+    # Task 16 — Special election
+    # ------------------------------------------------------------------
+
+    def _action_choose_president(self, player, action_id: str) -> None:
+        if self.phase != Phase.POWER_RESOLUTION or self.pending_power != Power.SPECIAL_ELECTION:
+            return
+        if not isinstance(player, SecretHitlerPlayer):
+            return
+        if player.seat != self.current_president_seat:
+            return
+        try:
+            target_seat = int(action_id.rsplit("_", 1)[-1])
+        except ValueError:
+            return
+        target = next(
+            (
+                p for p in self.players
+                if isinstance(p, SecretHitlerPlayer)
+                and p.seat == target_seat
+                and p.is_alive
+                and p is not player
+            ),
+            None,
+        )
+        if target is None:
+            return
+        powers.resolve_special_election(self, player, target)
+        self.pending_power = Power.NONE
+        self.power_target_seat = None
+        self._begin_nomination()

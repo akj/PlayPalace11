@@ -201,3 +201,41 @@ def test_executed_player_cannot_vote_or_nominate():
     for p in alive:
         g._action_vote_ja(p, "vote_ja")
     assert g.phase != Phase.VOTING
+
+
+def test_special_election_sets_override():
+    random.seed(131)
+    g = _make_game(9)
+    _run_to_power(g, enacted_fascist=3)
+    assert g.pending_power == Power.SPECIAL_ELECTION
+    pres = g._player_at_seat(g.current_president_seat)
+    target = next(p for p in g.players if p is not pres and p.is_alive)
+    g._action_choose_president(pres, f"choose_president_{target.seat}")
+    assert g.phase == Phase.NOMINATION
+    assert g.current_president_seat == target.seat
+
+
+def test_special_election_rotation_resumes_from_original():
+    random.seed(100)  # seed 132 had eligible-chancellor conflicts; 100 avoids it
+    g = _make_game(9)
+    _run_to_power(g, enacted_fascist=3)
+    original_pres_seat = g.current_president_seat
+    pres = g._player_at_seat(original_pres_seat)
+    target = next(
+        p for p in g.players
+        if p.is_alive and p.seat != (original_pres_seat + 1) % 9 and p is not pres
+    )
+    g._action_choose_president(pres, f"choose_president_{target.seat}")
+    electee = g._player_at_seat(g.current_president_seat)
+    # Pick an eligible chancellor, not just any alive player
+    eligible = g._eligible_chancellor_seats()
+    nominee = g._player_at_seat(eligible[0])
+    g._action_nominate(electee, f"nominate_{nominee.seat}")
+    g._action_call_vote(electee, "call_vote")
+    for p in g.players:
+        if p.is_alive:
+            g._action_vote_nein(p, "vote_nein")
+    alive_seats = sorted(p.seat for p in g.players if p.is_alive)
+    idx = alive_seats.index(original_pres_seat)
+    expected_next = alive_seats[(idx + 1) % len(alive_seats)]
+    assert g.current_president_seat == expected_next
