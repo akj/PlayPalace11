@@ -4,8 +4,11 @@ from dataclasses import dataclass, field
 from enum import Enum
 import random
 
-from ..base import Game
+from ..base import Game, Player
 from ..registry import register_game
+from ...game_utils.actions import Action, ActionSet, Visibility
+from ...messages.localization import Localization
+from server.core.ui.keybinds import KeybindState
 from .cards import (
     Policy,
     Party,
@@ -762,3 +765,946 @@ class SecretHitler(Game):
         self.veto_proposed = False
         self.veto_blocked_this_turn = True
         self.broadcast_l("sh-president-rejects-veto")
+
+    # ------------------------------------------------------------------
+    # Task 22 — Action sets, keybinds, standard menu items
+    # ------------------------------------------------------------------
+
+    def _host_locale(self) -> str:
+        """Return the host's locale, falling back to 'en'."""
+        if hasattr(self, "host_username") and self.host_username:
+            player = self.get_player_by_name(self.host_username)
+            if player:
+                user = self.get_user(player)
+                if user:
+                    return user.locale
+        return "en"
+
+    def setup_keybinds(self) -> None:
+        """Define all keybinds for the game."""
+        super().setup_keybinds()
+        locale = self._host_locale()
+
+        self.define_keybind(
+            "v",
+            Localization.get(locale, "sh-vote-ja"),
+            ["vote_ja", "vote_nein"],
+            state=KeybindState.ACTIVE,
+        )
+        self.define_keybind(
+            "n",
+            Localization.get(locale, "sh-nominate"),
+            [f"nominate_{i}" for i in range(10)],
+            state=KeybindState.ACTIVE,
+            requires_focus=True,
+        )
+        self.define_keybind(
+            "r",
+            Localization.get(locale, "sh-view-my-role"),
+            ["view_my_role"],
+            state=KeybindState.ACTIVE,
+        )
+        self.define_keybind(
+            "s",
+            Localization.get(locale, "sh-view-tracks"),
+            ["check_scores"],
+            state=KeybindState.ACTIVE,
+            include_spectators=True,
+        )
+        self.define_keybind(
+            "shift+s",
+            Localization.get(locale, "sh-view-government"),
+            ["check_scores_detailed"],
+            state=KeybindState.ACTIVE,
+            include_spectators=True,
+        )
+
+    # -- is_playing helper -------------------------------------------------
+
+    def _is_playing(self) -> bool:
+        return self.status == "playing" and self.phase != Phase.GAME_OVER
+
+    # -- Acknowledge role ---------------------------------------------------
+
+    def _is_acknowledge_role_hidden(self, player: Player) -> Visibility:
+        if not isinstance(player, SecretHitlerPlayer):
+            return Visibility.HIDDEN
+        if self.phase != Phase.ROLE_REVEAL:
+            return Visibility.HIDDEN
+        if player.seat in self.role_ack_seats:
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
+
+    def _is_acknowledge_role_enabled(self, player: Player) -> str | None:
+        if self.phase != Phase.ROLE_REVEAL:
+            return "action-not-available"
+        if not isinstance(player, SecretHitlerPlayer):
+            return "action-not-available"
+        if player.seat in self.role_ack_seats:
+            return "action-not-available"
+        return None
+
+    # -- Nominate family ---------------------------------------------------
+
+    def _is_nominate_hidden(self, player: Player, action_id: str | None = None) -> Visibility:
+        if self.phase != Phase.NOMINATION:
+            return Visibility.HIDDEN
+        if not isinstance(player, SecretHitlerPlayer):
+            return Visibility.HIDDEN
+        if player.seat != self.current_president_seat:
+            return Visibility.HIDDEN
+        if action_id is None:
+            return Visibility.VISIBLE
+        try:
+            idx = int(action_id.rsplit("_", 1)[-1])
+        except ValueError:
+            return Visibility.HIDDEN
+        eligible = self._eligible_chancellor_seats()
+        if idx >= len(eligible):
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
+
+    def _is_nominate_enabled(self, player: Player, action_id: str | None = None) -> str | None:
+        if self.phase != Phase.NOMINATION:
+            return "action-not-available"
+        if not isinstance(player, SecretHitlerPlayer):
+            return "action-not-available"
+        if player.seat != self.current_president_seat:
+            return "action-not-available"
+        if action_id is None:
+            return None
+        try:
+            idx = int(action_id.rsplit("_", 1)[-1])
+        except ValueError:
+            return "action-not-available"
+        eligible = self._eligible_chancellor_seats()
+        if idx >= len(eligible):
+            return "action-not-available"
+        return None
+
+    def _get_nominate_label(self, player: Player, action_id: str) -> str:
+        user = self.get_user(player)
+        locale = user.locale if user else "en"
+        try:
+            idx = int(action_id.rsplit("_", 1)[-1])
+        except ValueError:
+            return Localization.get(locale, "sh-nominate", player="?")
+        eligible = self._eligible_chancellor_seats()
+        if idx >= len(eligible):
+            return Localization.get(locale, "sh-nominate", player="?")
+        target = self._player_at_seat(eligible[idx])
+        return Localization.get(locale, "sh-nominate", player=target.name)
+
+    # -- Call vote / cancel nomination -------------------------------------
+
+    def _is_call_vote_hidden(self, player: Player) -> Visibility:
+        if self.phase != Phase.NOMINATION:
+            return Visibility.HIDDEN
+        if not isinstance(player, SecretHitlerPlayer):
+            return Visibility.HIDDEN
+        if player.seat != self.current_president_seat:
+            return Visibility.HIDDEN
+        if self.nominee_chancellor_seat is None:
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
+
+    def _is_call_vote_enabled(self, player: Player) -> str | None:
+        if self.phase != Phase.NOMINATION:
+            return "action-not-available"
+        if not isinstance(player, SecretHitlerPlayer):
+            return "action-not-available"
+        if player.seat != self.current_president_seat:
+            return "action-not-available"
+        if self.nominee_chancellor_seat is None:
+            return "action-not-available"
+        return None
+
+    def _is_cancel_nomination_hidden(self, player: Player) -> Visibility:
+        return self._is_call_vote_hidden(player)
+
+    def _is_cancel_nomination_enabled(self, player: Player) -> str | None:
+        return self._is_call_vote_enabled(player)
+
+    # -- Vote ja / nein ----------------------------------------------------
+
+    def _is_vote_hidden(self, player: Player) -> Visibility:
+        if self.phase != Phase.VOTING:
+            return Visibility.HIDDEN
+        if not isinstance(player, SecretHitlerPlayer):
+            return Visibility.HIDDEN
+        if not player.is_alive:
+            return Visibility.HIDDEN
+        if player.seat in self.votes:
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
+
+    def _is_vote_enabled(self, player: Player) -> str | None:
+        if self.phase != Phase.VOTING:
+            return "action-not-available"
+        if not isinstance(player, SecretHitlerPlayer):
+            return "action-not-available"
+        if not player.is_alive:
+            return "action-not-available"
+        if player.seat in self.votes:
+            return "action-not-available"
+        return None
+
+    # -- Discard policy family (president) ---------------------------------
+
+    def _is_discard_hidden(self, player: Player, action_id: str | None = None) -> Visibility:
+        if self.phase != Phase.PRES_LEGISLATION:
+            return Visibility.HIDDEN
+        if not isinstance(player, SecretHitlerPlayer):
+            return Visibility.HIDDEN
+        if player.seat != self.current_president_seat:
+            return Visibility.HIDDEN
+        if action_id is None:
+            return Visibility.VISIBLE
+        try:
+            idx = int(action_id.rsplit("_", 1)[-1])
+        except ValueError:
+            return Visibility.HIDDEN
+        if idx < 0 or idx >= len(self.president_drawn_policies or []):
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
+
+    def _is_discard_enabled(self, player: Player, action_id: str | None = None) -> str | None:
+        if self.phase != Phase.PRES_LEGISLATION:
+            return "action-not-available"
+        if not isinstance(player, SecretHitlerPlayer):
+            return "action-not-available"
+        if player.seat != self.current_president_seat:
+            return "action-not-available"
+        if action_id is None:
+            return None
+        try:
+            idx = int(action_id.rsplit("_", 1)[-1])
+        except ValueError:
+            return "action-not-available"
+        if idx < 0 or idx >= len(self.president_drawn_policies or []):
+            return "action-not-available"
+        return None
+
+    def _get_discard_label(self, player: Player, action_id: str) -> str:
+        user = self.get_user(player)
+        locale = user.locale if user else "en"
+        try:
+            idx = int(action_id.rsplit("_", 1)[-1])
+        except ValueError:
+            return Localization.get(locale, "sh-discard-policy", policy="?")
+        policies = self.president_drawn_policies or []
+        if idx < 0 or idx >= len(policies):
+            return Localization.get(locale, "sh-discard-policy", policy="?")
+        policy_key = "sh-policy-liberal" if policies[idx] == Policy.LIBERAL else "sh-policy-fascist"
+        policy_name = Localization.get(locale, policy_key)
+        return Localization.get(locale, "sh-discard-policy", policy=policy_name)
+
+    # -- Enact policy family (chancellor) ----------------------------------
+
+    def _is_enact_hidden(self, player: Player, action_id: str | None = None) -> Visibility:
+        if self.phase != Phase.CHAN_LEGISLATION:
+            return Visibility.HIDDEN
+        if self.veto_proposed:
+            return Visibility.HIDDEN
+        if not isinstance(player, SecretHitlerPlayer):
+            return Visibility.HIDDEN
+        if player.seat != self.current_chancellor_seat:
+            return Visibility.HIDDEN
+        if action_id is None:
+            return Visibility.VISIBLE
+        try:
+            idx = int(action_id.rsplit("_", 1)[-1])
+        except ValueError:
+            return Visibility.HIDDEN
+        if idx < 0 or idx >= len(self.chancellor_received_policies or []):
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
+
+    def _is_enact_enabled(self, player: Player, action_id: str | None = None) -> str | None:
+        if self.phase != Phase.CHAN_LEGISLATION:
+            return "action-not-available"
+        if self.veto_proposed:
+            return "action-not-available"
+        if not isinstance(player, SecretHitlerPlayer):
+            return "action-not-available"
+        if player.seat != self.current_chancellor_seat:
+            return "action-not-available"
+        if action_id is None:
+            return None
+        try:
+            idx = int(action_id.rsplit("_", 1)[-1])
+        except ValueError:
+            return "action-not-available"
+        if idx < 0 or idx >= len(self.chancellor_received_policies or []):
+            return "action-not-available"
+        return None
+
+    def _get_enact_label(self, player: Player, action_id: str) -> str:
+        user = self.get_user(player)
+        locale = user.locale if user else "en"
+        try:
+            idx = int(action_id.rsplit("_", 1)[-1])
+        except ValueError:
+            return Localization.get(locale, "sh-enact-policy", policy="?")
+        policies = self.chancellor_received_policies or []
+        if idx < 0 or idx >= len(policies):
+            return Localization.get(locale, "sh-enact-policy", policy="?")
+        policy_key = "sh-policy-liberal" if policies[idx] == Policy.LIBERAL else "sh-policy-fascist"
+        policy_name = Localization.get(locale, policy_key)
+        return Localization.get(locale, "sh-enact-policy", policy=policy_name)
+
+    # -- Propose veto ------------------------------------------------------
+
+    def _is_propose_veto_hidden(self, player: Player) -> Visibility:
+        if self.phase != Phase.CHAN_LEGISLATION:
+            return Visibility.HIDDEN
+        if self.fascist_policies < 5:
+            return Visibility.HIDDEN
+        if self.veto_proposed:
+            return Visibility.HIDDEN
+        if self.veto_blocked_this_turn:
+            return Visibility.HIDDEN
+        if not isinstance(player, SecretHitlerPlayer):
+            return Visibility.HIDDEN
+        if player.seat != self.current_chancellor_seat:
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
+
+    def _is_propose_veto_enabled(self, player: Player) -> str | None:
+        if self.phase != Phase.CHAN_LEGISLATION:
+            return "action-not-available"
+        if self.fascist_policies < 5:
+            return "action-not-available"
+        if self.veto_proposed:
+            return "action-not-available"
+        if self.veto_blocked_this_turn:
+            return "action-not-available"
+        if not isinstance(player, SecretHitlerPlayer):
+            return "action-not-available"
+        if player.seat != self.current_chancellor_seat:
+            return "action-not-available"
+        return None
+
+    # -- Veto accept / reject (president) ----------------------------------
+
+    def _is_veto_response_hidden(self, player: Player) -> Visibility:
+        if self.phase != Phase.CHAN_LEGISLATION:
+            return Visibility.HIDDEN
+        if not self.veto_proposed:
+            return Visibility.HIDDEN
+        if not isinstance(player, SecretHitlerPlayer):
+            return Visibility.HIDDEN
+        if player.seat != self.current_president_seat:
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
+
+    def _is_veto_response_enabled(self, player: Player) -> str | None:
+        if self.phase != Phase.CHAN_LEGISLATION:
+            return "action-not-available"
+        if not self.veto_proposed:
+            return "action-not-available"
+        if not isinstance(player, SecretHitlerPlayer):
+            return "action-not-available"
+        if player.seat != self.current_president_seat:
+            return "action-not-available"
+        return None
+
+    # -- Investigate family ------------------------------------------------
+
+    def _is_investigate_hidden(self, player: Player, action_id: str | None = None) -> Visibility:
+        if self.phase != Phase.POWER_RESOLUTION or self.pending_power != Power.INVESTIGATE:
+            return Visibility.HIDDEN
+        if not isinstance(player, SecretHitlerPlayer):
+            return Visibility.HIDDEN
+        if player.seat != self.current_president_seat:
+            return Visibility.HIDDEN
+        if action_id is None:
+            return Visibility.VISIBLE
+        try:
+            idx = int(action_id.rsplit("_", 1)[-1])
+        except ValueError:
+            return Visibility.HIDDEN
+        targets = self._investigate_targets()
+        if idx >= len(targets):
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
+
+    def _is_investigate_enabled(
+        self, player: Player, action_id: str | None = None
+    ) -> str | None:
+        if self.phase != Phase.POWER_RESOLUTION or self.pending_power != Power.INVESTIGATE:
+            return "action-not-available"
+        if not isinstance(player, SecretHitlerPlayer):
+            return "action-not-available"
+        if player.seat != self.current_president_seat:
+            return "action-not-available"
+        if action_id is None:
+            return None
+        try:
+            idx = int(action_id.rsplit("_", 1)[-1])
+        except ValueError:
+            return "action-not-available"
+        if idx >= len(self._investigate_targets()):
+            return "action-not-available"
+        return None
+
+    def _get_investigate_label(self, player: Player, action_id: str) -> str:
+        user = self.get_user(player)
+        locale = user.locale if user else "en"
+        try:
+            idx = int(action_id.rsplit("_", 1)[-1])
+        except ValueError:
+            return Localization.get(locale, "sh-investigate-target", player="?")
+        targets = self._investigate_targets()
+        if idx >= len(targets):
+            return Localization.get(locale, "sh-investigate-target", player="?")
+        return Localization.get(locale, "sh-investigate-target", player=targets[idx].name)
+
+    def _investigate_targets(self) -> list[SecretHitlerPlayer]:
+        pres_seat = self.current_president_seat
+        return [
+            p for p in self.players
+            if isinstance(p, SecretHitlerPlayer)
+            and p.is_alive
+            and not p.has_been_investigated
+            and p.seat != pres_seat
+        ]
+
+    # -- Choose president family (special election) ------------------------
+
+    def _is_choose_president_hidden(
+        self, player: Player, action_id: str | None = None
+    ) -> Visibility:
+        if self.phase != Phase.POWER_RESOLUTION or self.pending_power != Power.SPECIAL_ELECTION:
+            return Visibility.HIDDEN
+        if not isinstance(player, SecretHitlerPlayer):
+            return Visibility.HIDDEN
+        if player.seat != self.current_president_seat:
+            return Visibility.HIDDEN
+        if action_id is None:
+            return Visibility.VISIBLE
+        try:
+            idx = int(action_id.rsplit("_", 1)[-1])
+        except ValueError:
+            return Visibility.HIDDEN
+        targets = self._special_election_targets()
+        if idx >= len(targets):
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
+
+    def _is_choose_president_enabled(
+        self, player: Player, action_id: str | None = None
+    ) -> str | None:
+        if self.phase != Phase.POWER_RESOLUTION or self.pending_power != Power.SPECIAL_ELECTION:
+            return "action-not-available"
+        if not isinstance(player, SecretHitlerPlayer):
+            return "action-not-available"
+        if player.seat != self.current_president_seat:
+            return "action-not-available"
+        if action_id is None:
+            return None
+        try:
+            idx = int(action_id.rsplit("_", 1)[-1])
+        except ValueError:
+            return "action-not-available"
+        if idx >= len(self._special_election_targets()):
+            return "action-not-available"
+        return None
+
+    def _get_choose_president_label(self, player: Player, action_id: str) -> str:
+        user = self.get_user(player)
+        locale = user.locale if user else "en"
+        try:
+            idx = int(action_id.rsplit("_", 1)[-1])
+        except ValueError:
+            return Localization.get(locale, "sh-choose-president-target", player="?")
+        targets = self._special_election_targets()
+        if idx >= len(targets):
+            return Localization.get(locale, "sh-choose-president-target", player="?")
+        return Localization.get(locale, "sh-choose-president-target", player=targets[idx].name)
+
+    def _special_election_targets(self) -> list[SecretHitlerPlayer]:
+        pres_seat = self.current_president_seat
+        return [
+            p for p in self.players
+            if isinstance(p, SecretHitlerPlayer) and p.is_alive and p.seat != pres_seat
+        ]
+
+    # -- Execute family ----------------------------------------------------
+
+    def _is_execute_hidden(self, player: Player, action_id: str | None = None) -> Visibility:
+        if self.phase != Phase.POWER_RESOLUTION or self.pending_power != Power.EXECUTION:
+            return Visibility.HIDDEN
+        if not isinstance(player, SecretHitlerPlayer):
+            return Visibility.HIDDEN
+        if player.seat != self.current_president_seat:
+            return Visibility.HIDDEN
+        if action_id is None:
+            return Visibility.VISIBLE
+        try:
+            idx = int(action_id.rsplit("_", 1)[-1])
+        except ValueError:
+            return Visibility.HIDDEN
+        targets = self._execution_targets()
+        if idx >= len(targets):
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
+
+    def _is_execute_enabled(self, player: Player, action_id: str | None = None) -> str | None:
+        if self.phase != Phase.POWER_RESOLUTION or self.pending_power != Power.EXECUTION:
+            return "action-not-available"
+        if not isinstance(player, SecretHitlerPlayer):
+            return "action-not-available"
+        if player.seat != self.current_president_seat:
+            return "action-not-available"
+        if action_id is None:
+            return None
+        try:
+            idx = int(action_id.rsplit("_", 1)[-1])
+        except ValueError:
+            return "action-not-available"
+        if idx >= len(self._execution_targets()):
+            return "action-not-available"
+        return None
+
+    def _get_execute_label(self, player: Player, action_id: str) -> str:
+        user = self.get_user(player)
+        locale = user.locale if user else "en"
+        try:
+            idx = int(action_id.rsplit("_", 1)[-1])
+        except ValueError:
+            return Localization.get(locale, "sh-execute-target", player="?")
+        targets = self._execution_targets()
+        if idx >= len(targets):
+            return Localization.get(locale, "sh-execute-target", player="?")
+        return Localization.get(locale, "sh-execute-target", player=targets[idx].name)
+
+    def _execution_targets(self) -> list[SecretHitlerPlayer]:
+        pres_seat = self.current_president_seat
+        return [
+            p for p in self.players
+            if isinstance(p, SecretHitlerPlayer) and p.is_alive and p.seat != pres_seat
+        ]
+
+    # -- Acknowledge peek --------------------------------------------------
+
+    def _is_acknowledge_peek_hidden(self, player: Player) -> Visibility:
+        if self.phase != Phase.POWER_RESOLUTION or self.pending_power != Power.POLICY_PEEK:
+            return Visibility.HIDDEN
+        if not isinstance(player, SecretHitlerPlayer):
+            return Visibility.HIDDEN
+        if player.seat != self.current_president_seat:
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
+
+    def _is_acknowledge_peek_enabled(self, player: Player) -> str | None:
+        if self.phase != Phase.POWER_RESOLUTION or self.pending_power != Power.POLICY_PEEK:
+            return "action-not-available"
+        if not isinstance(player, SecretHitlerPlayer):
+            return "action-not-available"
+        if player.seat != self.current_president_seat:
+            return "action-not-available"
+        return None
+
+    # ------------------------------------------------------------------
+    # create_turn_action_set
+    # ------------------------------------------------------------------
+
+    def create_turn_action_set(self, player: SecretHitlerPlayer) -> ActionSet:
+        """Create the turn action set for a player."""
+        user = self.get_user(player)
+        locale = user.locale if user else "en"
+        action_set = ActionSet(name="turn")
+
+        # Acknowledge role
+        action_set.add(Action(
+            id="acknowledge_role",
+            label=Localization.get(locale, "sh-acknowledge-role"),
+            handler="_action_acknowledge_role",
+            is_enabled="_is_acknowledge_role_enabled",
+            is_hidden="_is_acknowledge_role_hidden",
+        ))
+
+        # Nominate 0..9
+        for i in range(10):
+            action_set.add(Action(
+                id=f"nominate_{i}",
+                label=Localization.get(locale, "sh-nominate", player="?"),
+                handler="_action_nominate",
+                is_enabled="_is_nominate_enabled",
+                is_hidden="_is_nominate_hidden",
+                get_label="_get_nominate_label",
+                show_in_actions_menu=False,
+            ))
+
+        # Call vote / cancel nomination
+        action_set.add(Action(
+            id="call_vote",
+            label=Localization.get(locale, "sh-call-vote"),
+            handler="_action_call_vote",
+            is_enabled="_is_call_vote_enabled",
+            is_hidden="_is_call_vote_hidden",
+        ))
+        action_set.add(Action(
+            id="cancel_nomination",
+            label=Localization.get(locale, "sh-cancel-nomination"),
+            handler="_action_cancel_nomination",
+            is_enabled="_is_cancel_nomination_enabled",
+            is_hidden="_is_cancel_nomination_hidden",
+        ))
+
+        # Vote ja / nein
+        action_set.add(Action(
+            id="vote_ja",
+            label=Localization.get(locale, "sh-vote-ja"),
+            handler="_action_vote_ja",
+            is_enabled="_is_vote_enabled",
+            is_hidden="_is_vote_hidden",
+        ))
+        action_set.add(Action(
+            id="vote_nein",
+            label=Localization.get(locale, "sh-vote-nein"),
+            handler="_action_vote_nein",
+            is_enabled="_is_vote_enabled",
+            is_hidden="_is_vote_hidden",
+        ))
+
+        # Discard policy 0..2 (president legislation)
+        for i in range(3):
+            action_set.add(Action(
+                id=f"discard_{i}",
+                label=Localization.get(locale, "sh-discard-policy", policy="?"),
+                handler="_action_discard_policy",
+                is_enabled="_is_discard_enabled",
+                is_hidden="_is_discard_hidden",
+                get_label="_get_discard_label",
+                show_in_actions_menu=False,
+            ))
+
+        # Enact policy 0..1 (chancellor legislation)
+        for i in range(2):
+            action_set.add(Action(
+                id=f"enact_{i}",
+                label=Localization.get(locale, "sh-enact-policy", policy="?"),
+                handler="_action_enact_policy",
+                is_enabled="_is_enact_enabled",
+                is_hidden="_is_enact_hidden",
+                get_label="_get_enact_label",
+                show_in_actions_menu=False,
+            ))
+
+        # Propose veto
+        action_set.add(Action(
+            id="propose_veto",
+            label=Localization.get(locale, "sh-propose-veto"),
+            handler="_action_propose_veto",
+            is_enabled="_is_propose_veto_enabled",
+            is_hidden="_is_propose_veto_hidden",
+        ))
+
+        # Veto accept / reject (president)
+        action_set.add(Action(
+            id="veto_accept",
+            label=Localization.get(locale, "sh-veto-accept"),
+            handler="_action_veto_accept",
+            is_enabled="_is_veto_response_enabled",
+            is_hidden="_is_veto_response_hidden",
+        ))
+        action_set.add(Action(
+            id="veto_reject",
+            label=Localization.get(locale, "sh-veto-reject"),
+            handler="_action_veto_reject",
+            is_enabled="_is_veto_response_enabled",
+            is_hidden="_is_veto_response_hidden",
+        ))
+
+        # Investigate 0..9
+        for i in range(10):
+            action_set.add(Action(
+                id=f"investigate_{i}",
+                label=Localization.get(locale, "sh-investigate-target", player="?"),
+                handler="_action_investigate",
+                is_enabled="_is_investigate_enabled",
+                is_hidden="_is_investigate_hidden",
+                get_label="_get_investigate_label",
+                show_in_actions_menu=False,
+            ))
+
+        # Choose president 0..9 (special election)
+        for i in range(10):
+            action_set.add(Action(
+                id=f"choose_president_{i}",
+                label=Localization.get(locale, "sh-choose-president-target", player="?"),
+                handler="_action_choose_president",
+                is_enabled="_is_choose_president_enabled",
+                is_hidden="_is_choose_president_hidden",
+                get_label="_get_choose_president_label",
+                show_in_actions_menu=False,
+            ))
+
+        # Execute 0..9
+        for i in range(10):
+            action_set.add(Action(
+                id=f"execute_{i}",
+                label=Localization.get(locale, "sh-execute-target", player="?"),
+                handler="_action_execute",
+                is_enabled="_is_execute_enabled",
+                is_hidden="_is_execute_hidden",
+                get_label="_get_execute_label",
+                show_in_actions_menu=False,
+            ))
+
+        # Acknowledge peek
+        action_set.add(Action(
+            id="acknowledge_peek",
+            label=Localization.get(locale, "sh-acknowledge-peek"),
+            handler="_action_acknowledge_peek",
+            is_enabled="_is_acknowledge_peek_enabled",
+            is_hidden="_is_acknowledge_peek_hidden",
+        ))
+
+        return action_set
+
+    # ------------------------------------------------------------------
+    # Standard action set — persistent info actions
+    # ------------------------------------------------------------------
+
+    def _is_sh_info_enabled(self, player: Player) -> str | None:
+        if not self._is_playing():
+            return "action-not-playing"
+        return None
+
+    def _is_sh_info_hidden(self, player: Player) -> Visibility:
+        return Visibility.VISIBLE
+
+    def _is_view_my_role_enabled(self, player: Player) -> str | None:
+        if not self._is_playing():
+            return "action-not-playing"
+        if player.is_spectator:
+            return "action-spectator"
+        return None
+
+    def _is_view_my_role_hidden(self, player: Player) -> Visibility:
+        if player.is_spectator:
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
+
+    def create_standard_action_set(self, player: Player) -> ActionSet:
+        """Create the standard action set, adding Secret Hitler persistent info actions."""
+        action_set = super().create_standard_action_set(player)
+
+        user = self.get_user(player)
+        locale = user.locale if user else "en"
+
+        action_set.add(Action(
+            id="view_tracks",
+            label=Localization.get(locale, "sh-view-tracks"),
+            handler="_action_view_tracks",
+            is_enabled="_is_sh_info_enabled",
+            is_hidden="_is_sh_info_hidden",
+            show_in_actions_menu=True,
+            include_spectators=True,
+        ))
+        action_set.add(Action(
+            id="view_government",
+            label=Localization.get(locale, "sh-view-government"),
+            handler="_action_view_government",
+            is_enabled="_is_sh_info_enabled",
+            is_hidden="_is_sh_info_hidden",
+            show_in_actions_menu=True,
+            include_spectators=True,
+        ))
+        action_set.add(Action(
+            id="view_players",
+            label=Localization.get(locale, "sh-view-players"),
+            handler="_action_view_players",
+            is_enabled="_is_sh_info_enabled",
+            is_hidden="_is_sh_info_hidden",
+            show_in_actions_menu=True,
+            include_spectators=True,
+        ))
+        action_set.add(Action(
+            id="view_my_role",
+            label=Localization.get(locale, "sh-view-my-role"),
+            handler="_action_view_my_role",
+            is_enabled="_is_view_my_role_enabled",
+            is_hidden="_is_view_my_role_hidden",
+            show_in_actions_menu=True,
+        ))
+        action_set.add(Action(
+            id="view_election_tracker",
+            label=Localization.get(locale, "sh-view-election-tracker"),
+            handler="_action_view_election_tracker",
+            is_enabled="_is_sh_info_enabled",
+            is_hidden="_is_sh_info_hidden",
+            show_in_actions_menu=True,
+            include_spectators=True,
+        ))
+
+        return action_set
+
+    # ------------------------------------------------------------------
+    # _action_check_scores / _action_check_scores_detailed overrides
+    # ------------------------------------------------------------------
+
+    def _action_check_scores(self, player: Player, action_id: str) -> None:
+        """Brief status: liberal and fascist track counts."""
+        user = self.get_user(player)
+        if user:
+            user.speak_l(
+                "sh-view-tracks-content",
+                "table",
+                liberal=self.liberal_policies,
+                fascist=self.fascist_policies,
+            )
+
+    def _is_check_scores_enabled(self, player: Player) -> str | None:
+        if not self._is_playing():
+            return "action-not-playing"
+        return None
+
+    def _is_check_scores_hidden(self, player: Player) -> Visibility:
+        return Visibility.HIDDEN
+
+    def _action_check_scores_detailed(self, player: Player, action_id: str) -> None:
+        """Detailed status: tracks + current government + election tracker."""
+        user = self.get_user(player)
+        if not user:
+            return
+        pres_name = "—"
+        if self.current_president_seat is not None:
+            try:
+                pres_name = self._player_at_seat(self.current_president_seat).name
+            except KeyError:
+                pass
+        chan_name = "—"
+        if self.current_chancellor_seat is not None:
+            try:
+                chan_name = self._player_at_seat(self.current_chancellor_seat).name
+            except KeyError:
+                pass
+        lastpres = "—"
+        if self.last_elected_president_seat is not None:
+            try:
+                lastpres = self._player_at_seat(self.last_elected_president_seat).name
+            except KeyError:
+                pass
+        lastchan = "—"
+        if self.last_elected_chancellor_seat is not None:
+            try:
+                lastchan = self._player_at_seat(self.last_elected_chancellor_seat).name
+            except KeyError:
+                pass
+        lines = [
+            Localization.get(
+                user.locale,
+                "sh-view-tracks-content",
+                liberal=self.liberal_policies,
+                fascist=self.fascist_policies,
+            ),
+            Localization.get(
+                user.locale,
+                "sh-view-government-content",
+                president=pres_name,
+                chancellor=chan_name,
+                lastpres=lastpres,
+                lastchan=lastchan,
+            ),
+            Localization.get(
+                user.locale,
+                "sh-tracker-advances",
+                count=self.election_tracker,
+            ),
+        ]
+        self.status_box(player, lines)
+
+    def _is_check_scores_detailed_enabled(self, player: Player) -> str | None:
+        if not self._is_playing():
+            return "action-not-playing"
+        return None
+
+    def _is_check_scores_detailed_hidden(self, player: Player) -> Visibility:
+        return Visibility.HIDDEN
+
+    # ------------------------------------------------------------------
+    # Persistent view handlers
+    # ------------------------------------------------------------------
+
+    def _action_view_tracks(self, player: Player, action_id: str) -> None:
+        user = self.get_user(player)
+        if user:
+            user.speak_l(
+                "sh-view-tracks-content",
+                "table",
+                liberal=self.liberal_policies,
+                fascist=self.fascist_policies,
+            )
+
+    def _action_view_government(self, player: Player, action_id: str) -> None:
+        user = self.get_user(player)
+        if not user:
+            return
+        pres_name = "—"
+        if self.current_president_seat is not None:
+            try:
+                pres_name = self._player_at_seat(self.current_president_seat).name
+            except KeyError:
+                pass
+        chan_name = "—"
+        if self.current_chancellor_seat is not None:
+            try:
+                chan_name = self._player_at_seat(self.current_chancellor_seat).name
+            except KeyError:
+                pass
+        lastpres = "—"
+        if self.last_elected_president_seat is not None:
+            try:
+                lastpres = self._player_at_seat(self.last_elected_president_seat).name
+            except KeyError:
+                pass
+        lastchan = "—"
+        if self.last_elected_chancellor_seat is not None:
+            try:
+                lastchan = self._player_at_seat(self.last_elected_chancellor_seat).name
+            except KeyError:
+                pass
+        user.speak_l(
+            "sh-view-government-content",
+            "table",
+            president=pres_name,
+            chancellor=chan_name,
+            lastpres=lastpres,
+            lastchan=lastchan,
+        )
+
+    def _action_view_players(self, player: Player, action_id: str) -> None:
+        user = self.get_user(player)
+        if not user:
+            return
+        active = [p for p in self.players if not p.is_spectator]
+        parts = []
+        for p in active:
+            if isinstance(p, SecretHitlerPlayer):
+                status = "alive" if p.is_alive else "dead"
+                parts.append(f"{p.name} ({status})")
+            else:
+                parts.append(p.name)
+        user.speak(", ".join(parts) if parts else "—", buffer="table")
+
+    def _action_view_my_role(self, player: Player, action_id: str) -> None:
+        user = self.get_user(player)
+        if not user:
+            return
+        if not isinstance(player, SecretHitlerPlayer):
+            return
+        key = {
+            Role.LIBERAL: "sh-you-are-liberal",
+            Role.FASCIST: "sh-you-are-fascist",
+            Role.HITLER: "sh-you-are-hitler",
+        }.get(player.role, "sh-you-are-liberal")
+        user.speak_l(key, "table")
+
+    def _action_view_election_tracker(self, player: Player, action_id: str) -> None:
+        user = self.get_user(player)
+        if user:
+            user.speak_l("sh-tracker-advances", "table", count=self.election_tracker)
