@@ -126,3 +126,70 @@ def test_locale_file_exists_and_has_game_name_key():
         "sh-fascist-teammates",
     ):
         assert key in text, f"Missing key {key} in locale file"
+
+
+from server.core.users.test_user import MockUser
+
+
+def _make_game(n: int) -> SecretHitler:
+    g = SecretHitler()
+    for i in range(n):
+        pid = f"player{i + 1}"
+        name = f"P{i + 1}"
+        g.players.append(g.create_player(pid, name))
+        g.attach_user(pid, MockUser(name))
+    return g
+
+
+@pytest.mark.parametrize("n", [5, 6, 7, 8, 9, 10])
+def test_on_start_deals_correct_roles(n):
+    import random
+    random.seed(42)
+    g = _make_game(n)
+    g.on_start()
+
+    roles = [p.role for p in g.players]
+    liberals = roles.count(Role.LIBERAL)
+    fascists = roles.count(Role.FASCIST)
+    hitlers = roles.count(Role.HITLER)
+
+    from server.games.secrethitler.cards import ROLE_COUNTS
+    expected = ROLE_COUNTS[n]
+    assert (liberals, fascists, hitlers) == expected
+
+
+def test_on_start_assigns_stable_seats():
+    g = _make_game(5)
+    g.on_start()
+    seats = sorted(p.seat for p in g.players)
+    assert seats == [0, 1, 2, 3, 4]
+
+
+def test_on_start_builds_shuffled_deck():
+    import random
+    random.seed(0)
+    g = _make_game(5)
+    g.on_start()
+    from server.games.secrethitler.cards import Policy
+    assert len(g.deck) == 17
+    assert g.deck.count(Policy.LIBERAL) == 6
+    assert g.deck.count(Policy.FASCIST) == 11
+    assert g.discard == []
+    assert g.liberal_policies == 0
+    assert g.fascist_policies == 0
+    assert g.election_tracker == 0
+
+
+def test_on_start_refuses_bad_player_count():
+    g = SecretHitler()
+    for i in range(4):
+        pid = f"p{i}"
+        g.players.append(g.create_player(pid, f"P{i}"))
+        g.attach_user(pid, MockUser(f"P{i}"))
+    errors = g.prestart_validate()
+    # prestart_validate returns list of locale keys OR list of (key, kwargs) tuples.
+    assert any(
+        (isinstance(e, str) and e == "sh-error-need-5-players")
+        or (isinstance(e, tuple) and e[0] == "sh-error-need-5-players")
+        for e in errors
+    )
