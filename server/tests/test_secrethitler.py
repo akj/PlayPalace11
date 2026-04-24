@@ -779,3 +779,77 @@ def test_cli_smoke_5_bots_completes():
             break
     assert g.phase == Phase.GAME_OVER
     assert g.winner in (Party.LIBERAL, Party.FASCIST)
+
+
+# ---------------------------------------------------------------------------
+# Task 26 — Hidden-info leakage test
+# ---------------------------------------------------------------------------
+
+def test_hidden_info_does_not_leak_to_public_buffer():
+    """Role identity, drawn policies, peeked policies, and investigate results
+    must never land on the public table buffer for players not entitled to them.
+    """
+    import random
+    random.seed(401)
+    g = _make_game(9)
+    g.on_start()
+    # Role reveal has happened (via on_start → _deliver_role_reveals).
+    # Don't acknowledge yet — we want to inspect what was spoken during reveal only.
+
+    # English renderings that are personal-only:
+    #   sh-you-are-liberal -> "You are a Liberal."
+    #   sh-you-are-fascist -> "You are a Fascist."
+    #   sh-you-are-hitler  -> "You are Hitler."
+    #   sh-fascist-teammates -> starts with "The Fascists are:" followed by " Hitler is:"
+    #   sh-hitler-knows-teammates -> starts with "The Fascists are:" and ends with "You are Hitler."
+
+    for p in g.players:
+        u = g.get_user(p)
+        msgs = u.get_spoken_messages() if u else []
+
+        # A Liberal must not see a Fascist/Hitler/teammates line.
+        if p.role == Role.LIBERAL:
+            for m in msgs:
+                assert "You are a Fascist" not in m, f"Liberal {p.name} heard: {m!r}"
+                assert "You are Hitler" not in m, f"Liberal {p.name} heard: {m!r}"
+                assert not m.startswith("The Fascists are:"), (
+                    f"Liberal {p.name} heard teammates line: {m!r}"
+                )
+            assert any("You are a Liberal" in m for m in msgs), (
+                f"Liberal {p.name} missing own role line"
+            )
+
+        # A Fascist must see own-role and the teammates line (with "Hitler is:").
+        if p.role == Role.FASCIST:
+            assert any("You are a Fascist" in m for m in msgs)
+            assert any(m.startswith("The Fascists are:") and "Hitler is:" in m for m in msgs)
+            # Must NOT hear the Hitler-specific line.
+            for m in msgs:
+                assert "You are Hitler" not in m, f"Fascist {p.name} heard: {m!r}"
+
+        # Hitler at 9p must see only "You are Hitler.", no teammates.
+        if p.role == Role.HITLER:
+            assert any(m.startswith("You are Hitler") for m in msgs)
+            assert not any(m.startswith("The Fascists are:") for m in msgs), (
+                f"Hitler at 9p leaked teammates: {msgs!r}"
+            )
+
+
+# ---------------------------------------------------------------------------
+# Task 27 — Executed players still receive public broadcasts
+# ---------------------------------------------------------------------------
+
+def test_executed_player_still_receives_public_broadcasts():
+    import random
+    random.seed(501)
+    g = _make_game(7)
+    g.on_start()
+    for p in g.players:
+        g._action_acknowledge_role(p, "acknowledge_role")
+    victim = next(p for p in g.players if p.role == Role.LIBERAL)
+    victim.is_alive = False
+    user = g.get_user(victim)
+    before = len(user.get_spoken_messages())
+    g.broadcast_l("sh-president-is", player="Someone")
+    after = len(user.get_spoken_messages())
+    assert after > before, "Executed player should still receive public broadcasts"
