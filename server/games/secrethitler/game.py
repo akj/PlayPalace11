@@ -457,6 +457,7 @@ class SecretHitler(Game):
             if not p.is_spectator
         )
         self.broadcast_l("sh-final-roles", lines=lines)
+        self.finish_game()
 
     def _chaos_enact(self) -> None:
         self._ensure_deck_has(1)
