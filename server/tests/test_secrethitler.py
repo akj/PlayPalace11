@@ -410,3 +410,38 @@ def test_failed_vote_advances_tracker_and_returns_to_nomination():
     assert g.current_president_seat != original_pres
     assert g.last_elected_president_seat is None
     assert g.last_elected_chancellor_seat is None
+
+
+# ---------------------------------------------------------------------------
+# Task 10 — Vote auto-call on timeout
+# ---------------------------------------------------------------------------
+
+def test_vote_auto_calls_on_timeout():
+    import random
+    random.seed(41)
+    g = _make_game(5)
+    g.on_start()
+    for p in g.players:
+        g._action_acknowledge_role(p, "acknowledge_role")
+    pres = g._player_at_seat(g.current_president_seat)
+    other = next(p for p in g.players if p is not pres and p.is_alive)
+    g._action_nominate(pres, f"nominate_{other.seat}")
+    for _ in range(g.options.president_vote_timeout_seconds * 20 + 2):
+        g.on_tick()
+    assert g.phase == Phase.VOTING
+
+
+def test_vote_timer_respects_pause():
+    import random
+    random.seed(42)
+    g = _make_game(5)
+    g.on_start()
+    for p in g.players:
+        g._action_acknowledge_role(p, "acknowledge_role")
+    pres = g._player_at_seat(g.current_president_seat)
+    other = next(p for p in g.players if p is not pres and p.is_alive)
+    g._action_nominate(pres, f"nominate_{other.seat}")
+    g.paused_for_reconnect = True
+    for _ in range(g.options.president_vote_timeout_seconds * 20 + 10):
+        g.on_tick()
+    assert g.phase == Phase.NOMINATION
