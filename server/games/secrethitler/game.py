@@ -2,8 +2,9 @@
 
 from dataclasses import dataclass, field
 
-from ..base import Game, Player
+from ..base import Game
 from ..registry import register_game
+from .player import SecretHitlerPlayer, SecretHitlerOptions
 
 
 @dataclass
@@ -11,7 +12,8 @@ from ..registry import register_game
 class SecretHitler(Game):
     """Secret Hitler — social-deduction legislative game, 5–10 players."""
 
-    players: list[Player] = field(default_factory=list)
+    players: list[SecretHitlerPlayer] = field(default_factory=list)
+    options: SecretHitlerOptions = field(default_factory=SecretHitlerOptions)
 
     @classmethod
     def get_name(cls) -> str:
@@ -33,8 +35,8 @@ class SecretHitler(Game):
     def get_max_players(cls) -> int:
         return 10
 
-    def create_player(self, player_id: str, name: str, is_bot: bool = False) -> Player:
-        return Player(id=player_id, name=name, is_bot=is_bot)
+    def create_player(self, player_id: str, name: str, is_bot: bool = False) -> SecretHitlerPlayer:
+        return SecretHitlerPlayer(id=player_id, name=name, is_bot=is_bot)
 
     def on_start(self) -> None:
         self.status = "playing"
