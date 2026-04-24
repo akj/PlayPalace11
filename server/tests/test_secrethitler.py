@@ -552,3 +552,170 @@ def test_six_fascist_policies_win():
     assert g.fascist_policies == 6
     assert g.phase == Phase.GAME_OVER
     assert g.winner == Party.FASCIST
+
+
+# ---------------------------------------------------------------------------
+# Task 18 — Deck reshuffle discipline
+# ---------------------------------------------------------------------------
+
+def test_reshuffle_triggers_when_deck_below_3():
+    import random
+    random.seed(151)
+    g = _make_game(5)
+    g.on_start()
+    g.discard = list(g.deck[:15])
+    g.deck = list(g.deck[15:])
+    assert len(g.deck) == 2
+    assert len(g.discard) == 15
+    g._ensure_deck_has(3)
+    assert len(g.deck) == 17
+    assert g.discard == []
+
+
+# ---------------------------------------------------------------------------
+# Task 19 — Chaos skips powers and resets term limits
+# ---------------------------------------------------------------------------
+
+def test_chaos_skips_powers_even_on_power_slot():
+    """Even if chaos enactment lands fascist_policies on a power slot, no power runs."""
+    import random
+    random.seed(161)
+    g = _make_game(9)  # 9p triggers INVESTIGATE at slot 1
+    g.on_start()
+    for p in g.players:
+        g._action_acknowledge_role(p, "acknowledge_role")
+    # Force top-of-deck to be FASCIST so chaos enacts fascist.
+    g.deck.insert(0, Policy.FASCIST)
+    # Drive 3 failed votes.
+    for _ in range(3):
+        pres = g._player_at_seat(g.current_president_seat)
+        nominee = next(p for p in g.players if p is not pres and p.is_alive)
+        g._action_nominate(pres, f"nominate_{nominee.seat}")
+        g._action_call_vote(pres, "call_vote")
+        for p in g.players:
+            if p.is_alive:
+                g._action_vote_nein(p, "vote_nein")
+    assert g.fascist_policies == 1
+    assert g.phase == Phase.NOMINATION
+    assert g.pending_power == Power.NONE
+
+
+def test_chaos_resets_term_limits():
+    import random
+    random.seed(162)
+    g = _make_game(7)
+    g.on_start()
+    for p in g.players:
+        g._action_acknowledge_role(p, "acknowledge_role")
+    g.last_elected_president_seat = 2
+    g.last_elected_chancellor_seat = 3
+    g.election_tracker = 2
+    pres = g._player_at_seat(g.current_president_seat)
+    nominee = next(
+        seat_player for seat_player in g.players
+        if seat_player is not pres
+        and seat_player.is_alive
+        and seat_player.seat in g._eligible_chancellor_seats()
+    )
+    g._action_nominate(pres, f"nominate_{nominee.seat}")
+    g._action_call_vote(pres, "call_vote")
+    for p in g.players:
+        if p.is_alive:
+            g._action_vote_nein(p, "vote_nein")
+    assert g.election_tracker == 0
+    assert g.last_elected_president_seat is None
+    assert g.last_elected_chancellor_seat is None
+
+
+# ---------------------------------------------------------------------------
+# Task 20 — Hitler-elected-after-3F win fires before legislation
+# ---------------------------------------------------------------------------
+
+def test_hitler_chancellor_after_3_fascist_wins_immediately():
+    import random
+    random.seed(171)
+    g = _make_game(7)
+    g.on_start()
+    for p in g.players:
+        g._action_acknowledge_role(p, "acknowledge_role")
+    g.fascist_policies = 3
+    pres = g._player_at_seat(g.current_president_seat)
+    hitler = next(p for p in g.players if p.role == Role.HITLER)
+    if hitler is pres:
+        other = next(p for p in g.players if p is not pres)
+        other.role, pres.role = pres.role, other.role
+        hitler = other
+    g._action_nominate(pres, f"nominate_{hitler.seat}")
+    g._action_call_vote(pres, "call_vote")
+    for p in g.players:
+        if p.is_alive:
+            g._action_vote_ja(p, "vote_ja")
+    assert g.phase == Phase.GAME_OVER
+    assert g.winner == Party.FASCIST
+    assert g.win_reason == "sh-fascists-win-hitler-elected"
+    assert g.president_drawn_policies is None
+
+
+def test_hitler_chancellor_before_3_fascist_does_not_win():
+    import random
+    random.seed(172)
+    g = _make_game(7)
+    g.on_start()
+    for p in g.players:
+        g._action_acknowledge_role(p, "acknowledge_role")
+    g.fascist_policies = 2
+    pres = g._player_at_seat(g.current_president_seat)
+    hitler = next(p for p in g.players if p.role == Role.HITLER)
+    if hitler is pres:
+        other = next(p for p in g.players if p is not pres)
+        other.role, pres.role = pres.role, other.role
+        hitler = other
+    g._action_nominate(pres, f"nominate_{hitler.seat}")
+    g._action_call_vote(pres, "call_vote")
+    for p in g.players:
+        if p.is_alive:
+            g._action_vote_ja(p, "vote_ja")
+    assert g.phase == Phase.PRES_LEGISLATION
+
+
+# ---------------------------------------------------------------------------
+# Task 21 — Menu focus guard on phase transitions
+# ---------------------------------------------------------------------------
+
+def test_phase_transition_rebuilds_on_turn_menu_at_position_1(monkeypatch):
+    """NOMINATION, PRES_LEGISLATION, CHAN_LEGISLATION transitions must reset the
+    on-turn player's menu focus to position 1."""
+    import random
+    random.seed(401)
+    g = _make_game(5)
+    calls: list[tuple[str, int | None]] = []
+    real_rebuild = g.rebuild_player_menu
+
+    def tracker(player, *, position=None):
+        calls.append((player.id, position))
+        real_rebuild(player, position=position)
+
+    monkeypatch.setattr(g, "rebuild_player_menu", tracker)
+
+    g.on_start()
+    for p in g.players:
+        g._action_acknowledge_role(p, "acknowledge_role")
+    # NOMINATION: president's menu rebuilt at position=1
+    pres = g._player_at_seat(g.current_president_seat)
+    assert (pres.id, 1) in calls
+    calls.clear()
+
+    nominee = next(p for p in g.players if p is not pres and p.is_alive)
+    g._action_nominate(pres, f"nominate_{nominee.seat}")
+    g._action_call_vote(pres, "call_vote")
+    for p in g.players:
+        if p.is_alive:
+            g._action_vote_ja(p, "vote_ja")
+    # PRES_LEGISLATION transition: president rebuilt at position=1
+    assert (pres.id, 1) in calls
+    calls.clear()
+
+    # Complete the president discard → CHAN_LEGISLATION
+    g._action_discard_policy(pres, "discard_0")
+    chancellor = g._player_at_seat(g.current_chancellor_seat)
+    assert (chancellor.id, 1) in calls
