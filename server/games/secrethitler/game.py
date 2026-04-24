@@ -813,7 +813,7 @@ class SecretHitler(Game):
         )
         self.define_keybind(
             "n",
-            Localization.get(locale, "sh-nominate"),
+            Localization.get(locale, "sh-nominate", player=""),
             [f"nominate_{i}" for i in range(10)],
             state=KeybindState.ACTIVE,
             requires_focus=True,
