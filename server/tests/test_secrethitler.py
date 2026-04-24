@@ -479,3 +479,76 @@ def test_president_discard_moves_to_chan_legislation():
     assert g.chancellor_received_policies is not None
     assert len(g.chancellor_received_policies) == 2
     assert len(g.discard) == 1
+
+
+# ---------------------------------------------------------------------------
+# Task 12 — Chancellor enacts: track + win + power dispatch
+# ---------------------------------------------------------------------------
+
+def test_chancellor_enact_liberal_increments_track_and_returns_to_nomination():
+    import random
+    random.seed(61)
+    g = _make_game(5)
+    g.on_start()
+    _run_to_pres_legislation(g)
+    pres = g._player_at_seat(g.current_president_seat)
+    g.president_drawn_policies = [Policy.LIBERAL, Policy.LIBERAL, Policy.FASCIST]
+    g._action_discard_policy(pres, "discard_2")  # discard fascist
+    chancellor = g._player_at_seat(g.current_chancellor_seat)
+    g._action_enact_policy(chancellor, "enact_0")
+    assert g.liberal_policies == 1
+    assert g.fascist_policies == 0
+    assert g.phase == Phase.NOMINATION
+    assert g.chancellor_received_policies is None
+
+
+def test_chancellor_enact_fascist_triggers_power_slot_at_9p_slot1():
+    """9-10p track: slot 1 triggers INVESTIGATE immediately."""
+    import random
+    random.seed(62)
+    g = _make_game(9)
+    g.on_start()
+    _run_to_pres_legislation(g)
+    pres = g._player_at_seat(g.current_president_seat)
+    g.president_drawn_policies = [Policy.FASCIST, Policy.FASCIST, Policy.LIBERAL]
+    g._action_discard_policy(pres, "discard_2")
+    chancellor = g._player_at_seat(g.current_chancellor_seat)
+    g._action_enact_policy(chancellor, "enact_0")
+    assert g.fascist_policies == 1
+    assert g.phase == Phase.POWER_RESOLUTION
+    assert g.pending_power == Power.INVESTIGATE
+
+
+def test_five_liberal_policies_win():
+    import random
+    random.seed(63)
+    g = _make_game(5)
+    g.on_start()
+    _run_to_pres_legislation(g)
+    g.liberal_policies = 4
+    pres = g._player_at_seat(g.current_president_seat)
+    g.president_drawn_policies = [Policy.LIBERAL, Policy.LIBERAL, Policy.FASCIST]
+    g._action_discard_policy(pres, "discard_2")
+    chancellor = g._player_at_seat(g.current_chancellor_seat)
+    g._action_enact_policy(chancellor, "enact_0")
+    assert g.liberal_policies == 5
+    assert g.phase == Phase.GAME_OVER
+    assert g.winner == Party.LIBERAL
+    assert g.win_reason == "sh-liberals-win-policies"
+
+
+def test_six_fascist_policies_win():
+    import random
+    random.seed(64)
+    g = _make_game(5)
+    g.on_start()
+    _run_to_pres_legislation(g)
+    g.fascist_policies = 5
+    pres = g._player_at_seat(g.current_president_seat)
+    g.president_drawn_policies = [Policy.FASCIST, Policy.FASCIST, Policy.LIBERAL]
+    g._action_discard_policy(pres, "discard_2")
+    chancellor = g._player_at_seat(g.current_chancellor_seat)
+    g._action_enact_policy(chancellor, "enact_0")
+    assert g.fascist_policies == 6
+    assert g.phase == Phase.GAME_OVER
+    assert g.winner == Party.FASCIST

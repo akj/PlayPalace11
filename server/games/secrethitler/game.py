@@ -501,3 +501,65 @@ class SecretHitler(Game):
         self._send_policies_private(
             chancellor, self.chancellor_received_policies, "sh-your-policies-chancellor"
         )
+
+    # ------------------------------------------------------------------
+    # Task 12 — Chancellor enacts: track + win + power dispatch
+    # ------------------------------------------------------------------
+
+    def _action_enact_policy(self, player, action_id: str) -> None:
+        if self.phase != Phase.CHAN_LEGISLATION:
+            return
+        if self.veto_proposed:
+            return  # president must resolve veto first
+        if not isinstance(player, SecretHitlerPlayer):
+            return
+        if player.seat != self.current_chancellor_seat:
+            return
+        try:
+            idx = int(action_id.rsplit("_", 1)[-1])
+        except ValueError:
+            return
+        if idx < 0 or idx >= len(self.chancellor_received_policies or []):
+            return
+        received = list(self.chancellor_received_policies or [])
+        enacted = received.pop(idx)
+        for leftover in received:
+            self.discard.append(leftover)
+        self.chancellor_received_policies = None
+        if enacted == Policy.LIBERAL:
+            self.liberal_policies += 1
+        else:
+            self.fascist_policies += 1
+        self.broadcast_l(
+            "sh-chancellor-enacts",
+            policy=enacted.value,
+            liberal=self.liberal_policies,
+            fascist=self.fascist_policies,
+        )
+        self._ensure_deck_has(3)
+        if self._check_track_win():
+            return
+        if enacted == Policy.FASCIST:
+            bucket = track_bucket_for(self._active_player_count())
+            slot = self.fascist_policies  # 1..5
+            if 1 <= slot <= 5:
+                power = FASCIST_TRACK_POWERS[bucket][slot - 1]
+                if power != Power.NONE:
+                    self.phase = Phase.POWER_RESOLUTION
+                    self.pending_power = power
+                    self.power_target_seat = None
+                    self._announce_power_start(power)
+                    return
+        self._begin_nomination()
+
+    def _active_player_count(self) -> int:
+        return sum(1 for p in self.players if not p.is_spectator)
+
+    def _announce_power_start(self, power: Power) -> None:
+        key = {
+            Power.INVESTIGATE: "sh-power-investigate",
+            Power.SPECIAL_ELECTION: "sh-power-special-election",
+            Power.POLICY_PEEK: "sh-power-policy-peek",
+            Power.EXECUTION: "sh-power-execution",
+        }[power]
+        self.broadcast_l(key)
