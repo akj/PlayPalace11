@@ -74,6 +74,7 @@ class SecretHitler(Game):
 
     # Flow control
     paused_for_reconnect: bool = False
+    _first_nomination: bool = True
     tick: int = 0
     game_over: bool = False
     winner: Party | None = None
@@ -161,6 +162,7 @@ class SecretHitler(Game):
         self.policy_peek_cards = None
 
         self.paused_for_reconnect = False
+        self._first_nomination = True
         self.game_over = False
         self.winner = None
         self.win_reason = None
@@ -200,3 +202,270 @@ class SecretHitler(Game):
                         "table",
                         names=teammate_names,
                     )
+
+    # ------------------------------------------------------------------
+    # Task 7 — Role acknowledgement → NOMINATION
+    # ------------------------------------------------------------------
+
+    def _action_acknowledge_role(self, player, action_id: str) -> None:
+        """Record that `player` has acknowledged their role."""
+        if self.phase != Phase.ROLE_REVEAL:
+            return
+        if not isinstance(player, SecretHitlerPlayer):
+            return
+        self.role_ack_seats.add(player.seat)
+        active = [p for p in self.players if not p.is_spectator]
+        if all(p.seat in self.role_ack_seats for p in active):
+            self._begin_nomination()
+
+    def _begin_nomination(self) -> None:
+        self.phase = Phase.NOMINATION
+        self.current_president_seat = self._next_president_seat()
+        self.current_chancellor_seat = None
+        self.nominee_chancellor_seat = None
+        self.votes = {}
+        self.vote_call_deadline_tick = None
+        pres = self._player_at_seat(self.current_president_seat)
+        self.broadcast_l("sh-president-is", player=pres.name)
+
+    def _next_president_seat(self) -> int:
+        """Compute the next president seat, consuming special-election override if set."""
+        if self.special_election_override is not None:
+            seat = self.special_election_override
+            self.special_election_override = None
+            # Intentionally do NOT update president_seat so rotation resumes from the
+            # original seat after the special election. (See Task 16.)
+            return seat
+        active_alive = sorted(
+            p.seat for p in self.players if not p.is_spectator and p.is_alive
+        )
+        if not active_alive:
+            return 0
+        if self._first_nomination:
+            self._first_nomination = False
+            self.president_seat = active_alive[0]
+            return self.president_seat
+        for seat in active_alive:
+            if seat > self.president_seat:
+                self.president_seat = seat
+                return seat
+        self.president_seat = active_alive[0]
+        return self.president_seat
+
+    def _player_at_seat(self, seat: int) -> SecretHitlerPlayer:
+        for p in self.players:
+            if isinstance(p, SecretHitlerPlayer) and p.seat == seat and not p.is_spectator:
+                return p
+        raise KeyError(f"No player at seat {seat}")
+
+    # ------------------------------------------------------------------
+    # Task 8 — Nomination and chancellor eligibility
+    # ------------------------------------------------------------------
+
+    def _alive_count(self) -> int:
+        return sum(1 for p in self.players if not p.is_spectator and p.is_alive)
+
+    def _eligible_chancellor_seats(self) -> list[int]:
+        alive = [
+            p.seat
+            for p in self.players
+            if not p.is_spectator
+            and p.is_alive
+            and p.seat != self.current_president_seat
+        ]
+        if self.last_elected_chancellor_seat in alive:
+            alive.remove(self.last_elected_chancellor_seat)
+        if self._alive_count() > 5 and self.last_elected_president_seat in alive:
+            alive.remove(self.last_elected_president_seat)
+        return sorted(alive)
+
+    def _action_nominate(self, player, action_id: str) -> None:
+        if self.phase != Phase.NOMINATION:
+            return
+        if not isinstance(player, SecretHitlerPlayer):
+            return
+        if player.seat != self.current_president_seat:
+            return
+        try:
+            target_seat = int(action_id.rsplit("_", 1)[-1])
+        except ValueError:
+            return
+        if target_seat not in self._eligible_chancellor_seats():
+            return
+        self.nominee_chancellor_seat = target_seat
+        chancellor = self._player_at_seat(target_seat)
+        self.broadcast_l(
+            "sh-president-nominates",
+            president=player.name,
+            chancellor=chancellor.name,
+        )
+        self.broadcast_l("sh-president-can-call-vote")
+        self.vote_call_deadline_tick = self.tick + (
+            self.options.president_vote_timeout_seconds * 20
+        )
+
+    def _action_cancel_nomination(self, player, action_id: str) -> None:
+        if self.phase != Phase.NOMINATION:
+            return
+        if not isinstance(player, SecretHitlerPlayer):
+            return
+        if player.seat != self.current_president_seat:
+            return
+        self.nominee_chancellor_seat = None
+
+    # ------------------------------------------------------------------
+    # Task 9 — Call vote, tally, tracker advance, chaos
+    # ------------------------------------------------------------------
+
+    def _action_call_vote(self, player, action_id: str) -> None:
+        if self.phase != Phase.NOMINATION:
+            return
+        if not isinstance(player, SecretHitlerPlayer):
+            return
+        if player.seat != self.current_president_seat:
+            return
+        if self.nominee_chancellor_seat is None:
+            return
+        self.vote_call_deadline_tick = None
+        self.phase = Phase.VOTING
+        self.votes = {}
+        self.broadcast_l("sh-voting-open")
+
+    def _action_vote_ja(self, player, action_id: str) -> None:
+        self._record_vote(player, True)
+
+    def _action_vote_nein(self, player, action_id: str) -> None:
+        self._record_vote(player, False)
+
+    def _record_vote(self, player, ja: bool) -> None:
+        if self.phase != Phase.VOTING:
+            return
+        if not isinstance(player, SecretHitlerPlayer):
+            return
+        if not player.is_alive:
+            return
+        if player.seat in self.votes:
+            return
+        self.votes[player.seat] = ja
+        user = self.get_user(player)
+        if user:
+            user.speak_l("sh-you-voted-ja" if ja else "sh-you-voted-nein", "table")
+        if self._all_alive_voted():
+            self._tally_vote()
+
+    def _all_alive_voted(self) -> bool:
+        alive_seats = {p.seat for p in self.players if not p.is_spectator and p.is_alive}
+        return alive_seats <= set(self.votes.keys())
+
+    def _tally_vote(self) -> None:
+        for seat, ja in sorted(self.votes.items()):
+            voter = self._player_at_seat(seat)
+            self.broadcast_l(
+                "sh-vote-roll-call",
+                player=voter.name,
+                vote="ja" if ja else "nein",
+            )
+        passed = sum(1 for v in self.votes.values() if v) > len(self.votes) / 2
+        self.broadcast_l("sh-vote-result", passed="true" if passed else "false")
+        if passed:
+            self._on_vote_passed()
+        else:
+            self._on_vote_failed()
+
+    def _on_vote_passed(self) -> None:
+        chancellor = self._player_at_seat(self.nominee_chancellor_seat)
+        if self.fascist_policies >= 3 and chancellor.role == Role.HITLER:
+            self._end_game(Party.FASCIST, "sh-fascists-win-hitler-elected")
+            return
+        self.last_elected_president_seat = self.current_president_seat
+        self.last_elected_chancellor_seat = self.nominee_chancellor_seat
+        self.current_chancellor_seat = self.nominee_chancellor_seat
+        self.election_tracker = 0
+        self._ensure_deck_has(3)
+        self.president_drawn_policies = [self.deck.pop(0) for _ in range(3)]
+        self.phase = Phase.PRES_LEGISLATION
+        self.broadcast_l("sh-president-draws")
+        pres = self._player_at_seat(self.current_president_seat)
+        self._send_policies_private(pres, self.president_drawn_policies, "sh-your-policies")
+
+    def _on_vote_failed(self) -> None:
+        self.election_tracker += 1
+        self.broadcast_l("sh-tracker-advances", count=self.election_tracker)
+        if self.election_tracker >= 3:
+            self._chaos_enact()
+            return
+        self._begin_nomination()
+
+    def _ensure_deck_has(self, n: int) -> None:
+        if len(self.deck) < n:
+            self.deck = self.deck + self.discard
+            random.shuffle(self.deck)
+            self.discard = []
+
+    def _send_policies_private(self, player, policies, key: str) -> None:
+        user = self.get_user(player)
+        if not user:
+            return
+        args = {f"p{i + 1}": p.value for i, p in enumerate(policies)}
+        user.speak_l(key, "table", **args)
+
+    def _end_game(self, winner, reason_key: str) -> None:
+        self.phase = Phase.GAME_OVER
+        self.game_over = True
+        self.winner = winner
+        self.win_reason = reason_key
+        self.broadcast_l(reason_key)
+        lines = ", ".join(
+            f"{p.name} ({p.role.value})"
+            for p in self.players
+            if not p.is_spectator
+        )
+        self.broadcast_l("sh-final-roles", lines=lines)
+
+    def _chaos_enact(self) -> None:
+        self._ensure_deck_has(1)
+        top = self.deck.pop(0)
+        self.broadcast_l("sh-chaos-top-policy")
+        if top == Policy.LIBERAL:
+            self.liberal_policies += 1
+        else:
+            self.fascist_policies += 1
+        self.broadcast_l(
+            "sh-chancellor-enacts",
+            policy=top.value,
+            liberal=self.liberal_policies,
+            fascist=self.fascist_policies,
+        )
+        self.election_tracker = 0
+        self.last_elected_president_seat = None
+        self.last_elected_chancellor_seat = None
+        if self._check_track_win():
+            return
+        self._begin_nomination()
+
+    def _check_track_win(self) -> bool:
+        if self.liberal_policies >= 5:
+            self._end_game(Party.LIBERAL, "sh-liberals-win-policies")
+            return True
+        if self.fascist_policies >= 6:
+            self._end_game(Party.FASCIST, "sh-fascists-win-policies")
+            return True
+        return False
+
+    # ------------------------------------------------------------------
+    # Task 10 — Vote auto-call on timeout
+    # ------------------------------------------------------------------
+
+    def on_tick(self) -> None:
+        super().on_tick()
+        if self.paused_for_reconnect:
+            return
+        self.tick += 1
+        if (
+            self.phase == Phase.NOMINATION
+            and self.nominee_chancellor_seat is not None
+            and self.vote_call_deadline_tick is not None
+            and self.tick >= self.vote_call_deadline_tick
+        ):
+            pres = self._player_at_seat(self.current_president_seat)
+            self._action_call_vote(pres, "call_vote")

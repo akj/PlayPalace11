@@ -86,7 +86,7 @@ from server.games.secrethitler.player import (
     SecretHitlerPlayer,
     SecretHitlerOptions,
 )
-from server.games.secrethitler.game import SecretHitler
+from server.games.secrethitler.game import SecretHitler, Phase
 
 
 def test_player_defaults():
@@ -254,3 +254,22 @@ def test_liberals_see_only_self_role():
         assert not any(m.startswith("The Fascists are:") for m in msgs)
         assert not any("You are Hitler" in m for m in msgs)
         assert not any("You are a Fascist" in m for m in msgs)
+
+
+# ---------------------------------------------------------------------------
+# Task 7 — Role-ack transitions to NOMINATION
+# ---------------------------------------------------------------------------
+
+def test_role_ack_transitions_to_nomination():
+    import random
+    random.seed(3)
+    g = _make_game(5)
+    g.on_start()
+    assert g.phase == Phase.ROLE_REVEAL
+    for p in g.players:
+        g._action_acknowledge_role(p, "acknowledge_role")
+    assert g.phase == Phase.NOMINATION
+    # Seat 0 is the first president.
+    assert g.current_president_seat == 0
+    assert g.current_chancellor_seat is None
+    assert g.nominee_chancellor_seat is None
