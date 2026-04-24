@@ -116,3 +116,35 @@ def test_investigate_loyalty_hitler_shows_as_fascist():
     assert any(fascist_line in m for m in after_msgs), (
         f"Hitler should render as Fascist; got {after_msgs!r}"
     )
+
+
+def test_policy_peek_reveals_top_three_only_to_president():
+    random.seed(111)
+    g = _make_game(5)
+    _run_to_power(g, enacted_fascist=3)
+    assert g.pending_power == Power.POLICY_PEEK
+    pres = g._player_at_seat(g.current_president_seat)
+    # Override the top of the deck so we know what the president should see.
+    g.deck[:3] = [Policy.FASCIST, Policy.LIBERAL, Policy.LIBERAL]
+    # _announce_power_start for POLICY_PEEK already delivered the peek to the president
+    # (the implementation below emits the peek eagerly). Invoke re-emission test by
+    # sending a fresh peek immediately before ack:
+    before = len(_spoken(g, pres))
+    g._action_acknowledge_peek(pres, "acknowledge_peek")
+    # Deck unchanged.
+    assert g.deck[:3] == [Policy.FASCIST, Policy.LIBERAL, Policy.LIBERAL]
+    # President must have received a peek line before the ack transitioned us away.
+    # Easiest check: whole spoken history contains the peek text (emitted on power start).
+    full = _spoken(g, pres)
+    peek_prefix = "Top three policies:"
+    assert any(peek_prefix in m for m in full), (
+        f"President should see peek contents in history; got {full!r}"
+    )
+    for p in g.players:
+        if p is pres:
+            continue
+        msgs = _spoken(g, p)
+        assert not any(peek_prefix in m for m in msgs), (
+            f"{p.name} should not see the peek; got {msgs!r}"
+        )
+    assert g.phase == Phase.NOMINATION

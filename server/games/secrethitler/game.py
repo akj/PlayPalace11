@@ -567,6 +567,9 @@ class SecretHitler(Game):
             Power.EXECUTION: "sh-power-execution",
         }[power]
         self.broadcast_l(key)
+        if power == Power.POLICY_PEEK:
+            pres = self._player_at_seat(self.current_president_seat)
+            powers.resolve_policy_peek(self, pres)
 
     # ------------------------------------------------------------------
     # Task 13 — Investigate loyalty
@@ -597,6 +600,22 @@ class SecretHitler(Game):
         if target is None:
             return
         powers.resolve_investigate(self, player, target)
+        self.pending_power = Power.NONE
+        self.power_target_seat = None
+        self._begin_nomination()
+
+    # ------------------------------------------------------------------
+    # Task 14 — Policy peek acknowledge
+    # ------------------------------------------------------------------
+
+    def _action_acknowledge_peek(self, player, action_id: str) -> None:
+        if self.phase != Phase.POWER_RESOLUTION or self.pending_power != Power.POLICY_PEEK:
+            return
+        if not isinstance(player, SecretHitlerPlayer):
+            return
+        if player.seat != self.current_president_seat:
+            return
+        self.policy_peek_cards = None
         self.pending_power = Power.NONE
         self.power_target_seat = None
         self._begin_nomination()

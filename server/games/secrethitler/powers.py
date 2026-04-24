@@ -32,3 +32,19 @@ def resolve_investigate(
             player=target.name,
             party=party.value,
         )
+
+
+def resolve_policy_peek(game: "SecretHitler", president: "SecretHitlerPlayer") -> None:
+    """Deliver the top-three deck contents privately to the president."""
+    game._ensure_deck_has(3)
+    top3 = list(game.deck[:3])
+    game.policy_peek_cards = top3
+    user = game.get_user(president)
+    if user:
+        user.speak_l(
+            "sh-you-peek",
+            "table",
+            p1=top3[0].value,
+            p2=top3[1].value,
+            p3=top3[2].value,
+        )
