@@ -273,3 +273,81 @@ def test_role_ack_transitions_to_nomination():
     assert g.current_president_seat == 0
     assert g.current_chancellor_seat is None
     assert g.nominee_chancellor_seat is None
+
+
+# ---------------------------------------------------------------------------
+# Task 8 — Nomination and chancellor eligibility
+# ---------------------------------------------------------------------------
+
+def test_chancellor_eligibility_initial_game():
+    """At game start, no term-limits apply; every alive non-president is eligible."""
+    import random
+    random.seed(19)
+    g = _make_game(5)
+    g.on_start()
+    for p in g.players:
+        g._action_acknowledge_role(p, "acknowledge_role")
+    pres = g._player_at_seat(g.current_president_seat)
+    eligible = g._eligible_chancellor_seats()
+    assert pres.seat not in eligible
+    assert sorted(eligible) == sorted(p.seat for p in g.players if p is not pres)
+
+
+def test_nominate_sets_nominee_and_stays_in_nomination():
+    import random
+    random.seed(21)
+    g = _make_game(5)
+    g.on_start()
+    for p in g.players:
+        g._action_acknowledge_role(p, "acknowledge_role")
+    pres = g._player_at_seat(g.current_president_seat)
+    other = next(p for p in g.players if p is not pres and p.is_alive)
+    g._action_nominate(pres, f"nominate_{other.seat}")
+    assert g.nominee_chancellor_seat == other.seat
+    assert g.phase == Phase.NOMINATION
+
+
+def test_cancel_nomination_clears_nominee():
+    import random
+    random.seed(22)
+    g = _make_game(5)
+    g.on_start()
+    for p in g.players:
+        g._action_acknowledge_role(p, "acknowledge_role")
+    pres = g._player_at_seat(g.current_president_seat)
+    other = next(p for p in g.players if p is not pres and p.is_alive)
+    g._action_nominate(pres, f"nominate_{other.seat}")
+    g._action_cancel_nomination(pres, "cancel_nomination")
+    assert g.nominee_chancellor_seat is None
+    assert g.phase == Phase.NOMINATION
+
+
+def test_term_limits_exclude_last_elected_pair_with_6_plus_alive():
+    import random
+    random.seed(23)
+    g = _make_game(7)
+    g.on_start()
+    for p in g.players:
+        g._action_acknowledge_role(p, "acknowledge_role")
+    g.last_elected_president_seat = 2
+    g.last_elected_chancellor_seat = 3
+    g.current_president_seat = 0
+    eligible = g._eligible_chancellor_seats()
+    assert 2 not in eligible
+    assert 3 not in eligible
+    assert 0 not in eligible  # self
+
+
+def test_term_limits_only_chancellor_when_5_or_fewer_alive():
+    import random
+    random.seed(24)
+    g = _make_game(5)
+    g.on_start()
+    for p in g.players:
+        g._action_acknowledge_role(p, "acknowledge_role")
+    g.last_elected_president_seat = 2
+    g.last_elected_chancellor_seat = 3
+    g.current_president_seat = 0
+    eligible = g._eligible_chancellor_seats()
+    assert 2 in eligible
+    assert 3 not in eligible
