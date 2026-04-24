@@ -853,3 +853,27 @@ def test_executed_player_still_receives_public_broadcasts():
     g.broadcast_l("sh-president-is", player="Someone")
     after = len(user.get_spoken_messages())
     assert after > before, "Executed player should still receive public broadcasts"
+
+
+# ---------------------------------------------------------------------------
+# Task 28 — Full bot play tests (5p, 7p, 10p)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("n", [5, 7, 10])
+def test_full_bot_game_completes(n):
+    import random
+    from server.games.secrethitler.cards import Party
+    random.seed(600 + n)
+    g = SecretHitler()
+    for i in range(n):
+        pid = f"b{i}"
+        name = f"B{i}"
+        g.players.append(g.create_player(pid, name, is_bot=True))
+        g.attach_user(pid, MockUser(name))
+    g.on_start()
+    for _ in range(100_000):
+        g.on_tick()
+        if g.phase == Phase.GAME_OVER:
+            break
+    assert g.phase == Phase.GAME_OVER
+    assert g.winner in (Party.LIBERAL, Party.FASCIST)
