@@ -351,3 +351,62 @@ def test_term_limits_only_chancellor_when_5_or_fewer_alive():
     eligible = g._eligible_chancellor_seats()
     assert 2 in eligible
     assert 3 not in eligible
+
+
+# ---------------------------------------------------------------------------
+# Task 9 — Call vote, tally, tracker advance, chaos
+# ---------------------------------------------------------------------------
+
+def _nominate_and_call_vote(g: SecretHitler, nominee_seat: int) -> None:
+    pres = g._player_at_seat(g.current_president_seat)
+    g._action_nominate(pres, f"nominate_{nominee_seat}")
+    g._action_call_vote(pres, "call_vote")
+
+
+def test_call_vote_transitions_to_voting():
+    import random
+    random.seed(31)
+    g = _make_game(5)
+    g.on_start()
+    for p in g.players:
+        g._action_acknowledge_role(p, "acknowledge_role")
+    _nominate_and_call_vote(g, 1 if g.current_president_seat != 1 else 2)
+    assert g.phase == Phase.VOTING
+    assert g.votes == {}
+
+
+def test_votes_collected_until_all_alive_voted():
+    import random
+    random.seed(32)
+    g = _make_game(5)
+    g.on_start()
+    for p in g.players:
+        g._action_acknowledge_role(p, "acknowledge_role")
+    original_pres = g.current_president_seat
+    target = 1 if g.current_president_seat != 1 else 2
+    _nominate_and_call_vote(g, target)
+    alive = [p for p in g.players if p.is_alive]
+    for p in alive:
+        g._action_vote_ja(p, "vote_ja")
+    assert g.phase == Phase.PRES_LEGISLATION
+    assert g.last_elected_president_seat == original_pres
+    assert g.last_elected_chancellor_seat == target
+
+
+def test_failed_vote_advances_tracker_and_returns_to_nomination():
+    import random
+    random.seed(33)
+    g = _make_game(5)
+    g.on_start()
+    for p in g.players:
+        g._action_acknowledge_role(p, "acknowledge_role")
+    original_pres = g.current_president_seat
+    target = 1 if g.current_president_seat != 1 else 2
+    _nominate_and_call_vote(g, target)
+    for p in g.players:
+        g._action_vote_nein(p, "vote_nein")
+    assert g.phase == Phase.NOMINATION
+    assert g.election_tracker == 1
+    assert g.current_president_seat != original_pres
+    assert g.last_elected_president_seat is None
+    assert g.last_elected_chancellor_seat is None
